@@ -14,20 +14,20 @@ export function AboutView({ onNavigate }: AboutViewProps) {
     <section className="max-w-[1200px] mx-auto px-4 sm:px-6 pt-8 pb-16">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
         <div className="lg:col-span-6 space-y-5">
-          <p className="text-xs font-semibold tracking-wide text-amber-700">
-            About BEE4
+          <p className="text-xs font-semibold tracking-wide text-amber-700 dark:text-amber-400">
+            About BEE4 · bee4.in
           </p>
-          <h1 className="font-display text-3xl sm:text-4xl font-bold text-zinc-900 text-balance">
-            Built for thoughtful gifting and joyful everyday living in India.
+          <h1 className="font-display text-3xl sm:text-4xl font-bold text-zinc-900 dark:text-white text-balance">
+            East-Asian screen-free brain-training toys crafted for curious minds worldwide.
           </h1>
-          <p className="text-base text-zinc-600 leading-relaxed">
-            BEE4 brings together two worlds we love: smart, minimalist daily essentials like
-            insulated bottles, structured canvas bags, and tidy desk gear — alongside playful
-            3D-printed toys and handmade clay showpieces crafted by small Indian workshops.
+          <p className="text-base text-zinc-600 dark:text-zinc-300 leading-relaxed">
+            BEE4 brings Japan&apos;s Karakuri and Kumiki precision, Korea&apos;s spatial Gabe &amp;
+            Chilgyo math blocks, and China&apos;s binary-STEM logic boards to families across India,
+            the US, and the UK — small-batch 3D-printed using plant-derived Bio-PLA.
           </p>
-          <p className="text-base text-zinc-600 leading-relaxed">
-            Every product on our shelf is priced honestly between ₹199 and ₹999 so picking up a
-            birthday surprise, Diwali hamper, or desk upgrade never feels out of reach.
+          <p className="text-base text-zinc-600 dark:text-zinc-300 leading-relaxed">
+            Every mechanical toy is thoughtfully priced between ₹349 and ₹899 so parents worldwide
+            have an authentic, durable, zero-screen alternative to passive tablet time.
           </p>
 
           <div className="pt-2 flex flex-wrap gap-3">
@@ -36,24 +36,24 @@ export function AboutView({ onNavigate }: AboutViewProps) {
               onClick={() => onNavigate('shop')}
               className="px-6 py-3 rounded-xl glass-btn-amber text-white text-sm font-semibold transition-all"
             >
-              Browse the Catalog
+              Explore All 16 Toys
             </button>
             <button
               type="button"
               onClick={() => onNavigate('gifts')}
-              className="px-5 py-3 rounded-xl glass-btn-secondary text-zinc-900 text-sm font-semibold transition-all"
+              className="px-5 py-3 rounded-xl glass-btn-secondary text-zinc-900 dark:text-white text-sm font-semibold transition-all"
             >
-              Explore Gift Ideas
+              Browse Gift Picks
             </button>
           </div>
         </div>
 
         <div className="lg:col-span-6">
           <div className="p-2.5 rounded-3xl glass-surface">
-            <div className="aspect-[16/10] rounded-2xl overflow-hidden bg-white/40 border border-white/60">
+            <div className="aspect-[16/10] rounded-2xl overflow-hidden bg-white/40 dark:bg-slate-900/60 border border-white/60 dark:border-white/15">
               <ProductImage
                 src={HERO_IMAGE}
-                alt="BEE4 studio curation flat-lay"
+                alt="BEE4 custom 3D-printed East-Asian brain toys collection"
                 className="w-full h-full object-cover"
               />
             </div>
@@ -63,24 +63,30 @@ export function AboutView({ onNavigate }: AboutViewProps) {
 
       <div className="mt-14 grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="p-6 rounded-3xl glass-surface">
-          <h2 className="font-display text-lg font-bold text-zinc-900">Honest Everyday Pricing</h2>
-          <p className="mt-2 text-sm text-zinc-600 leading-relaxed">
-            Transparent ₹199–₹999 pricing with free pan-India shipping above ₹499 and zero hidden
-            handling fees.
+          <h2 className="font-display text-lg font-bold text-zinc-900 dark:text-white">
+            Custom 3D-Printed in India
+          </h2>
+          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300 leading-relaxed">
+            Each gear, dovetail track, and polycube is tuned and inspected in Bengaluru for crisp
+            mechanical tolerances between ₹349 and ₹899.
           </p>
         </div>
         <div className="p-6 rounded-3xl glass-surface">
-          <h2 className="font-display text-lg font-bold text-zinc-900">Curated Quality Checks</h2>
-          <p className="mt-2 text-sm text-zinc-600 leading-relaxed">
-            Every bottle seal, handbag stitch, 3D print finish, and terracotta piece is inspected
-            in Bengaluru before dispatch.
+          <h2 className="font-display text-lg font-bold text-zinc-900 dark:text-white">
+            Science-Backed Age Progression
+          </h2>
+          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300 leading-relaxed">
+            Structured across 4 developmental tiers (3–5, 6–8, 9–11, and 12–15 years) covering
+            Motor Skills, Engineering, Maths &amp; Science, and Imagination.
           </p>
         </div>
         <div className="p-6 rounded-3xl glass-surface">
-          <h2 className="font-display text-lg font-bold text-zinc-900">Gift-Ready Packaging</h2>
-          <p className="mt-2 text-sm text-zinc-600 leading-relaxed">
-            Plastic-minimal cushioning with optional kraft gift wrap and handwritten note cards for
-            birthdays and festivals.
+          <h2 className="font-display text-lg font-bold text-zinc-900 dark:text-white">
+            100% Screen-Free Engagement
+          </h2>
+          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300 leading-relaxed">
+            Zero batteries, zero notifications — real tactile gears, steel marbles, and hidden
+            mechanisms that keep kids absorbed for hours.
           </p>
         </div>
       </div>
@@ -132,36 +138,38 @@ export function ContactView({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
         <div className="lg:col-span-5 space-y-6">
           <div>
-            <p className="text-xs font-semibold tracking-wide text-amber-700">
+            <p className="text-xs font-semibold tracking-wide text-amber-700 dark:text-amber-400">
               Contact BEE4
             </p>
-            <h1 className="mt-2 font-display text-3xl font-bold text-zinc-900">
-              Questions, bulk gifting, or order help?
+            <h1 className="mt-2 font-display text-3xl font-bold text-zinc-900 dark:text-white">
+              Age recommendations, school STEM kits, or order help?
             </h1>
-            <p className="mt-3 text-sm text-zinc-600 leading-relaxed">
+            <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300 leading-relaxed">
               We reply within a few hours Monday to Saturday, 10 AM – 7 PM IST. Message us on
-              WhatsApp for instant gift suggestions or festival hamper customization.
+              WhatsApp for personalised toy suggestions by age or bulk return-gift inquiries.
             </p>
           </div>
 
           <div className="space-y-4 pt-2">
             <div className="p-4 rounded-2xl glass-subtle flex items-start gap-3">
               <div className="w-9 h-9 rounded-full glass-orb flex items-center justify-center shrink-0">
-                <MessageCircle className="w-4 h-4 text-emerald-700" />
+                <MessageCircle className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-zinc-900">WhatsApp Concierge</p>
-                <p className="text-xs text-zinc-600 tabular-nums mt-0.5">
+                <p className="text-sm font-semibold text-zinc-900 dark:text-white">
+                  WhatsApp Concierge
+                </p>
+                <p className="text-xs text-zinc-600 dark:text-zinc-300 tabular-nums mt-0.5">
                   {formatWhatsAppDisplay(whatsappNumber)}
                 </p>
                 <a
                   href={buildWhatsAppUrl(
-                    'Hi BEE4! I have a question about a product or bulk gift order.',
+                    'Hi BEE4! Please suggest an age-appropriate brain-training toy.',
                     whatsappNumber
                   )}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-1.5 inline-block text-xs font-semibold text-amber-700 hover:text-amber-800 underline underline-offset-4"
+                  className="mt-1.5 inline-block text-xs font-semibold text-amber-700 dark:text-amber-400 hover:underline underline-offset-4"
                 >
                   Chat on WhatsApp →
                 </a>
@@ -170,21 +178,23 @@ export function ContactView({
 
             <div className="p-4 rounded-2xl glass-subtle flex items-start gap-3">
               <div className="w-9 h-9 rounded-full glass-orb flex items-center justify-center shrink-0">
-                <Mail className="w-4 h-4 text-amber-700" />
+                <Mail className="w-4 h-4 text-amber-700 dark:text-amber-400" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-zinc-900">Email Support</p>
-                <p className="text-xs text-zinc-600 mt-0.5">{supportEmail}</p>
+                <p className="text-sm font-semibold text-zinc-900 dark:text-white">Email Support</p>
+                <p className="text-xs text-zinc-600 dark:text-zinc-300 mt-0.5">{supportEmail}</p>
               </div>
             </div>
 
             <div className="p-4 rounded-2xl glass-subtle flex items-start gap-3">
               <div className="w-9 h-9 rounded-full glass-orb flex items-center justify-center shrink-0">
-                <MapPin className="w-4 h-4 text-amber-700" />
+                <MapPin className="w-4 h-4 text-amber-700 dark:text-amber-400" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-zinc-900">Dispatch Studio</p>
-                <p className="text-xs text-zinc-600 mt-0.5">
+                <p className="text-sm font-semibold text-zinc-900 dark:text-white">
+                  3D Print &amp; Dispatch Studio
+                </p>
+                <p className="text-xs text-zinc-600 dark:text-zinc-300 mt-0.5">
                   Indiranagar 100 Feet Road, Bengaluru 560038
                 </p>
               </div>
@@ -195,9 +205,11 @@ export function ContactView({
         <div className="lg:col-span-7 glass-surface rounded-3xl p-6 sm:p-8">
           {sent ? (
             <div className="py-10 text-center space-y-3">
-              <CheckCircle2 className="w-10 h-10 text-emerald-700 mx-auto" />
-              <h2 className="font-display text-2xl font-bold text-zinc-900">Message Received</h2>
-              <p className="text-sm text-zinc-600 max-w-md mx-auto">
+              <CheckCircle2 className="w-10 h-10 text-emerald-700 dark:text-emerald-400 mx-auto" />
+              <h2 className="font-display text-2xl font-bold text-zinc-900 dark:text-white">
+                Message Received
+              </h2>
+              <p className="text-sm text-zinc-600 dark:text-zinc-300 max-w-md mx-auto">
                 Thanks {name}! Our team will get back to you at <strong>{contact}</strong> within 1
                 business day.
               </p>
@@ -209,14 +221,16 @@ export function ContactView({
                   setContact('');
                   setMessage('');
                 }}
-                className="mt-4 px-5 py-2.5 rounded-xl glass-btn-secondary text-zinc-900 text-sm font-semibold"
+                className="mt-4 px-5 py-2.5 rounded-xl glass-btn-secondary text-zinc-900 dark:text-white text-sm font-semibold"
               >
                 Send Another Inquiry
               </button>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
-              <h2 className="font-display text-xl font-bold text-zinc-900">Send Us a Note</h2>
+              <h2 className="font-display text-xl font-bold text-zinc-900 dark:text-white">
+                Send Us a Note
+              </h2>
 
               {error && (
                 <p className="p-3 rounded-xl bg-red-50/90 backdrop-blur-md border border-red-200 text-xs text-red-700">
@@ -226,7 +240,10 @@ export function ContactView({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="contact-name" className="block text-xs font-semibold text-zinc-700 mb-1.5">
+                  <label
+                    htmlFor="contact-name"
+                    className="block text-xs font-semibold text-zinc-700 dark:text-zinc-200 mb-1.5"
+                  >
                     Your Name *
                   </label>
                   <input
@@ -240,7 +257,10 @@ export function ContactView({
                 </div>
 
                 <div>
-                  <label htmlFor="contact-info" className="block text-xs font-semibold text-zinc-700 mb-1.5">
+                  <label
+                    htmlFor="contact-info"
+                    className="block text-xs font-semibold text-zinc-700 dark:text-zinc-200 mb-1.5"
+                  >
                     Phone or Email *
                   </label>
                   <input
@@ -255,7 +275,10 @@ export function ContactView({
               </div>
 
               <div>
-                <label htmlFor="contact-topic" className="block text-xs font-semibold text-zinc-700 mb-1.5">
+                <label
+                  htmlFor="contact-topic"
+                  className="block text-xs font-semibold text-zinc-700 dark:text-zinc-200 mb-1.5"
+                >
                   Topic
                 </label>
                 <select
@@ -265,13 +288,16 @@ export function ContactView({
                   className="w-full px-3.5 py-2.5 text-sm glass-input rounded-xl focus:outline-none"
                 >
                   <option value="Order Support">Order Support &amp; Tracking</option>
-                  <option value="Bulk / Festival Gifting">Bulk / Birthday / Festival Gifting</option>
-                  <option value="Product Question">Product Question</option>
+                  <option value="Bulk / School STEM Kit">Bulk / School STEM &amp; Return Gifts</option>
+                  <option value="Age Recommendation">Child Age Recommendation</option>
                 </select>
               </div>
 
               <div>
-                <label htmlFor="contact-message" className="block text-xs font-semibold text-zinc-700 mb-1.5">
+                <label
+                  htmlFor="contact-message"
+                  className="block text-xs font-semibold text-zinc-700 dark:text-zinc-200 mb-1.5"
+                >
                   Message *
                 </label>
                 <textarea
@@ -279,7 +305,7 @@ export function ContactView({
                   rows={4}
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  placeholder="Tell us what you're looking for..."
+                  placeholder="Share your child's age or school quantity inquiry..."
                   className="w-full px-3.5 py-2.5 text-sm glass-input rounded-xl focus:outline-none"
                 />
               </div>

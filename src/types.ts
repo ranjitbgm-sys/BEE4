@@ -1,12 +1,17 @@
 export enum ProductCategory {
-  ALL = 'All',
-  GIFTS = 'Gifts & Hampers',
-  BOTTLES = 'Bottles & Sippers',
-  HANDBAGS = 'Handbags',
-  TOYS_3D = '3D Toys',
-  HOME_DECOR = 'Home Decor',
-  DESK_UTILITY = 'Desk & Utility',
-  KITCHEN = 'Kitchen Tools',
+  ALL = 'All Skills',
+  ENGINEERING = 'Engineering',
+  MATHS_SCIENCE = 'Maths & Science',
+  MOTOR_SKILLS = 'Motor Skills',
+  IMAGINATION = 'Imagination',
+}
+
+export enum AgeGroup {
+  ALL = 'All Ages',
+  AGE_3_5 = '3–5 Years',
+  AGE_6_8 = '6–8 Years',
+  AGE_9_11 = '9–11 Years',
+  AGE_12_15 = '12–15 Years',
 }
 
 export enum GiftOccasion {
@@ -17,6 +22,8 @@ export enum GiftOccasion {
   DESK_COLLEGE = 'Desk & College',
   EVERYDAY = 'Everyday Use',
 }
+
+export type ThemeMode = 'daylight' | 'aurora';
 
 export type SortOption = 'featured' | 'price-asc' | 'price-desc';
 
@@ -33,17 +40,31 @@ export type StorePage =
   | 'account'
   | 'manager';
 
+export interface ProductAngle {
+  id: 'front' | 'mechanism' | 'scale';
+  label: string;
+  shortLabel: string;
+  url: string;
+  objectPosition?: string;
+}
+
 export interface Product {
   id: string;
   title: string;
   category: Exclude<ProductCategory, ProductCategory.ALL>;
+  ageGroup: Exclude<AgeGroup, AgeGroup.ALL>;
+  originConcept: string;
   occasion: Exclude<GiftOccasion, GiftOccasion.ALL>;
   price: number;
   compareAtPrice?: number;
   image: string;
+  gallery: [ProductAngle, ProductAngle, ProductAngle];
   variants: string[];
   shortSpec: string;
   description: string;
+  useCaseHi: string;
+  brainBenefitsHi: string;
+  whyParentsBuyHi: string;
   materials: string;
   dimensions: string;
   inStock: boolean;
@@ -195,4 +216,19 @@ export interface SavedAddressErrors {
   pinCode?: string;
 }
 
+export interface OrderNotificationChannelResult {
+  channel: 'sms' | 'email';
+  target: string;
+  status: 'sent' | 'preview' | 'failed';
+  provider: string;
+  detail: string;
+  previewText: string;
+  invoiceFilename?: string;
+}
 
+export interface OrderNotificationDispatchResult {
+  orderNumber: string;
+  dispatchedAt: string;
+  sms: OrderNotificationChannelResult;
+  email: OrderNotificationChannelResult;
+}

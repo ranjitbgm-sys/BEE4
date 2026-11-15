@@ -3,7 +3,32 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { auth } from './firebase';
+import {
+  addTestimonialToFirestore,
+  createOrderInFirestore,
+  deleteProductFromFirestore,
+  ensureFirebaseCustomerProfile,
+  isVerifiedGoogleAdmin,
+  saveProductToFirestore,
+  saveStoreSettingsToFirestore,
+  seedCatalogIfEmptyAsAdmin,
+  signInWithGoogle,
+  signOutFromFirebase,
+  submitInquiryToFirestore,
+  subscribeAllInquiriesAdmin,
+  subscribeAllOrdersAdmin,
+  subscribePublicProducts,
+  subscribePublicSettings,
+  subscribePublicTestimonials,
+  subscribeUserOrders,
+  syncUserAddressesToFirestore,
+  toggleInquiryStatusInFirestore,
+  updateOrderStatusInFirestore,
+  updateUserPrivateProfileInFirestore,
+} from './services/firestoreService';
 import {
   DEFAULT_STORE_SETTINGS,
   INITIAL_CUSTOMERS,
@@ -13,6 +38,7 @@ import {
   INITIAL_TESTIMONIALS,
 } from './data/catalog';
 import {
+  AgeGroup,
   CartItem,
   CustomerInquiry,
   CustomerProfile,
@@ -26,6 +52,7 @@ import {
   StorePage,
   StoreSettings,
   Testimonial,
+  ThemeMode,
 } from './types';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
@@ -34,6 +61,7 @@ import { HomeView } from './components/HomeView';
 import { ShopView } from './components/ShopView';
 import { GiftIdeasView } from './components/GiftIdeasView';
 import { ProductDetailView } from './components/ProductDetailView';
+import { ProductQuickViewModal } from './components/ProductQuickViewModal';
 import { CheckoutView } from './components/CheckoutView';
 import { AboutView, ContactView } from './components/AboutContactView';
 import { AdminPanelView } from './components/AdminPanelView';
@@ -41,19 +69,28 @@ import { AdminAuthGate } from './components/AdminAuthGate';
 import { CustomerAccountView } from './components/CustomerAccountView';
 import { WhatsAppWidget } from './components/WhatsAppWidget';
 import { resolveExpectedAdminHash } from './utils/adminAuth';
+import { applyDocumentSeoMetadata, resolvePageSeoMetadata } from './utils/seoMeta';
 import { hydrateCustomersWithStarterHashes } from './utils/storeLogic';
 
-const STORAGE_PRODUCTS_KEY = 'bee4_products_v1';
+const STORAGE_PRODUCTS_KEY = 'bee4_products_v3';
 const STORAGE_CART_KEY = 'bee4_cart_v1';
-const STORAGE_ORDERS_KEY = 'bee4_orders_v2';
+const STORAGE_ORDERS_KEY = 'bee4_orders_v3';
 const STORAGE_INQUIRIES_KEY = 'bee4_inquiries_v1';
-const STORAGE_SETTINGS_KEY = 'bee4_settings_v1';
-const STORAGE_TESTIMONIALS_KEY = 'bee4_testimonials_v1';
-const STORAGE_CUSTOMERS_KEY = 'bee4_customers_v1';
+const STORAGE_SETTINGS_KEY = 'bee4_settings_v3';
+const STORAGE_TESTIMONIALS_KEY = 'bee4_testimonials_v2';
+const STORAGE_CUSTOMERS_KEY = 'bee4_customers_v2';
 const STORAGE_CURRENT_CUSTOMER_ID_KEY = 'bee4_current_customer_id_v1';
 const STORAGE_GUEST_WISHLIST_KEY = 'bee4_guest_wishlist_v1';
 const STORAGE_ADMIN_PASS_HASH_KEY = 'bee4_admin_pass_hash_v1';
+const STORAGE_THEME_KEY = 'bee4_theme_v1';
 const SESSION_ADMIN_TOKEN_KEY = 'bee4_admin_session_v1';
+
+const VALID_CATEGORIES = new Set<string>([
+  ProductCategory.ENGINEERING,
+  ProductCategory.MATHS_SCIENCE,
+  ProductCategory.MOTOR_SKILLS,
+  ProductCategory.IMAGINATION,
+]);
 
 function loadStoredJson<T>(key: string, fallback: T): T {
   try {
@@ -66,9 +103,27 @@ function loadStoredJson<T>(key: string, fallback: T): T {
 }
 
 export default function App() {
-  const [products, setProducts] = useState<Product[]>(() =>
-    loadStoredJson<Product[]>(STORAGE_PRODUCTS_KEY, INITIAL_PRODUCTS)
-  );
+  const [products, setProducts] = useState<Product[]>(() => {
+    const stored = loadStoredJson<Product[]>(STORAGE_PRODUCTS_KEY, INITIAL_PRODUCTS);
+    if (!Array.isArray(stored) || stored.length === 0) return INITIAL_PRODUCTS;
+    const valid = stored.filter(
+      (p) =>
+        p &&
+        typeof p.id === 'string' &&
+        VALID_CATEGORIES.has(p.category) &&
+        Array.isArray(p.gallery) &&
+        p.gallery.length === 3
+    );
+    return valid.length > 0 ? valid : INITIAL_PRODUCTS;
+  });
+  const [theme, setTheme] = useState<ThemeMode>(() => {
+    try {
+      const saved = window.localStorage.getItem(STORAGE_THEME_KEY);
+      return saved === 'aurora' ? 'aurora' : 'daylight';
+    } catch {
+      return 'daylight';
+    }
+  });
   const [cart, setCart] = useState<CartItem[]>(() =>
     loadStoredJson<CartItem[]>(STORAGE_CART_KEY, [])
   );
@@ -114,6 +169,13 @@ export default function App() {
   });
   const isAdminAuthenticated = adminSessionToken === expectedAdminHash;
 
+  const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
+  const [firebaseAuthReady, setFirebaseAuthReady] = useState(false);
+  const [firebaseCustomer, setFirebaseCustomer] = useState<CustomerProfile | null>(null);
+  const isFirebaseAdmin = isVerifiedGoogleAdmin(firebaseUser);
+  const guestWishlistRef = useRef<string[]>(guestWishlistIds);
+  guestWishlistRef.current = guestWishlistIds;
+
   const [activePage, setActivePage] = useState<StorePage>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -124,7 +186,114 @@ export default function App() {
     return 'home';
   });
   const [selectedProductId, setSelectedProductId] = useState<string>(INITIAL_PRODUCTS[0].id);
+  const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
+
+  // Sync Daylight / Dark Aurora theme class & persistence
+  useEffect(() => {
+    try {
+      document.documentElement.classList.toggle('dark', theme === 'aurora');
+      window.localStorage.setItem(STORAGE_THEME_KEY, theme);
+    } catch {
+      // Ignore storage errors
+    }
+  }, [theme]);
+
+  // Track Firebase Authentication readiness
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
+      setFirebaseUser(fbUser);
+      setFirebaseAuthReady(true);
+      if (!fbUser) {
+        setFirebaseCustomer(null);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Public Firestore listeners for catalog, store settings, and testimonials
+  useEffect(() => {
+    const unsubProducts = subscribePublicProducts((cloudProducts) => {
+      setProducts(cloudProducts);
+    });
+    const unsubSettings = subscribePublicSettings((cloudSettings) => {
+      setSettings(cloudSettings);
+    });
+    const unsubTestimonials = subscribePublicTestimonials((cloudTestimonials) => {
+      setTestimonials(cloudTestimonials);
+    });
+    return () => {
+      unsubProducts();
+      unsubSettings();
+      unsubTestimonials();
+    };
+  }, []);
+
+  // Authenticated user profile + orders sync (only after auth is ready)
+  useEffect(() => {
+    if (!firebaseAuthReady || !firebaseUser) return;
+
+    let cancelled = false;
+    void ensureFirebaseCustomerProfile(firebaseUser, guestWishlistRef.current)
+      .then(({ profile }) => {
+        if (cancelled) return;
+        setFirebaseCustomer(profile);
+        if (guestWishlistRef.current.length > 0) {
+          setGuestWishlistIds([]);
+        }
+      })
+      .catch((err) => {
+        console.error(err);
+      });
+
+    const unsubUserOrders = subscribeUserOrders(firebaseUser.uid, (cloudOrders) => {
+      setOrders((prev) => {
+        const cloudIds = new Set(cloudOrders.map((o) => o.orderNumber));
+        const localRemaining = prev.filter((o) => !cloudIds.has(o.orderNumber));
+        return [...cloudOrders, ...localRemaining];
+      });
+    });
+
+    return () => {
+      cancelled = true;
+      unsubUserOrders();
+    };
+  }, [firebaseAuthReady, firebaseUser]);
+
+  // Verified Admin Firestore sync (orders, inquiries, initial seed)
+  useEffect(() => {
+    if (!firebaseAuthReady || !firebaseUser || !isFirebaseAdmin) return;
+
+    void seedCatalogIfEmptyAsAdmin(
+      firebaseUser.uid,
+      INITIAL_PRODUCTS,
+      DEFAULT_STORE_SETTINGS,
+      INITIAL_TESTIMONIALS
+    ).catch((err) => {
+      console.error(err);
+    });
+
+    const unsubAdminOrders = subscribeAllOrdersAdmin((cloudOrders) => {
+      setOrders((prev) => {
+        const cloudIds = new Set(cloudOrders.map((o) => o.orderNumber));
+        const localOnly = prev.filter((o) => !cloudIds.has(o.orderNumber));
+        return [...cloudOrders, ...localOnly];
+      });
+    });
+
+    const unsubAdminInquiries = subscribeAllInquiriesAdmin((cloudInquiries) => {
+      setInquiries((prev) => {
+        const cloudIds = new Set(cloudInquiries.map((i) => i.id));
+        const localOnly = prev.filter((i) => !cloudIds.has(i.id));
+        return [...cloudInquiries, ...localOnly];
+      });
+    });
+
+    return () => {
+      unsubAdminOrders();
+      unsubAdminInquiries();
+    };
+  }, [firebaseAuthReady, firebaseUser, isFirebaseAdmin]);
 
   useEffect(() => {
     const syncAdminHash = () => {
@@ -141,6 +310,7 @@ export default function App() {
 
   // Shop filter state
   const [shopCategory, setShopCategory] = useState<ProductCategory>(ProductCategory.ALL);
+  const [shopAgeGroup, setShopAgeGroup] = useState<AgeGroup>(AgeGroup.ALL);
   const [shopOccasion, setShopOccasion] = useState<GiftOccasion>(GiftOccasion.ALL);
   const [shopSearch, setShopSearch] = useState('');
   const [shopMaxPrice, setShopMaxPrice] = useState<number | null>(null);
@@ -350,6 +520,9 @@ export default function App() {
   const handleOrderComplete = (order: OrderRecord) => {
     setOrders((prev) => [order, ...prev]);
     setCart([]);
+    if (firebaseUser) {
+      void createOrderInFirestore(firebaseUser.uid, order).catch((err) => console.error(err));
+    }
   };
 
   const handleSaveProduct = (saved: Product) => {
@@ -360,26 +533,57 @@ export default function App() {
       }
       return [saved, ...prev];
     });
+    if (isFirebaseAdmin) {
+      void saveProductToFirestore(saved).catch((err) => console.error(err));
+    }
   };
 
   const handleToggleProductStock = (productId: string) => {
+    let toggled: Product | undefined;
     setProducts((prev) =>
-      prev.map((p) => (p.id === productId ? { ...p, inStock: !p.inStock } : p))
+      prev.map((p) => {
+        if (p.id === productId) {
+          toggled = { ...p, inStock: !p.inStock };
+          return toggled;
+        }
+        return p;
+      })
     );
+    if (isFirebaseAdmin && toggled) {
+      void saveProductToFirestore(toggled).catch((err) => console.error(err));
+    }
   };
 
   const handleDeleteProduct = (productId: string) => {
     setProducts((prev) => prev.filter((p) => p.id !== productId));
+    if (isFirebaseAdmin) {
+      void deleteProductFromFirestore(productId).catch((err) => console.error(err));
+    }
   };
 
   const handleResetCatalog = () => {
     setProducts(INITIAL_PRODUCTS);
+    if (isFirebaseAdmin && firebaseUser) {
+      void Promise.all(INITIAL_PRODUCTS.map((p) => saveProductToFirestore(p))).catch((err) =>
+        console.error(err)
+      );
+    }
+  };
+
+  const handleUpdateSettings = (next: StoreSettings) => {
+    setSettings(next);
+    if (isFirebaseAdmin) {
+      void saveStoreSettingsToFirestore(next).catch((err) => console.error(err));
+    }
   };
 
   const handleUpdateOrderStatus = (orderNumber: string, status: OrderStatus) => {
     setOrders((prev) =>
       prev.map((order) => (order.orderNumber === orderNumber ? { ...order, status } : order))
     );
+    if (firebaseUser) {
+      void updateOrderStatusInFirestore(orderNumber, status).catch((err) => console.error(err));
+    }
   };
 
   const handleSubmitInquiry = (inquiry: {
@@ -395,23 +599,56 @@ export default function App() {
       status: 'New',
     };
     setInquiries((prev) => [newRecord, ...prev]);
+    if (firebaseUser) {
+      void submitInquiryToFirestore(firebaseUser.uid, newRecord).catch((err) =>
+        console.error(err)
+      );
+    }
   };
 
   const handleToggleInquiryStatus = (id: string) => {
+    let nextStatus: 'New' | 'Resolved' = 'Resolved';
     setInquiries((prev) =>
-      prev.map((inq) =>
-        inq.id === id ? { ...inq, status: inq.status === 'New' ? 'Resolved' : 'New' } : inq
-      )
+      prev.map((inq) => {
+        if (inq.id === id) {
+          nextStatus = inq.status === 'New' ? 'Resolved' : 'New';
+          return { ...inq, status: nextStatus };
+        }
+        return inq;
+      })
     );
+    if (isFirebaseAdmin) {
+      void toggleInquiryStatusInFirestore(id, nextStatus).catch((err) => console.error(err));
+    }
   };
 
   const handleAddTestimonial = (testimonial: Testimonial) => {
     setTestimonials((prev) => [testimonial, ...prev]);
+    if (firebaseUser) {
+      void addTestimonialToFirestore(firebaseUser.uid, testimonial).catch((err) =>
+        console.error(err)
+      );
+    }
   };
 
-  const currentCustomer =
+  const localCustomer =
     customers.find((c) => c.id === currentCustomerId && Boolean(c.passwordHash)) ?? null;
+  const currentCustomer = firebaseUser ? firebaseCustomer : localCustomer;
   const activeWishlistIds = currentCustomer ? currentCustomer.wishlistIds : guestWishlistIds;
+
+  const handleGoogleSignIn = async () => {
+    const fbUser = await signInWithGoogle();
+    const { profile } = await ensureFirebaseCustomerProfile(fbUser, guestWishlistRef.current);
+    setFirebaseCustomer(profile);
+    if (guestWishlistRef.current.length > 0) {
+      setGuestWishlistIds([]);
+    }
+  };
+
+  const handleSyncCatalogToCloud = async () => {
+    if (!firebaseUser || !isFirebaseAdmin) return;
+    await seedCatalogIfEmptyAsAdmin(firebaseUser.uid, products, settings, testimonials);
+  };
 
   const handleCustomerSignUp = (newCustomer: CustomerProfile) => {
     setCustomers((prev) => [newCustomer, ...prev]);
@@ -435,9 +672,28 @@ export default function App() {
 
   const handleCustomerSignOut = () => {
     setCurrentCustomerId(null);
+    setFirebaseCustomer(null);
+    if (firebaseUser) {
+      void signOutFromFirebase().catch((err) => console.error(err));
+    }
   };
 
   const handleUpdateCustomer = (updated: CustomerProfile) => {
+    if (firebaseUser && updated.id === firebaseUser.uid) {
+      const prevAddresses = firebaseCustomer?.addresses ?? [];
+      setFirebaseCustomer(updated);
+      void updateUserPrivateProfileInFirestore(firebaseUser.uid, updated).catch((err) =>
+        console.error(err)
+      );
+      if (prevAddresses !== updated.addresses) {
+        void syncUserAddressesToFirestore(
+          firebaseUser.uid,
+          prevAddresses,
+          updated.addresses
+        ).catch((err) => console.error(err));
+      }
+      return;
+    }
     setCustomers((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
   };
 
@@ -502,10 +758,15 @@ export default function App() {
 
   const handleResetShopFilters = () => {
     setShopCategory(ProductCategory.ALL);
+    setShopAgeGroup(AgeGroup.ALL);
     setShopOccasion(GiftOccasion.ALL);
     setShopSearch('');
     setShopMaxPrice(null);
     setShopSortBy('featured');
+  };
+
+  const handleToggleTheme = () => {
+    setTheme((prev) => (prev === 'daylight' ? 'aurora' : 'daylight'));
   };
 
   const totalCartItems = cart.reduce((sum, item) => sum + item.quantity, 0);
@@ -515,15 +776,28 @@ export default function App() {
     .filter(
       (p) =>
         p.id !== activeProduct.id &&
-        (p.category === activeProduct.category || p.occasion === activeProduct.occasion)
+        (p.ageGroup === activeProduct.ageGroup || p.category === activeProduct.category)
     )
     .slice(0, 3);
   const customerFirstName = currentCustomer
     ? currentCustomer.fullName.trim().split(/\s+/)[0]
     : null;
 
+  useEffect(() => {
+    const seoMeta = resolvePageSeoMetadata({
+      page: activePage,
+      activeProduct,
+      quickViewProduct,
+      shopCategory,
+      shopAgeGroup,
+      origin: window.location.origin,
+      pathname: window.location.pathname,
+    });
+    applyDocumentSeoMetadata(seoMeta);
+  }, [activePage, activeProduct, quickViewProduct, shopCategory, shopAgeGroup]);
+
   return (
-    <div className="relative isolate min-h-screen flex flex-col text-zinc-900 overflow-x-clip">
+    <div className="relative isolate min-h-screen flex flex-col text-zinc-900 dark:text-zinc-100 overflow-x-clip">
       {/* iOS 27 Ambient Frosted Bokeh & Soft Glass Bubble Backdrop */}
       <div
         aria-hidden="true"
@@ -547,6 +821,8 @@ export default function App() {
         cartCount={totalCartItems}
         announcementText={settings.announcementText}
         customerFirstName={customerFirstName}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
         onNavigate={navigateTo}
         onOpenCart={() => setIsCartOpen(true)}
       />
@@ -559,6 +835,7 @@ export default function App() {
             wishlistIds={activeWishlistIds}
             onNavigate={navigateTo}
             onSelectProduct={handleSelectProduct}
+            onQuickView={setQuickViewProduct}
             onQuickAdd={handleQuickAdd}
             onToggleWishlist={handleToggleWishlist}
             onBrowseOccasion={(occ) => {
@@ -574,17 +851,20 @@ export default function App() {
             products={products}
             wishlistIds={activeWishlistIds}
             category={shopCategory}
+            ageGroup={shopAgeGroup}
             occasion={shopOccasion}
             search={shopSearch}
             maxPrice={shopMaxPrice}
             sortBy={shopSortBy}
             onChangeCategory={setShopCategory}
+            onChangeAgeGroup={setShopAgeGroup}
             onChangeOccasion={setShopOccasion}
             onChangeSearch={setShopSearch}
             onChangeMaxPrice={setShopMaxPrice}
             onChangeSortBy={setShopSortBy}
             onResetFilters={handleResetShopFilters}
             onSelectProduct={handleSelectProduct}
+            onQuickView={setQuickViewProduct}
             onQuickAdd={handleQuickAdd}
             onToggleWishlist={handleToggleWishlist}
           />
@@ -596,6 +876,7 @@ export default function App() {
             wishlistIds={activeWishlistIds}
             initialOccasion={giftFinderOccasion}
             onSelectProduct={handleSelectProduct}
+            onQuickView={setQuickViewProduct}
             onQuickAdd={handleQuickAdd}
             onToggleWishlist={handleToggleWishlist}
           />
@@ -610,6 +891,7 @@ export default function App() {
             whatsappNumber={settings.whatsappNumber}
             onBackToShop={() => navigateTo('shop')}
             onSelectProduct={handleSelectProduct}
+            onQuickView={setQuickViewProduct}
             onAddToCart={handleAddToCart}
             onBuyNow={handleBuyNow}
             onToggleWishlist={handleToggleWishlist}
@@ -642,6 +924,8 @@ export default function App() {
             guestWishlistIds={guestWishlistIds}
             whatsappNumber={settings.whatsappNumber}
             supportEmail={settings.supportEmail}
+            firebaseUserEmail={firebaseUser?.email ?? null}
+            onGoogleSignIn={handleGoogleSignIn}
             onSignIn={handleCustomerSignIn}
             onSignUp={handleCustomerSignUp}
             onSignOut={handleCustomerSignOut}
@@ -673,7 +957,11 @@ export default function App() {
               inquiries={inquiries}
               settings={settings}
               adminPasswordHash={expectedAdminHash}
-              onUpdateSettings={setSettings}
+              firebaseAdminEmail={isFirebaseAdmin ? firebaseUser?.email ?? null : null}
+              firebaseSignedInEmail={firebaseUser?.email ?? null}
+              onConnectGoogleAdmin={handleGoogleSignIn}
+              onSyncCatalogToCloud={handleSyncCatalogToCloud}
+              onUpdateSettings={handleUpdateSettings}
               onSaveProduct={handleSaveProduct}
               onToggleProductStock={handleToggleProductStock}
               onDeleteProduct={handleDeleteProduct}
@@ -720,6 +1008,22 @@ export default function App() {
         onProceedToCheckout={() => navigateTo('checkout')}
         onBrowseShop={() => navigateTo('shop')}
       />
+
+      {quickViewProduct && (
+        <ProductQuickViewModal
+          product={quickViewProduct}
+          isWishlisted={activeWishlistIds.includes(quickViewProduct.id)}
+          whatsappNumber={settings.whatsappNumber}
+          onClose={() => setQuickViewProduct(null)}
+          onAddToCart={handleAddToCart}
+          onBuyNow={handleBuyNow}
+          onToggleWishlist={handleToggleWishlist}
+          onOpenFullPage={(productId) => {
+            setQuickViewProduct(null);
+            handleSelectProduct(productId);
+          }}
+        />
+      )}
     </div>
   );
 }

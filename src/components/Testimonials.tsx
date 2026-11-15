@@ -19,7 +19,7 @@ export function Testimonials({
   products,
   onAddTestimonial,
 }: TestimonialsProps) {
-  const defaultProduct = products[0]?.title ?? 'BEE4 Curated Find';
+  const defaultProduct = products[0]?.title ?? 'BEE4 Brain-Training Toy';
 
   const [customerName, setCustomerName] = useState('');
   const [cityOrRole, setCityOrRole] = useState('');
@@ -74,20 +74,20 @@ export function Testimonials({
     >
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
         <div>
-          <p className="text-xs font-semibold tracking-wide text-zinc-500">
-            Customer Feedback
+          <p className="text-xs font-semibold tracking-wide text-zinc-500 dark:text-zinc-400">
+            Parent &amp; Educator Feedback
           </p>
           <h2
             id="testimonials-heading"
-            className="mt-1.5 font-display text-2xl sm:text-3xl font-bold text-zinc-900"
+            className="mt-1.5 font-display text-2xl sm:text-3xl font-bold text-zinc-900 dark:text-white"
           >
-            Trusted by Indian Shoppers &amp; Gift Buyers
+            Trusted by Parents &amp; Educators Worldwide
           </h2>
         </div>
 
-        <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-2xl glass-subtle text-sm text-zinc-700 tabular-nums">
+        <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-2xl glass-subtle text-sm text-zinc-700 dark:text-zinc-200 tabular-nums">
           <Star className="w-4 h-4 fill-amber-500 text-amber-500 shrink-0" aria-hidden="true" />
-          <span className="font-semibold text-zinc-900">
+          <span className="font-semibold text-zinc-900 dark:text-white">
             {summary.averageRating.toFixed(1)} / 5
           </span>
           <span className="text-zinc-400" aria-hidden="true">
@@ -103,14 +103,15 @@ export function Testimonials({
         {/* Customer Reviews List */}
         <div className="lg:col-span-7 space-y-4">
           {testimonials.length === 0 ? (
-            <div className="p-8 rounded-3xl glass-surface text-sm text-zinc-600">
-              No customer reviews yet. Be the first to share your experience with BEE4.
+            <div className="p-8 rounded-3xl glass-surface text-sm text-zinc-600 dark:text-zinc-300">
+              No reviews yet. Be the first parent to share how your child responded to a screen-free
+              BEE4 toy.
             </div>
           ) : (
             testimonials.map((item) => (
               <article
                 key={item.id}
-                className="p-5 sm:p-6 rounded-2xl glass-surface transition-all duration-300 hover:bg-white/68"
+                className="p-5 sm:p-6 rounded-2xl glass-surface transition-all duration-300"
               >
                 <div className="flex items-center justify-between gap-4 mb-3">
                   <div
@@ -123,23 +124,25 @@ export function Testimonials({
                         className={`w-4 h-4 ${
                           star <= item.rating
                             ? 'fill-amber-500 text-amber-500'
-                            : 'text-zinc-300'
+                            : 'text-zinc-300 dark:text-zinc-600'
                         }`}
                         aria-hidden="true"
                       />
                     ))}
                   </div>
-                  <span className="text-xs font-medium text-zinc-500 tabular-nums">
+                  <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 tabular-nums">
                     {item.rating}.0 / 5
                   </span>
                 </div>
 
-                <p className="text-sm sm:text-base text-zinc-800 leading-relaxed">
+                <p className="text-sm sm:text-base text-zinc-800 dark:text-zinc-200 leading-relaxed">
                   &ldquo;{item.feedback}&rdquo;
                 </p>
 
-                <div className="mt-4 pt-3 border-t border-zinc-900/8 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-600">
-                  <span className="font-semibold text-zinc-900">{item.customerName}</span>
+                <div className="mt-4 pt-3 border-t border-zinc-900/8 dark:border-white/10 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-600 dark:text-zinc-300">
+                  <span className="font-semibold text-zinc-900 dark:text-white">
+                    {item.customerName}
+                  </span>
                   <span className="text-zinc-400" aria-hidden="true">
                     ·
                   </span>
@@ -147,7 +150,9 @@ export function Testimonials({
                   <span className="text-zinc-400" aria-hidden="true">
                     ·
                   </span>
-                  <span className="text-amber-700 font-medium">{item.productName}</span>
+                  <span className="text-amber-700 dark:text-amber-400 font-medium">
+                    {item.productName}
+                  </span>
                 </div>
               </article>
             ))
@@ -162,23 +167,26 @@ export function Testimonials({
         >
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-full glass-orb flex items-center justify-center shrink-0">
-              <MessageSquarePlus className="w-4 h-4 text-amber-700" aria-hidden="true" />
+              <MessageSquarePlus
+                className="w-4 h-4 text-amber-700 dark:text-amber-400"
+                aria-hidden="true"
+              />
             </div>
-            <h3 className="font-display text-lg font-bold text-zinc-900">
-              Share Your Feedback
+            <h3 className="font-display text-lg font-bold text-zinc-900 dark:text-white">
+              Share Parent Feedback
             </h3>
           </div>
-          <p className="text-xs text-zinc-600 leading-relaxed">
-            Bought a gift box, bottle, handbag, or desk find from BEE4? Tell fellow shoppers how
-            it turned out.
+          <p className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed">
+            Did our Japanese, Korean or Chinese 3D-printed kit cut down mobile screen time at home?
+            Tell fellow parents!
           </p>
 
           {submittedNotice && (
             <div
               role="status"
-              className="p-3 rounded-xl bg-emerald-50/85 backdrop-blur-md border border-emerald-200/80 text-xs text-emerald-800 font-medium"
+              className="p-3 rounded-xl bg-emerald-50/85 dark:bg-emerald-950/70 backdrop-blur-md border border-emerald-200/80 dark:border-emerald-500/30 text-xs text-emerald-800 dark:text-emerald-200 font-medium"
             >
-              Thank you for sharing your review. It is now live in the customer showcase.
+              Thank you for sharing your review. It is now live in the parent showcase.
             </div>
           )}
 
@@ -186,7 +194,7 @@ export function Testimonials({
             <div>
               <label
                 htmlFor="testimonial-name"
-                className="block text-xs font-medium text-zinc-700 mb-1"
+                className="block text-xs font-medium text-zinc-700 dark:text-zinc-200 mb-1"
               >
                 Your Name *
               </label>
@@ -199,19 +207,19 @@ export function Testimonials({
                   if (errors.customerName) setErrors({ ...errors, customerName: undefined });
                 }}
                 placeholder="e.g. Kavya Menon"
-                className="w-full h-11 px-3 rounded-xl glass-input text-sm text-zinc-900 focus:outline-none"
+                className="w-full h-11 px-3 rounded-xl glass-input text-sm focus:outline-none"
               />
               {errors.customerName && (
-                <p className="mt-1 text-xs text-red-600">{errors.customerName}</p>
+                <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.customerName}</p>
               )}
             </div>
 
             <div>
               <label
                 htmlFor="testimonial-city"
-                className="block text-xs font-medium text-zinc-700 mb-1"
+                className="block text-xs font-medium text-zinc-700 dark:text-zinc-200 mb-1"
               >
-                City or Role *
+                Child&apos;s Age &amp; City *
               </label>
               <input
                 id="testimonial-city"
@@ -221,11 +229,11 @@ export function Testimonials({
                   setCityOrRole(e.target.value);
                   if (errors.cityOrRole) setErrors({ ...errors, cityOrRole: undefined });
                 }}
-                placeholder="e.g. Gift Buyer · Kochi"
-                className="w-full h-11 px-3 rounded-xl glass-input text-sm text-zinc-900 focus:outline-none"
+                placeholder="e.g. Mother of 8-yr-old · Pune"
+                className="w-full h-11 px-3 rounded-xl glass-input text-sm focus:outline-none"
               />
               {errors.cityOrRole && (
-                <p className="mt-1 text-xs text-red-600">{errors.cityOrRole}</p>
+                <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.cityOrRole}</p>
               )}
             </div>
           </div>
@@ -233,27 +241,26 @@ export function Testimonials({
           <div>
             <label
               htmlFor="testimonial-product"
-              className="block text-xs font-medium text-zinc-700 mb-1"
+              className="block text-xs font-medium text-zinc-700 dark:text-zinc-200 mb-1"
             >
-              Product Purchased
+              Toy Purchased
             </label>
             <select
               id="testimonial-product"
               value={productName}
               onChange={(e) => setProductName(e.target.value)}
-              className="w-full h-11 px-3 rounded-xl glass-input text-sm text-zinc-900 focus:outline-none"
+              className="w-full h-11 px-3 rounded-xl glass-input text-sm focus:outline-none"
             >
               {products.map((product) => (
                 <option key={product.id} value={product.title}>
                   {product.title}
                 </option>
               ))}
-              <option value="BEE4 Curated Gift Order">BEE4 Curated Gift Order</option>
             </select>
           </div>
 
           <div>
-            <span className="block text-xs font-medium text-zinc-700 mb-1.5">
+            <span className="block text-xs font-medium text-zinc-700 dark:text-zinc-200 mb-1.5">
               Your Rating
             </span>
             <div className="flex items-center gap-1.5" role="group" aria-label="Select star rating">
@@ -270,13 +277,15 @@ export function Testimonials({
                   >
                     <Star
                       className={`w-5 h-5 ${
-                        selected ? 'fill-amber-500 text-amber-500' : 'text-zinc-300'
+                        selected
+                          ? 'fill-amber-500 text-amber-500'
+                          : 'text-zinc-300 dark:text-zinc-600'
                       }`}
                     />
                   </button>
                 );
               })}
-              <span className="ml-2 text-xs font-semibold text-zinc-700 tabular-nums">
+              <span className="ml-2 text-xs font-semibold text-zinc-700 dark:text-zinc-200 tabular-nums">
                 {rating}.0 / 5
               </span>
             </div>
@@ -285,7 +294,7 @@ export function Testimonials({
           <div>
             <label
               htmlFor="testimonial-feedback"
-              className="block text-xs font-medium text-zinc-700 mb-1"
+              className="block text-xs font-medium text-zinc-700 dark:text-zinc-200 mb-1"
             >
               Your Review *
             </label>
@@ -297,17 +306,17 @@ export function Testimonials({
                 setFeedback(e.target.value);
                 if (errors.feedback) setErrors({ ...errors, feedback: undefined });
               }}
-              placeholder="Share what you liked about the build quality, packaging, or gifting experience..."
-              className="w-full p-3 rounded-xl glass-input text-sm text-zinc-900 focus:outline-none"
+              placeholder="Share how your child liked the mechanism, build finish, or screen-free engagement..."
+              className="w-full p-3 rounded-xl glass-input text-sm focus:outline-none"
             />
             {errors.feedback && (
-              <p className="mt-1 text-xs text-red-600">{errors.feedback}</p>
+              <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.feedback}</p>
             )}
           </div>
 
           <button
             type="submit"
-            className="w-full h-11 rounded-xl glass-btn-ink text-white text-sm font-semibold transition-all"
+            className="w-full h-11 rounded-xl glass-btn-ink text-sm font-semibold transition-all"
           >
             Post Feedback
           </button>

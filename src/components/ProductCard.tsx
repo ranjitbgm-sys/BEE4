@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Check, Heart, Plus } from 'lucide-react';
+import { AGE_GROUP_META } from '../data/catalog';
 import { Product } from '../types';
 import { formatINR } from '../utils/storeLogic';
 import { ProductImage } from './ProductImage';
@@ -8,6 +9,7 @@ interface ProductCardProps {
   product: Product;
   isWishlisted?: boolean;
   onSelectProduct: (productId: string) => void;
+  onQuickView?: (product: Product) => void;
   onQuickAdd: (product: Product) => void;
   onToggleWishlist?: (productId: string) => void;
 }
@@ -16,10 +18,15 @@ export function ProductCard({
   product,
   isWishlisted = false,
   onSelectProduct,
+  onQuickView,
   onQuickAdd,
   onToggleWishlist,
 }: ProductCardProps) {
   const [justAdded, setJustAdded] = useState(false);
+
+  const ageMeta = AGE_GROUP_META.find((m) => m.ageGroup === product.ageGroup);
+  const coverAngle = product.gallery[0];
+  const hasDiscount = Boolean(product.compareAtPrice && product.compareAtPrice > product.price);
 
   const handleQuickAdd = () => {
     if (!product.inStock) return;
@@ -29,18 +36,20 @@ export function ProductCard({
   };
 
   return (
-    <article className="group flex flex-col glass-surface rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/68 hover:shadow-[0_18px_40px_-16px_rgba(24,24,27,0.14)]">
-      <div className="relative aspect-[4/3] w-full bg-white/40 overflow-hidden border-b border-white/60">
+    <article className="group flex flex-col glass-surface rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/80 dark:hover:bg-slate-900/80">
+      {/* Clean Studio Product Image */}
+      <div className="relative aspect-[4/3] w-full bg-white/40 dark:bg-slate-900/50 overflow-hidden border-b border-white/60 dark:border-white/10">
         <button
           type="button"
-          onClick={() => onSelectProduct(product.id)}
-          aria-label={`View details for ${product.title}`}
+          onClick={() => (onQuickView ? onQuickView(product) : onSelectProduct(product.id))}
+          aria-label={`View ${product.title}`}
           className="w-full h-full text-left block"
         >
           <ProductImage
-            src={product.image}
+            src={coverAngle?.url ?? product.image}
             alt={product.title}
-            className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.015]"
+            objectPosition={coverAngle?.objectPosition}
+            className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.02]"
           />
         </button>
 
@@ -54,50 +63,60 @@ export function ProductCard({
                 : `Save ${product.title} to wishlist`
             }
             aria-pressed={isWishlisted}
-            className={`absolute top-3 right-3 z-10 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 ${
+            className={`absolute top-3 right-3 z-10 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ${
               isWishlisted
-                ? 'glass-btn-ink text-amber-400'
-                : 'glass-orb text-zinc-700 hover:text-zinc-900 hover:bg-white/80'
+                ? 'glass-btn-ink text-amber-400 dark:text-zinc-950'
+                : 'glass-orb text-zinc-700 dark:text-zinc-200 hover:text-zinc-900'
             }`}
           >
-            <Heart className={`w-4 h-4 ${isWishlisted ? 'fill-amber-400' : ''}`} />
+            <Heart
+              className={`w-3.5 h-3.5 ${isWishlisted ? 'fill-amber-400 dark:fill-zinc-950' : ''}`}
+            />
           </button>
         )}
       </div>
 
-      <div className="p-4 sm:p-5 flex flex-col flex-1 justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-1.5 text-xs text-zinc-500 font-medium">
-            <span>{product.category}</span>
-            {product.tag && (
-              <>
-                <span aria-hidden="true">·</span>
-                <span className="text-amber-700 font-semibold">{product.tag}</span>
-              </>
-            )}
+      {/* Minimal Typography-First Card Body: Age Group, Name, MRP & Selling Price */}
+      <div className="p-4 flex flex-col flex-1 justify-between gap-3.5">
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-300">
+            <span
+              aria-hidden="true"
+              className={`w-2 h-2 rounded-full shrink-0 ${ageMeta?.accentDotClass ?? 'bg-amber-500'}`}
+            />
+            <span className="font-semibold text-zinc-800 dark:text-zinc-200 whitespace-nowrap">
+              Age {product.ageGroup}
+            </span>
+            <span aria-hidden="true" className="text-zinc-400">
+              ·
+            </span>
+            <span className="text-zinc-500 dark:text-zinc-400 truncate">{product.category}</span>
           </div>
 
           <button
             type="button"
             onClick={() => onSelectProduct(product.id)}
-            className="mt-1.5 text-left block w-full"
+            className="text-left block w-full"
           >
-            <h3 className="font-display text-base font-semibold text-zinc-900 group-hover:text-amber-800 transition-colors duration-300 line-clamp-1">
+            <h3 className="font-display text-[15px] font-semibold text-zinc-900 dark:text-white group-hover:text-amber-700 dark:group-hover:text-amber-300 transition-colors duration-300 leading-snug line-clamp-2 min-h-[2.6rem]">
               {product.title}
             </h3>
           </button>
-
-          <p className="mt-1 text-xs text-zinc-600 line-clamp-1">{product.shortSpec}</p>
         </div>
 
-        <div className="flex items-center justify-between gap-3 pt-2.5 border-t border-zinc-900/8">
-          <div className="flex items-baseline gap-2 tabular-nums">
-            <span className="text-[15px] font-bold text-zinc-900">{formatINR(product.price)}</span>
-            {product.compareAtPrice && product.compareAtPrice > product.price && (
-              <span className="text-xs text-zinc-400 line-through">
-                {formatINR(product.compareAtPrice)}
+        {/* Selling Price + MRP + Add CTA */}
+        <div className="flex items-center justify-between gap-2 pt-3 border-t border-zinc-900/8 dark:border-white/10">
+          <div className="flex flex-col tabular-nums">
+            <div className="flex items-baseline gap-2">
+              <span className="text-base font-bold text-zinc-900 dark:text-white">
+                {formatINR(product.price)}
               </span>
-            )}
+              {hasDiscount && (
+                <span className="text-[11px] text-zinc-500 dark:text-zinc-400 line-through">
+                  MRP {formatINR(product.compareAtPrice!)}
+                </span>
+              )}
+            </div>
           </div>
 
           <button
@@ -105,12 +124,12 @@ export function ProductCard({
             disabled={!product.inStock}
             onClick={handleQuickAdd}
             aria-label={`Add ${product.title} to bag`}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all duration-300 whitespace-nowrap shrink-0 ${
+            className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-300 whitespace-nowrap shrink-0 ${
               !product.inStock
-                ? 'bg-zinc-200/70 text-zinc-400 cursor-not-allowed'
+                ? 'bg-zinc-200/70 dark:bg-zinc-800 text-zinc-400 cursor-not-allowed'
                 : justAdded
-                  ? 'glass-btn-ink text-white'
-                  : 'glass-btn-secondary text-zinc-900 hover:bg-amber-50/85 hover:text-amber-800 hover:border-amber-200/90'
+                  ? 'glass-btn-ink'
+                  : 'glass-btn-amber text-white'
             }`}
           >
             {!product.inStock ? (
@@ -123,7 +142,7 @@ export function ProductCard({
             ) : (
               <>
                 <Plus className="w-3.5 h-3.5" />
-                <span>Add</span>
+                <span>Add to Bag</span>
               </>
             )}
           </button>

@@ -83,7 +83,7 @@ export function AdminAuthGate({
       <button
         type="button"
         onClick={onBackToStore}
-        className="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-700 hover:text-zinc-900 mb-6"
+        className="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white mb-6"
       >
         <ArrowLeft className="w-3.5 h-3.5" />
         <span>Back to Storefront</span>
@@ -92,14 +92,14 @@ export function AdminAuthGate({
       <div className="glass-surface rounded-3xl p-6 sm:p-8 space-y-6">
         <div className="flex items-start gap-3.5">
           <div className="w-11 h-11 rounded-full glass-orb flex items-center justify-center shrink-0">
-            <Lock className="w-5 h-5 text-amber-700" />
+            <Lock className="w-5 h-5 text-amber-700 dark:text-amber-300" />
           </div>
           <div>
-            <p className="text-xs font-semibold text-amber-700">Restricted Store Access</p>
-            <h1 className="mt-1 font-display text-2xl font-bold text-zinc-900">
+            <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">Restricted Store Access</p>
+            <h1 className="mt-1 font-display text-2xl font-bold text-zinc-900 dark:text-white">
               Store Owner Sign-In
             </h1>
-            <p className="mt-1.5 text-sm text-zinc-600 leading-relaxed">
+            <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-300 leading-relaxed">
               Enter your BEE4 admin password to unlock catalog, customer orders, and store settings.
             </p>
           </div>
@@ -107,7 +107,7 @@ export function AdminAuthGate({
 
         <form onSubmit={handleSubmit} noValidate className="space-y-4">
           <div>
-            <label htmlFor="admin-password-input" className="block text-xs font-semibold text-zinc-700 mb-1.5">
+            <label htmlFor="admin-password-input" className="block text-xs font-semibold text-zinc-700 dark:text-zinc-200 mb-1.5">
               Admin Password *
             </label>
             <div className="relative">
@@ -128,7 +128,7 @@ export function AdminAuthGate({
                 type="button"
                 onClick={() => setShowPassword((prev) => !prev)}
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-zinc-500 hover:text-zinc-900"
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-zinc-500 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white"
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -138,7 +138,7 @@ export function AdminAuthGate({
           {(error || lockout.isLocked) && (
             <div
               role="alert"
-              className="p-3 rounded-xl bg-red-50/90 backdrop-blur-md border border-red-200 text-xs font-medium text-red-700 tabular-nums"
+              className="p-3 rounded-xl bg-red-50/90 dark:bg-red-950/60 backdrop-blur-md border border-red-200 dark:border-red-500/30 text-xs font-medium text-red-700 dark:text-red-300 tabular-nums"
             >
               {lockout.isLocked
                 ? `Too many incorrect attempts. Try again in ${lockout.remainingSeconds}s.`
@@ -149,14 +149,14 @@ export function AdminAuthGate({
           <button
             type="submit"
             disabled={lockout.isLocked}
-            className="w-full h-11 rounded-xl glass-btn-ink disabled:opacity-50 text-white text-sm font-semibold transition-all"
+            className="w-full h-11 rounded-xl glass-btn-ink disabled:opacity-50 text-sm font-semibold transition-all"
           >
             {lockout.isLocked ? `Locked (${lockout.remainingSeconds}s)` : 'Unlock Admin Panel'}
           </button>
         </form>
 
-        <p className="pt-4 border-t border-zinc-900/8 text-xs text-zinc-500 flex items-center gap-2">
-          <ShieldCheck className="w-4 h-4 text-amber-700 shrink-0" />
+        <p className="pt-4 border-t border-zinc-900/8 dark:border-white/10 text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-2">
+          <ShieldCheck className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0" />
           <span>Protected session · Locks automatically when you sign out or close this tab.</span>
         </p>
       </div>

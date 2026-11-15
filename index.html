@@ -1,20 +1,182 @@
 <!doctype html>
-<html lang="en">
+<html lang="en-IN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>BEE4 — Curated Lifestyle, Gifts &amp; Everyday Essentials</title>
+    <title>BEE4 – Screen-Free 3D-Printed Brain Toys India</title>
     <meta
       name="description"
-      content="Clean, minimal Indian online store for trendy gifts, water bottles, handbags, 3D toys, homemade home decor showpieces, desk gear, and kitchen tools from ₹199 to ₹999."
+      content="Shop screen-free brain-training toys custom 3D-printed in India. Age-appropriate learning for ages 3–15, from ₹349. Order now at BEE4."
     />
-    <meta property="og:title" content="BEE4 — Curated Lifestyle, Gifts & Everyday Essentials" />
+    <meta
+      name="keywords"
+      content="screen-free brain training, screen-free toys India, 3D printing educational toys, 3D printed brain toys India, age-appropriate learning India, Japanese Karakuri puzzle India, Korean Gabe STEM toys, Chinese logic toys kids, brain development toys ages 3-15, BEE4 India"
+    />
+    <meta name="robots" content="index, follow" />
+    <meta name="author" content="BEE4 India" />
+    <meta name="geo.region" content="IN" />
+    <meta name="geo.country" content="India" />
+    <meta name="theme-color" content="#f6efe4" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#060a14" media="(prefers-color-scheme: dark)" />
+    <link rel="canonical" id="canonical-url" href="https://bee4.in/" />
+
+    <!-- OpenGraph Social Sharing Card -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="BEE4" />
+    <meta property="og:locale" content="en_IN" />
+    <meta property="og:url" content="https://bee4.in/" />
+    <meta
+      property="og:title"
+      content="BEE4 – Screen-Free 3D-Printed Brain Toys India"
+    />
     <meta
       property="og:description"
-      content="Trendy gifts, water bottles, handbags, 3D toys, handmade home decor, desk gear, and kitchen tools delivered across India."
+      content="Shop screen-free brain-training toys custom 3D-printed in India. Age-appropriate learning for ages 3–15, from ₹349. Order now at BEE4."
     />
-    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/assets/og-brain-toys.jpg" />
+    <meta
+      property="og:image:alt"
+      content="BEE4 East-Asian screen-free 3D-printed brain-training toys crafted in India"
+    />
+
+    <!-- Twitter / X Social Card -->
     <meta name="twitter:card" content="summary_large_image" />
+    <meta
+      name="twitter:title"
+      content="BEE4 – Screen-Free 3D-Printed Brain Toys India"
+    />
+    <meta
+      name="twitter:description"
+      content="Shop screen-free brain-training toys custom 3D-printed in India. Age-appropriate learning for ages 3–15, from ₹349. Order now at BEE4."
+    />
+    <meta name="twitter:image" content="/assets/og-brain-toys.jpg" />
+    <meta
+      name="twitter:image:alt"
+      content="BEE4 East-Asian screen-free 3D-printed brain-training toys crafted in India"
+    />
+
+    <!-- Schema.org Structured Data (JSON-LD) -->
+    <script id="bee4-structured-data" type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Store",
+            "@id": "https://bee4.in/#store",
+            "name": "BEE4",
+            "url": "https://bee4.in/",
+            "image": "/assets/og-brain-toys.jpg",
+            "description": "Screen-free brain-training toys inspired by Japanese, Korean & Chinese mechanisms, custom 3D-printed in India for age-appropriate learning (ages 3–15).",
+            "priceRange": "₹349–₹899",
+            "areaServed": {
+              "@type": "Country",
+              "name": "India"
+            },
+            "keywords": "screen-free brain training, 3D printing, age-appropriate learning in India, STEM toys",
+            "hasOfferCatalog": {
+              "@type": "OfferCatalog",
+              "name": "East-Asian Screen-Free 3D-Printed Brain Toys",
+              "itemListElement": [
+                {
+                  "@type": "OfferCatalog",
+                  "name": "Engineering"
+                },
+                {
+                  "@type": "OfferCatalog",
+                  "name": "Maths & Science"
+                },
+                {
+                  "@type": "OfferCatalog",
+                  "name": "Motor Skills"
+                },
+                {
+                  "@type": "OfferCatalog",
+                  "name": "Imagination"
+                }
+              ]
+            }
+          },
+          {
+            "@type": "BreadcrumbList",
+            "@id": "https://bee4.in/#breadcrumb",
+            "itemListElement": [
+              {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "Home",
+                "item": "https://bee4.in/"
+              },
+              {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "Brain Skill Categories",
+                "item": "https://bee4.in/#brain-toys-catalog"
+              },
+              {
+                "@type": "ListItem",
+                "position": 3,
+                "name": "All 3D-Printed Brain Toys (Ages 3–15)",
+                "item": "https://bee4.in/#brain-toys-catalog"
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+
+    <!-- Dynamic Origin Resolution for Canonical, OpenGraph, Twitter, and JSON-LD URLs -->
+    <script>
+      (function () {
+        try {
+          var origin = window.location.origin;
+          var pageUrl = origin + window.location.pathname;
+          var imageUrl = origin + '/assets/og-brain-toys.jpg';
+
+          var canonical = document.getElementById('canonical-url');
+          if (canonical) canonical.setAttribute('href', pageUrl);
+
+          var ogUrl = document.querySelector('meta[property="og:url"]');
+          if (ogUrl) ogUrl.setAttribute('content', pageUrl);
+
+          var ogImg = document.querySelector('meta[property="og:image"]');
+          if (ogImg) ogImg.setAttribute('content', imageUrl);
+
+          var twImg = document.querySelector('meta[name="twitter:image"]');
+          if (twImg) twImg.setAttribute('content', imageUrl);
+
+          var ld = document.getElementById('bee4-structured-data');
+          if (ld && ld.textContent) {
+            var parsed = JSON.parse(ld.textContent);
+            var nodes = Array.isArray(parsed['@graph']) ? parsed['@graph'] : [parsed];
+            nodes.forEach(function (node) {
+              if (!node || typeof node !== 'object') return;
+              if (typeof node['@id'] === 'string') {
+                node['@id'] = node['@id'].replace('https://bee4.in/', pageUrl);
+              }
+              if (node['@type'] === 'Store') {
+                node.url = pageUrl;
+                node.image = imageUrl;
+              }
+              if (node['@type'] === 'BreadcrumbList' && Array.isArray(node.itemListElement)) {
+                node.itemListElement.forEach(function (crumb) {
+                  if (crumb && typeof crumb.item === 'string') {
+                    crumb.item = crumb.item.replace('https://bee4.in/', pageUrl);
+                  }
+                });
+              }
+            });
+            ld.textContent = JSON.stringify(parsed);
+          }
+        } catch {}
+
+        try {
+          if (localStorage.getItem('bee4_theme_v1') === 'aurora') {
+            document.documentElement.classList.add('dark');
+          }
+        } catch {}
+      })();
+    </script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -22,7 +184,7 @@
       rel="stylesheet"
     />
   </head>
-  <body class="text-zinc-900 antialiased selection:bg-amber-100 selection:text-zinc-900">
+  <body class="text-zinc-900 dark:text-zinc-100 antialiased selection:bg-amber-100 selection:text-zinc-900">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

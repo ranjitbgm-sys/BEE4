@@ -1,6 +1,6 @@
 {
-  "name": "BEE4 — Curated Lifestyle, Gifts & Everyday Essentials",
-  "description": "Clean, minimal Indian online store for trendy gifts, water bottles, handbags, 3D toys, homemade home decor showpieces, desk gear, and kitchen tools from ₹199 to ₹999.",
+  "name": "BEE4 — East-Asian Screen-Free 3D-Printed Brain Toys",
+  "description": "India's first D2C store offering Japanese, Korean & Chinese screen-free brain-training toys custom 3D-printed in India, priced ₹349 to ₹899 for ages 3–15.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

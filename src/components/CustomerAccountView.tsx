@@ -31,23 +31,24 @@ import {
   SavedAddress,
   SavedAddressErrors,
 } from '../types';
-import { sha256Hex } from '../utils/adminAuth';
 import {
   authenticateCustomer,
   buildWhatsAppUrl,
+  completeLoginWithOtp,
   completePasswordResetWithOtp,
+  completeSignupWithOtp,
+  createLoginOtpChallenge,
   createPasswordResetOtpChallenge,
+  createSignupOtpChallenge,
   downloadOrderInvoice,
-  findCustomerByIdentifier,
   formatINR,
   getCustomerOrders,
   getOrderTrackingStepIndex,
   normalizeIndianPhone10,
   ORDER_TRACKING_STEPS,
-  parseContactIdentifier,
+  OtpChallenge,
   PasswordResetOtpChallenge,
   validateCustomerPasswordChange,
-  validateCustomerSignup,
   validateSavedAddress,
 } from '../utils/storeLogic';
 import { ProductImage } from './ProductImage';
@@ -62,6 +63,8 @@ interface CustomerAccountViewProps {
   guestWishlistIds: string[];
   whatsappNumber: string;
   supportEmail?: string;
+  firebaseUserEmail?: string | null;
+  onGoogleSignIn?: () => Promise<void>;
   onSignIn: (customerId: string) => void;
   onSignUp: (customer: CustomerProfile) => void;
   onSignOut: () => void;
@@ -110,6 +113,8 @@ export function CustomerAccountView({
   guestWishlistIds,
   whatsappNumber,
   supportEmail = 'hello@bee4.in',
+  firebaseUserEmail = null,
+  onGoogleSignIn,
   onSignIn,
   onSignUp,
   onSignOut,
@@ -122,6 +127,11 @@ export function CustomerAccountView({
   onContinueShopping,
 }: CustomerAccountViewProps) {
   const [authMode, setAuthMode] = useState<'signup' | 'signin' | 'forgot'>('signup');
+  const [signinMethod, setSigninMethod] = useState<'otp' | 'password'>('otp');
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [googleError, setGoogleError] = useState('');
+
+  // Sign Up + OTP verification state
   const [signupName, setSignupName] = useState('');
   const [signupContact, setSignupContact] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
@@ -131,11 +141,21 @@ export function CustomerAccountView({
     contactIdentifier?: string;
     password?: string;
   }>({});
+  const [signupOtpChallenge, setSignupOtpChallenge] = useState<OtpChallenge | null>(null);
+  const [signupIssuedOtpPreview, setSignupIssuedOtpPreview] = useState('');
+  const [signupEnteredOtp, setSignupEnteredOtp] = useState('');
+  const [signupOtpError, setSignupOtpError] = useState('');
+
+  // Sign In (OTP + Password) state
   const [signinIdentifier, setSigninIdentifier] = useState('');
   const [signinPassword, setSigninPassword] = useState('');
   const [showSigninPassword, setShowSigninPassword] = useState(false);
   const [signinError, setSigninError] = useState('');
   const [signinNotice, setSigninNotice] = useState('');
+  const [loginOtpChallenge, setLoginOtpChallenge] = useState<PasswordResetOtpChallenge | null>(null);
+  const [loginIssuedOtpPreview, setLoginIssuedOtpPreview] = useState('');
+  const [loginEnteredOtp, setLoginEnteredOtp] = useState('');
+  const [loginOtpError, setLoginOtpError] = useState('');
 
   // Forgot Password via OTP state
   const [resetIdentifier, setResetIdentifier] = useState('');
@@ -149,12 +169,12 @@ export function CustomerAccountView({
   const [otpNowMs, setOtpNowMs] = useState(() => Date.now());
 
   useEffect(() => {
-    if (!otpChallenge) return;
+    if (!otpChallenge && !signupOtpChallenge && !loginOtpChallenge) return;
     const interval = window.setInterval(() => {
       setOtpNowMs(Date.now());
     }, 1000);
     return () => window.clearInterval(interval);
-  }, [otpChallenge]);
+  }, [otpChallenge, signupOtpChallenge, loginOtpChallenge]);
 
   const [activeTab, setActiveTab] = useState<CustomerAccountTab>('overview');
   const [notice, setNotice] = useState('');
@@ -197,40 +217,88 @@ export function CustomerAccountView({
     setPasswordChangeError('');
   };
 
-  const handleSignupSubmit = (event: FormEvent) => {
+  const handleGoogleAuthClick = async () => {
+    if (!onGoogleSignIn) return;
+    setGoogleError('');
+    setGoogleLoading(true);
+    try {
+      await onGoogleSignIn();
+      setActiveTab('overview');
+      setNotice('Signed in with Google and synced to your BEE4 Cloud Account.');
+    } catch (err) {
+      const msg =
+        err instanceof Error && err.message
+          ? err.message
+          : 'Google sign-in was cancelled or blocked. Please allow popups and try again.';
+      setGoogleError(msg);
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  const resetSignupOtpState = () => {
+    setSignupOtpChallenge(null);
+    setSignupIssuedOtpPreview('');
+    setSignupEnteredOtp('');
+    setSignupOtpError('');
+  };
+
+  const resetLoginOtpState = () => {
+    setLoginOtpChallenge(null);
+    setLoginIssuedOtpPreview('');
+    setLoginEnteredOtp('');
+    setLoginOtpError('');
+  };
+
+  const handleRequestSignupOtp = (event?: FormEvent) => {
+    event?.preventDefault();
+    const now = Date.now();
+    const issued = createSignupOtpChallenge(
+      customers,
+      {
+        fullName: signupName,
+        contactIdentifier: signupContact,
+        password: signupPassword,
+      },
+      now
+    );
+
+    if (issued.errors || !issued.challenge || !issued.otpCode) {
+      setSignupErrors(issued.errors ?? {});
+      return;
+    }
+
+    setOtpNowMs(now);
+    setSignupErrors({});
+    setSignupOtpChallenge(issued.challenge);
+    setSignupIssuedOtpPreview(issued.otpCode);
+    setSignupEnteredOtp('');
+    setSignupOtpError('');
+  };
+
+  const handleVerifySignupOtp = (event: FormEvent) => {
     event.preventDefault();
-    const errs = validateCustomerSignup({
+    if (!signupOtpChallenge) return;
+
+    const result = completeSignupWithOtp({
+      challenge: signupOtpChallenge,
       fullName: signupName,
-      contactIdentifier: signupContact,
       password: signupPassword,
+      enteredOtp: signupEnteredOtp,
+      guestWishlistIds,
+      nowMs: Date.now(),
     });
-    if (Object.keys(errs).length > 0) {
-      setSignupErrors(errs);
+
+    if (result.updatedChallenge) {
+      setSignupOtpChallenge(result.updatedChallenge);
+    }
+
+    if (result.error || !result.customer) {
+      setSignupOtpError(result.error ?? 'Unable to verify OTP.');
       return;
     }
 
-    const existing = findCustomerByIdentifier(customers, signupContact);
-    if (existing) {
-      setSignupErrors({
-        contactIdentifier: 'An account with this mobile or email already exists. Please sign in.',
-      });
-      return;
-    }
-
-    const parsed = parseContactIdentifier(signupContact);
-    const newCustomer: CustomerProfile = {
-      id: `cust-${Date.now()}`,
-      fullName: signupName.trim(),
-      phone: parsed.type === 'phone' ? parsed.normalized : '',
-      email: parsed.type === 'email' ? parsed.normalized : '',
-      passwordHash: sha256Hex(signupPassword),
-      preferredPayment: 'upi',
-      celebrationMonth: '',
-      createdAt: new Date().toISOString(),
-      addresses: [],
-      wishlistIds: [...guestWishlistIds],
-    };
-
+    const newCustomer = result.customer;
     onSignUp(newCustomer);
     syncProfileDrafts(newCustomer);
     setSignupName('');
@@ -238,8 +306,61 @@ export function CustomerAccountView({
     setSignupPassword('');
     setShowSignupPassword(false);
     setSignupErrors({});
+    resetSignupOtpState();
     setActiveTab('overview');
-    setNotice(`Welcome to BEE4, ${newCustomer.fullName}! Your customer account is ready.`);
+    setNotice(`Mobile/email verified with OTP! Welcome to BEE4, ${newCustomer.fullName}.`);
+  };
+
+  const handleRequestLoginOtp = (event?: FormEvent) => {
+    event?.preventDefault();
+    const now = Date.now();
+    const targetIdentifier = loginOtpChallenge ? loginOtpChallenge.identifier : signinIdentifier;
+    const issued = createLoginOtpChallenge(customers, targetIdentifier, now);
+
+    if (issued.error || !issued.challenge || !issued.otpCode) {
+      setLoginOtpError(issued.error ?? 'Unable to generate login OTP.');
+      return;
+    }
+
+    setOtpNowMs(now);
+    setLoginOtpChallenge(issued.challenge);
+    setLoginIssuedOtpPreview(issued.otpCode);
+    setLoginEnteredOtp('');
+    setLoginOtpError('');
+    setSigninNotice('');
+  };
+
+  const handleVerifyLoginOtp = (event: FormEvent) => {
+    event.preventDefault();
+    if (!loginOtpChallenge) return;
+
+    const result = completeLoginWithOtp({
+      customers,
+      challenge: loginOtpChallenge,
+      enteredOtp: loginEnteredOtp,
+      nowMs: Date.now(),
+    });
+
+    if (result.updatedChallenge) {
+      setLoginOtpChallenge(result.updatedChallenge);
+    }
+
+    if (result.error || !result.customer) {
+      setLoginOtpError(result.error ?? 'Unable to verify OTP.');
+      return;
+    }
+
+    const matched = result.customer;
+    onSignIn(matched.id);
+    syncProfileDrafts(matched);
+    setSigninIdentifier('');
+    setSigninPassword('');
+    setShowSigninPassword(false);
+    setSigninError('');
+    setSigninNotice('');
+    resetLoginOtpState();
+    setActiveTab('overview');
+    setNotice(`Signed in via OTP as ${matched.fullName}.`);
   };
 
   const handleSigninSubmit = (event: FormEvent) => {
@@ -257,6 +378,7 @@ export function CustomerAccountView({
     setShowSigninPassword(false);
     setSigninError('');
     setSigninNotice('');
+    resetLoginOtpState();
     setActiveTab('overview');
     setNotice(`Signed in as ${matched.fullName}.`);
   };
@@ -323,6 +445,7 @@ export function CustomerAccountView({
     const restoredIdentifier = otpChallenge.identifier;
     resetForgotState();
     setAuthMode('signin');
+    setSigninMethod('password');
     setSigninIdentifier(restoredIdentifier);
     setSigninPassword('');
     setSigninError('');
@@ -338,7 +461,7 @@ export function CustomerAccountView({
         <button
           type="button"
           onClick={onContinueShopping}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-700 hover:text-zinc-900 mb-6"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white mb-6"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>Back to Storefront</span>
@@ -348,19 +471,67 @@ export function CustomerAccountView({
           {/* Left: Auth Card */}
           <div className="lg:col-span-7 glass-surface rounded-3xl p-6 sm:p-8 space-y-6">
             <div>
-              <p className="text-xs font-semibold text-amber-700">BEE4 Customer Account</p>
-              <h1 className="mt-1 font-display text-2xl sm:text-3xl font-bold text-zinc-900">
+              <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">BEE4 Customer Account</p>
+              <h1 className="mt-1 font-display text-2xl sm:text-3xl font-bold text-zinc-900 dark:text-white">
                 Sign up or access your orders &amp; wishlist
               </h1>
-              <p className="mt-2 text-sm text-zinc-600">
-                Sign up or sign in with your 10-digit Indian mobile number or email and password.
+              <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
+                Continue instantly with Google Cloud Sync, or use your 10-digit Indian mobile number or email.
               </p>
             </div>
+
+            {onGoogleSignIn && (
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={handleGoogleAuthClick}
+                  disabled={googleLoading}
+                  className="w-full h-11 px-4 rounded-xl glass-btn-secondary text-zinc-900 text-sm font-semibold inline-flex items-center justify-center gap-2.5 disabled:opacity-60 transition-all"
+                >
+                  <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      fill="#4285F4"
+                      d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17Z"
+                    />
+                    <path
+                      fill="#34A853"
+                      d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.11-6.72-4.96H1.29v3.14C3.26 21.3 7.31 24 12 24Z"
+                    />
+                    <path
+                      fill="#FBBC05"
+                      d="M5.28 14.24c-.24-.72-.38-1.49-.38-2.24s.14-1.52.38-2.24V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.99-3.14Z"
+                    />
+                    <path
+                      fill="#EA4335"
+                      d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.99 3.14c.95-2.85 3.6-4.96 6.72-4.96Z"
+                    />
+                  </svg>
+                  <span>{googleLoading ? 'Connecting with Google...' : 'Continue with Google'}</span>
+                </button>
+
+                {googleError && (
+                  <div
+                    role="alert"
+                    className="p-3 rounded-xl bg-red-50/90 backdrop-blur-md border border-red-200 text-xs text-red-700 font-medium"
+                  >
+                    {googleError}
+                  </div>
+                )}
+
+                <div className="relative flex items-center py-1">
+                  <div className="flex-grow border-t border-zinc-900/10" />
+                  <span className="shrink mx-3 text-[11px] font-medium text-zinc-500">
+                    or continue with mobile / email
+                  </span>
+                  <div className="flex-grow border-t border-zinc-900/10" />
+                </div>
+              </div>
+            )}
 
             <div
               role="tablist"
               aria-label="Customer authentication mode"
-              className="inline-flex p-1.5 rounded-2xl glass-subtle"
+              className="inline-flex flex-wrap p-1.5 rounded-2xl glass-subtle gap-1"
             >
               <button
                 type="button"
@@ -370,128 +541,241 @@ export function CustomerAccountView({
                   setAuthMode('signup');
                   setSigninError('');
                   setSigninNotice('');
+                  resetLoginOtpState();
                   resetForgotState();
                 }}
                 className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all whitespace-nowrap ${
                   authMode === 'signup'
-                    ? 'glass-btn-ink text-white'
-                    : 'text-zinc-700 hover:text-zinc-900 hover:bg-white/60'
+                    ? 'glass-btn-ink text-white dark:text-zinc-950'
+                    : 'text-zinc-700 dark:text-zinc-200 hover:text-zinc-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-white/10'
                 }`}
               >
-                Create Account
+                Sign Up (OTP)
               </button>
               <button
                 type="button"
                 role="tab"
-                aria-selected={authMode === 'signin' || authMode === 'forgot'}
+                aria-selected={authMode === 'signin'}
                 onClick={() => {
                   setAuthMode('signin');
                   setSignupErrors({});
+                  resetSignupOtpState();
                   setSigninNotice('');
                   resetForgotState();
                 }}
                 className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all whitespace-nowrap ${
-                  authMode === 'signin' || authMode === 'forgot'
-                    ? 'glass-btn-ink text-white'
-                    : 'text-zinc-700 hover:text-zinc-900 hover:bg-white/60'
+                  authMode === 'signin'
+                    ? 'glass-btn-ink text-white dark:text-zinc-950'
+                    : 'text-zinc-700 dark:text-zinc-200 hover:text-zinc-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-white/10'
                 }`}
               >
                 Sign In
               </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={authMode === 'forgot'}
+                onClick={() => {
+                  setAuthMode('forgot');
+                  setSignupErrors({});
+                  resetSignupOtpState();
+                  setSigninError('');
+                  setSigninNotice('');
+                  resetLoginOtpState();
+                  resetForgotState(signinIdentifier);
+                }}
+                className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all whitespace-nowrap ${
+                  authMode === 'forgot'
+                    ? 'glass-btn-ink text-white dark:text-zinc-950'
+                    : 'text-zinc-700 dark:text-zinc-200 hover:text-zinc-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-white/10'
+                }`}
+              >
+                Forgot Password (OTP)
+              </button>
             </div>
 
             {authMode === 'signup' && (
-              <form onSubmit={handleSignupSubmit} noValidate className="space-y-4">
-                <div>
-                  <label htmlFor="cust-signup-name" className="block text-xs font-semibold text-zinc-700 mb-1.5">
-                    Full Name *
-                  </label>
-                  <input
-                    id="cust-signup-name"
-                    type="text"
-                    value={signupName}
-                    onChange={(e) => {
-                      setSignupName(e.target.value);
-                      if (signupErrors.fullName) setSignupErrors({ ...signupErrors, fullName: undefined });
-                    }}
-                    placeholder="e.g. Kabir Mehta"
-                    className="w-full h-11 px-3.5 rounded-xl glass-input text-sm focus:outline-none"
-                  />
-                  {signupErrors.fullName && (
-                    <p className="mt-1 text-xs text-red-600">{signupErrors.fullName}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label htmlFor="cust-signup-contact" className="block text-xs font-semibold text-zinc-700 mb-1.5">
-                    Mobile Number or Email *
-                  </label>
-                  <input
-                    id="cust-signup-contact"
-                    type="text"
-                    value={signupContact}
-                    onChange={(e) => {
-                      setSignupContact(e.target.value);
-                      if (signupErrors.contactIdentifier) {
-                        setSignupErrors({ ...signupErrors, contactIdentifier: undefined });
-                      }
-                    }}
-                    placeholder="9876543210 or kabir@example.com"
-                    className="w-full h-11 px-3.5 rounded-xl glass-input text-sm focus:outline-none"
-                  />
-                  {signupErrors.contactIdentifier && (
-                    <p className="mt-1 text-xs text-red-600">{signupErrors.contactIdentifier}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label htmlFor="cust-signup-password" className="block text-xs font-semibold text-zinc-700 mb-1.5">
-                    Create Password (min 6 characters) *
-                  </label>
-                  <div className="relative">
+              !signupOtpChallenge ? (
+                <form onSubmit={handleRequestSignupOtp} noValidate className="space-y-4">
+                  <div>
+                    <label htmlFor="cust-signup-name" className="block text-xs font-semibold text-zinc-700 mb-1.5">
+                      Full Name *
+                    </label>
                     <input
-                      id="cust-signup-password"
-                      type={showSignupPassword ? 'text' : 'password'}
-                      autoComplete="new-password"
-                      value={signupPassword}
+                      id="cust-signup-name"
+                      type="text"
+                      value={signupName}
                       onChange={(e) => {
-                        setSignupPassword(e.target.value);
-                        if (signupErrors.password) {
-                          setSignupErrors({ ...signupErrors, password: undefined });
+                        setSignupName(e.target.value);
+                        if (signupErrors.fullName) setSignupErrors({ ...signupErrors, fullName: undefined });
+                      }}
+                      placeholder="e.g. Kabir Mehta"
+                      className="w-full h-11 px-3.5 rounded-xl glass-input text-sm focus:outline-none"
+                    />
+                    {signupErrors.fullName && (
+                      <p className="mt-1 text-xs text-red-600">{signupErrors.fullName}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label htmlFor="cust-signup-contact" className="block text-xs font-semibold text-zinc-700 mb-1.5">
+                      Mobile Number or Email *
+                    </label>
+                    <input
+                      id="cust-signup-contact"
+                      type="text"
+                      value={signupContact}
+                      onChange={(e) => {
+                        setSignupContact(e.target.value);
+                        if (signupErrors.contactIdentifier) {
+                          setSignupErrors({ ...signupErrors, contactIdentifier: undefined });
                         }
                       }}
-                      placeholder="Enter a strong password"
-                      className="w-full h-11 pl-3.5 pr-11 rounded-xl glass-input text-sm focus:outline-none"
+                      placeholder="9876543210 or kabir@example.com"
+                      className="w-full h-11 px-3.5 rounded-xl glass-input text-sm focus:outline-none"
                     />
+                    {signupErrors.contactIdentifier && (
+                      <p className="mt-1 text-xs text-red-600">{signupErrors.contactIdentifier}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label htmlFor="cust-signup-password" className="block text-xs font-semibold text-zinc-700 mb-1.5">
+                      Create Password (min 6 characters) *
+                    </label>
+                    <div className="relative">
+                      <input
+                        id="cust-signup-password"
+                        type={showSignupPassword ? 'text' : 'password'}
+                        autoComplete="new-password"
+                        value={signupPassword}
+                        onChange={(e) => {
+                          setSignupPassword(e.target.value);
+                          if (signupErrors.password) {
+                            setSignupErrors({ ...signupErrors, password: undefined });
+                          }
+                        }}
+                        placeholder="Enter a strong password"
+                        className="w-full h-11 pl-3.5 pr-11 rounded-xl glass-input text-sm focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowSignupPassword((prev) => !prev)}
+                        aria-label={showSignupPassword ? 'Hide password' : 'Show password'}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-zinc-500 hover:text-zinc-900"
+                      >
+                        {showSignupPassword ? (
+                          <EyeOff className="w-4 h-4" />
+                        ) : (
+                          <Eye className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
+                    {signupErrors.password && (
+                      <p className="mt-1 text-xs text-red-600">{signupErrors.password}</p>
+                    )}
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full h-11 rounded-xl glass-btn-amber text-white text-sm font-semibold transition-all"
+                  >
+                    Send 6-Digit Verification OTP
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={handleVerifySignupOtp} noValidate className="space-y-4">
+                  <div className="p-3.5 rounded-2xl bg-amber-50/75 backdrop-blur-md border border-amber-200/80 space-y-1.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <span className="font-semibold text-zinc-900">
+                        Verification OTP sent to {signupOtpChallenge.maskedTarget}
+                      </span>
+                      <span className="tabular-nums font-medium text-amber-800">
+                        {otpNowMs >= signupOtpChallenge.expiresAtMs
+                          ? 'Expired'
+                          : `Expires in ${Math.max(1, Math.ceil((signupOtpChallenge.expiresAtMs - otpNowMs) / 1000))}s`}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-700">
+                      <span>Verification code for this session:</span>
+                      <strong className="font-mono tabular-nums text-zinc-900 bg-white/90 px-2 py-0.5 rounded-lg border border-amber-200 shadow-xs">
+                        {signupIssuedOtpPreview}
+                      </strong>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSignupEnteredOtp(signupIssuedOtpPreview);
+                          setSignupOtpError('');
+                        }}
+                        className="px-2 py-0.5 rounded-lg glass-btn-secondary text-[11px] font-semibold text-amber-800"
+                      >
+                        Use Code
+                      </button>
+                    </div>
+                  </div>
+
+                  {signupOtpError && (
+                    <div
+                      role="alert"
+                      className="p-3 rounded-xl bg-red-50/90 backdrop-blur-md border border-red-200 text-xs text-red-700 font-medium"
+                    >
+                      {signupOtpError}
+                    </div>
+                  )}
+
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <label htmlFor="cust-signup-otp" className="block text-xs font-semibold text-zinc-700">
+                        Enter 6-Digit OTP *
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => handleRequestSignupOtp()}
+                        disabled={otpNowMs < signupOtpChallenge.resendAvailableAtMs}
+                        className="text-xs font-semibold text-amber-700 hover:text-amber-800 disabled:text-zinc-400 tabular-nums"
+                      >
+                        {otpNowMs < signupOtpChallenge.resendAvailableAtMs
+                          ? `Resend OTP in ${Math.max(1, Math.ceil((signupOtpChallenge.resendAvailableAtMs - otpNowMs) / 1000))}s`
+                          : 'Resend OTP'}
+                      </button>
+                    </div>
+                    <input
+                      id="cust-signup-otp"
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      autoComplete="one-time-code"
+                      value={signupEnteredOtp}
+                      onChange={(e) => {
+                        setSignupEnteredOtp(e.target.value.replace(/\D/g, '').slice(0, 6));
+                        if (signupOtpError) setSignupOtpError('');
+                      }}
+                      placeholder="6-digit OTP"
+                      className="w-full h-11 px-3.5 rounded-xl glass-input text-sm font-mono tracking-widest tabular-nums focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <button
+                      type="submit"
+                      className="flex-1 min-w-[200px] h-11 rounded-xl glass-btn-amber text-white text-sm font-semibold transition-all"
+                    >
+                      Verify OTP &amp; Create Account
+                    </button>
                     <button
                       type="button"
-                      onClick={() => setShowSignupPassword((prev) => !prev)}
-                      aria-label={showSignupPassword ? 'Hide password' : 'Show password'}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-zinc-500 hover:text-zinc-900"
+                      onClick={() => resetSignupOtpState()}
+                      className="h-11 px-4 rounded-xl glass-btn-secondary text-xs font-semibold text-zinc-700"
                     >
-                      {showSignupPassword ? (
-                        <EyeOff className="w-4 h-4" />
-                      ) : (
-                        <Eye className="w-4 h-4" />
-                      )}
+                      Edit Details
                     </button>
                   </div>
-                  {signupErrors.password && (
-                    <p className="mt-1 text-xs text-red-600">{signupErrors.password}</p>
-                  )}
-                </div>
-
-                <button
-                  type="submit"
-                  className="w-full h-11 rounded-xl glass-btn-amber text-white text-sm font-semibold transition-all"
-                >
-                  Create Customer Account
-                </button>
-              </form>
+                </form>
+              )
             )}
 
             {authMode === 'signin' && (
-              <form onSubmit={handleSigninSubmit} noValidate className="space-y-4">
+              <div className="space-y-4">
                 {signinNotice && (
                   <div
                     role="status"
@@ -501,86 +785,249 @@ export function CustomerAccountView({
                   </div>
                 )}
 
-                {signinError && (
-                  <div
-                    role="alert"
-                    className="p-3 rounded-xl bg-red-50/90 backdrop-blur-md border border-red-200 text-xs text-red-700 font-medium"
-                  >
-                    {signinError}
-                  </div>
-                )}
-
-                <div>
-                  <label htmlFor="cust-signin-id" className="block text-xs font-semibold text-zinc-700 mb-1.5">
-                    Registered Mobile Number or Email *
-                  </label>
-                  <input
-                    id="cust-signin-id"
-                    type="text"
-                    autoComplete="username"
-                    value={signinIdentifier}
-                    onChange={(e) => {
-                      setSigninIdentifier(e.target.value);
-                      if (signinError) setSigninError('');
-                    }}
-                    placeholder="e.g. 9820112233 or ananya.v@example.com"
-                    className="w-full h-11 px-3.5 rounded-xl glass-input text-sm focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <label htmlFor="cust-signin-password" className="block text-xs font-semibold text-zinc-700">
-                      Password *
-                    </label>
+                <div className="flex items-center justify-between gap-2 pb-1">
+                  <div className="inline-flex p-1 rounded-xl glass-subtle gap-1">
                     <button
                       type="button"
                       onClick={() => {
+                        setSigninMethod('otp');
                         setSigninError('');
-                        setSigninNotice('');
-                        resetForgotState(signinIdentifier);
-                        setAuthMode('forgot');
                       }}
-                      className="text-xs font-semibold text-amber-700 hover:text-amber-800"
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        signinMethod === 'otp'
+                          ? 'glass-btn-amber text-white'
+                          : 'text-zinc-700 hover:text-zinc-900'
+                      }`}
                     >
-                      Forgot Password?
+                      Login via OTP
                     </button>
-                  </div>
-                  <div className="relative">
-                    <input
-                      id="cust-signin-password"
-                      type={showSigninPassword ? 'text' : 'password'}
-                      autoComplete="current-password"
-                      value={signinPassword}
-                      onChange={(e) => {
-                        setSigninPassword(e.target.value);
-                        if (signinError) setSigninError('');
-                      }}
-                      placeholder="Enter your account password"
-                      className="w-full h-11 pl-3.5 pr-11 rounded-xl glass-input text-sm focus:outline-none"
-                    />
                     <button
                       type="button"
-                      onClick={() => setShowSigninPassword((prev) => !prev)}
-                      aria-label={showSigninPassword ? 'Hide password' : 'Show password'}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-zinc-500 hover:text-zinc-900"
+                      onClick={() => {
+                        setSigninMethod('password');
+                        resetLoginOtpState();
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        signinMethod === 'password'
+                          ? 'glass-btn-ink'
+                          : 'text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white'
+                      }`}
                     >
-                      {showSigninPassword ? (
-                        <EyeOff className="w-4 h-4" />
-                      ) : (
-                        <Eye className="w-4 h-4" />
-                      )}
+                      Login via Password
                     </button>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSigninError('');
+                      setSigninNotice('');
+                      resetLoginOtpState();
+                      resetForgotState(signinIdentifier);
+                      setAuthMode('forgot');
+                    }}
+                    className="text-xs font-semibold text-amber-700 hover:text-amber-800 whitespace-nowrap"
+                  >
+                    Forgot Password?
+                  </button>
                 </div>
 
-                <button
-                  type="submit"
-                  className="w-full h-11 rounded-xl glass-btn-ink text-white text-sm font-semibold transition-all"
-                >
-                  Sign In to My Account
-                </button>
-              </form>
+                {signinMethod === 'otp' ? (
+                  !loginOtpChallenge ? (
+                    <form onSubmit={handleRequestLoginOtp} noValidate className="space-y-4">
+                      {loginOtpError && (
+                        <div
+                          role="alert"
+                          className="p-3 rounded-xl bg-red-50/90 backdrop-blur-md border border-red-200 text-xs text-red-700 font-medium"
+                        >
+                          {loginOtpError}
+                        </div>
+                      )}
+
+                      <div>
+                        <label htmlFor="cust-login-otp-id" className="block text-xs font-semibold text-zinc-700 mb-1.5">
+                          Registered Mobile Number or Email *
+                        </label>
+                        <input
+                          id="cust-login-otp-id"
+                          type="text"
+                          autoComplete="username"
+                          value={signinIdentifier}
+                          onChange={(e) => {
+                            setSigninIdentifier(e.target.value);
+                            if (loginOtpError) setLoginOtpError('');
+                          }}
+                          placeholder="e.g. 9820112233 or ananya.v@example.com"
+                          className="w-full h-11 px-3.5 rounded-xl glass-input text-sm focus:outline-none"
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        className="w-full h-11 rounded-xl glass-btn-ink text-sm font-semibold transition-all"
+                      >
+                        Send 6-Digit Login OTP
+                      </button>
+                    </form>
+                  ) : (
+                    <form onSubmit={handleVerifyLoginOtp} noValidate className="space-y-4">
+                      <div className="p-3.5 rounded-2xl bg-amber-50/75 backdrop-blur-md border border-amber-200/80 space-y-1.5">
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                          <span className="font-semibold text-zinc-900">
+                            Login OTP sent to {loginOtpChallenge.maskedTarget}
+                          </span>
+                          <span className="tabular-nums font-medium text-amber-800">
+                            {otpNowMs >= loginOtpChallenge.expiresAtMs
+                              ? 'Expired'
+                              : `Expires in ${Math.max(1, Math.ceil((loginOtpChallenge.expiresAtMs - otpNowMs) / 1000))}s`}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-700">
+                          <span>Verification code for this session:</span>
+                          <strong className="font-mono tabular-nums text-zinc-900 bg-white/90 px-2 py-0.5 rounded-lg border border-amber-200 shadow-xs">
+                            {loginIssuedOtpPreview}
+                          </strong>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setLoginEnteredOtp(loginIssuedOtpPreview);
+                              setLoginOtpError('');
+                            }}
+                            className="px-2 py-0.5 rounded-lg glass-btn-secondary text-[11px] font-semibold text-amber-800"
+                          >
+                            Use Code
+                          </button>
+                        </div>
+                      </div>
+
+                      {loginOtpError && (
+                        <div
+                          role="alert"
+                          className="p-3 rounded-xl bg-red-50/90 backdrop-blur-md border border-red-200 text-xs text-red-700 font-medium"
+                        >
+                          {loginOtpError}
+                        </div>
+                      )}
+
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                          <label htmlFor="cust-login-otp-code" className="block text-xs font-semibold text-zinc-700">
+                            Enter 6-Digit OTP *
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => handleRequestLoginOtp()}
+                            disabled={otpNowMs < loginOtpChallenge.resendAvailableAtMs}
+                            className="text-xs font-semibold text-amber-700 hover:text-amber-800 disabled:text-zinc-400 tabular-nums"
+                          >
+                            {otpNowMs < loginOtpChallenge.resendAvailableAtMs
+                              ? `Resend OTP in ${Math.max(1, Math.ceil((loginOtpChallenge.resendAvailableAtMs - otpNowMs) / 1000))}s`
+                              : 'Resend OTP'}
+                          </button>
+                        </div>
+                        <input
+                          id="cust-login-otp-code"
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={6}
+                          autoComplete="one-time-code"
+                          value={loginEnteredOtp}
+                          onChange={(e) => {
+                            setLoginEnteredOtp(e.target.value.replace(/\D/g, '').slice(0, 6));
+                            if (loginOtpError) setLoginOtpError('');
+                          }}
+                          placeholder="6-digit OTP"
+                          className="w-full h-11 px-3.5 rounded-xl glass-input text-sm font-mono tracking-widest tabular-nums focus:outline-none"
+                        />
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        <button
+                          type="submit"
+                          className="flex-1 min-w-[200px] h-11 rounded-xl glass-btn-ink text-sm font-semibold transition-all"
+                        >
+                          Verify OTP &amp; Sign In
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => resetLoginOtpState()}
+                          className="h-11 px-4 rounded-xl glass-btn-secondary text-xs font-semibold text-zinc-700"
+                        >
+                          Change Account
+                        </button>
+                      </div>
+                    </form>
+                  )
+                ) : (
+                  <form onSubmit={handleSigninSubmit} noValidate className="space-y-4">
+                    {signinError && (
+                      <div
+                        role="alert"
+                        className="p-3 rounded-xl bg-red-50/90 backdrop-blur-md border border-red-200 text-xs text-red-700 font-medium"
+                      >
+                        {signinError}
+                      </div>
+                    )}
+
+                    <div>
+                      <label htmlFor="cust-signin-id" className="block text-xs font-semibold text-zinc-700 mb-1.5">
+                        Registered Mobile Number or Email *
+                      </label>
+                      <input
+                        id="cust-signin-id"
+                        type="text"
+                        autoComplete="username"
+                        value={signinIdentifier}
+                        onChange={(e) => {
+                          setSigninIdentifier(e.target.value);
+                          if (signinError) setSigninError('');
+                        }}
+                        placeholder="e.g. 9820112233 or ananya.v@example.com"
+                        className="w-full h-11 px-3.5 rounded-xl glass-input text-sm focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="cust-signin-password" className="block text-xs font-semibold text-zinc-700 mb-1.5">
+                        Password *
+                      </label>
+                      <div className="relative">
+                        <input
+                          id="cust-signin-password"
+                          type={showSigninPassword ? 'text' : 'password'}
+                          autoComplete="current-password"
+                          value={signinPassword}
+                          onChange={(e) => {
+                            setSigninPassword(e.target.value);
+                            if (signinError) setSigninError('');
+                          }}
+                          placeholder="Enter your account password"
+                          className="w-full h-11 pl-3.5 pr-11 rounded-xl glass-input text-sm focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowSigninPassword((prev) => !prev)}
+                          aria-label={showSigninPassword ? 'Hide password' : 'Show password'}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-zinc-500 hover:text-zinc-900"
+                        >
+                          {showSigninPassword ? (
+                            <EyeOff className="w-4 h-4" />
+                          ) : (
+                            <Eye className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full h-11 rounded-xl glass-btn-ink text-sm font-semibold transition-all"
+                    >
+                      Sign In with Password
+                    </button>
+                  </form>
+                )}
+              </div>
             )}
 
             {authMode === 'forgot' && (
@@ -655,12 +1102,22 @@ export function CustomerAccountView({
                             : `Expires in ${Math.max(1, Math.ceil((otpChallenge.expiresAtMs - otpNowMs) / 1000))}s`}
                         </span>
                       </div>
-                      <p className="text-xs text-zinc-700">
-                        Verification code for this session:{' '}
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-700">
+                        <span>Verification code for this session:</span>
                         <strong className="font-mono tabular-nums text-zinc-900 bg-white/90 px-2 py-0.5 rounded-lg border border-amber-200 shadow-xs">
                           {issuedOtpPreview}
                         </strong>
-                      </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEnteredOtp(issuedOtpPreview);
+                            setResetError('');
+                          }}
+                          className="px-2 py-0.5 rounded-lg glass-btn-secondary text-[11px] font-semibold text-amber-800"
+                        >
+                          Use Code
+                        </button>
+                      </div>
                     </div>
 
                     <div>
@@ -750,7 +1207,7 @@ export function CustomerAccountView({
                     <div className="flex flex-wrap items-center gap-2.5">
                       <button
                         type="submit"
-                        className="flex-1 min-w-[200px] h-11 rounded-xl glass-btn-ink text-white text-sm font-semibold transition-all"
+                        className="flex-1 min-w-[200px] h-11 rounded-xl glass-btn-ink text-sm font-semibold transition-all"
                       >
                         Verify OTP &amp; Reset Password
                       </button>
@@ -1010,6 +1467,12 @@ export function CustomerAccountView({
           <h1 className="mt-1 font-display text-2xl sm:text-3xl font-bold text-zinc-900">
             Hello, {currentCustomer.fullName}
           </h1>
+          {firebaseUserEmail && (
+            <p className="mt-1 inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Google Cloud Sync active · {firebaseUserEmail}</span>
+            </p>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
@@ -1052,8 +1515,8 @@ export function CustomerAccountView({
                   aria-current={isActive ? 'page' : undefined}
                   className={`flex items-center justify-between gap-2.5 px-3.5 py-2.5 rounded-2xl text-sm font-medium transition-all whitespace-nowrap shrink-0 ${
                     isActive
-                      ? 'glass-btn-ink text-white font-semibold'
-                      : 'text-zinc-700 hover:bg-white/65 hover:text-zinc-900'
+                      ? 'glass-btn-ink font-semibold'
+                      : 'text-zinc-700 dark:text-zinc-200 hover:bg-white/65 dark:hover:bg-white/10 hover:text-zinc-900 dark:hover:text-white'
                   }`}
                 >
                   <span className="inline-flex items-center gap-2.5">
@@ -1063,7 +1526,7 @@ export function CustomerAccountView({
                   {item.count !== undefined && (
                     <span
                       className={`text-xs tabular-nums font-semibold ${
-                        isActive ? 'text-amber-300' : 'text-zinc-500'
+                        isActive ? 'text-amber-300 dark:text-zinc-900' : 'text-zinc-500 dark:text-zinc-400'
                       }`}
                     >
                       {item.count}
@@ -1231,8 +1694,8 @@ export function CustomerAccountView({
                       onClick={() => setOrderFilter(filter)}
                       className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap ${
                         orderFilter === filter
-                          ? 'glass-btn-ink text-white'
-                          : 'glass-btn-secondary text-zinc-700'
+                          ? 'glass-btn-ink'
+                          : 'glass-btn-secondary text-zinc-700 dark:text-zinc-200'
                       }`}
                     >
                       {filter}
@@ -1420,8 +1883,8 @@ export function CustomerAccountView({
                             onClick={() => setEditingAddress({ ...editingAddress, label: lbl })}
                             className={`px-3 py-1 rounded-xl text-xs font-semibold transition-all ${
                               editingAddress.label === lbl
-                                ? 'glass-btn-ink text-white'
-                                : 'glass-btn-secondary text-zinc-700'
+                                ? 'glass-btn-ink'
+                                : 'glass-btn-secondary text-zinc-700 dark:text-zinc-200'
                             }`}
                           >
                             {lbl}
@@ -1579,7 +2042,7 @@ export function CustomerAccountView({
                         </button>
                         <button
                           type="submit"
-                          className="px-5 py-2 rounded-xl glass-btn-ink text-white text-xs font-semibold transition-all"
+                          className="px-5 py-2 rounded-xl glass-btn-ink text-xs font-semibold transition-all"
                         >
                           Save Address
                         </button>
@@ -1754,8 +2217,8 @@ export function CustomerAccountView({
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" role="radiogroup" aria-label="Preferred payment method">
                     {(
                       [
-                        { id: 'upi', label: 'UPI (GPay / PhonePe)' },
-                        { id: 'card', label: 'Credit / Debit Card' },
+                        { id: 'upi', label: 'Razorpay / UPI (GPay / PhonePe)' },
+                        { id: 'card', label: 'Credit / Debit Card (Razorpay)' },
                         { id: 'cod', label: 'Cash on Delivery (COD)' },
                       ] as { id: PaymentMethod; label: string }[]
                     ).map((method) => (
@@ -1767,8 +2230,8 @@ export function CustomerAccountView({
                         onClick={() => setProfilePayment(method.id)}
                         className={`px-4 py-3 rounded-2xl border text-xs font-semibold text-left transition-all ${
                           profilePayment === method.id
-                            ? 'border-amber-600 bg-amber-50/65 backdrop-blur-md text-zinc-900 shadow-sm'
-                            : 'glass-btn-secondary text-zinc-700'
+                            ? 'border-amber-600 bg-amber-50/65 dark:bg-amber-950/50 backdrop-blur-md text-zinc-900 dark:text-white shadow-sm'
+                            : 'glass-btn-secondary text-zinc-700 dark:text-zinc-200'
                         }`}
                       >
                         {method.label}
@@ -1780,127 +2243,153 @@ export function CustomerAccountView({
                 <div className="pt-2 flex justify-end">
                   <button
                     type="submit"
-                    className="px-6 py-2.5 rounded-xl glass-btn-ink text-white text-sm font-semibold transition-all"
+                    className="px-6 py-2.5 rounded-xl glass-btn-ink text-sm font-semibold transition-all"
                   >
                     Save Profile Changes
                   </button>
                 </div>
               </form>
 
-              <form
-                onSubmit={(event: FormEvent) => {
-                  event.preventDefault();
-                  const result = validateCustomerPasswordChange({
-                    currentPassword: currentPasswordInput,
-                    newPassword: newPasswordInput,
-                    confirmPassword: confirmPasswordInput,
-                    expectedHash: currentCustomer.passwordHash,
-                  });
-                  if (result.error || !result.nextHash) {
-                    setPasswordChangeError(result.error ?? 'Unable to update password.');
-                    return;
-                  }
-                  onUpdateCustomer({
-                    ...currentCustomer,
-                    passwordHash: result.nextHash,
-                  });
-                  setCurrentPasswordInput('');
-                  setNewPasswordInput('');
-                  setConfirmPasswordInput('');
-                  setPasswordChangeError('');
-                  setNotice('Account password updated successfully.');
-                }}
-                noValidate
-                className="glass-surface rounded-3xl p-6 space-y-4"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
+              {currentCustomer.passwordHash ? (
+                <form
+                  onSubmit={(event: FormEvent) => {
+                    event.preventDefault();
+                    const result = validateCustomerPasswordChange({
+                      currentPassword: currentPasswordInput,
+                      newPassword: newPasswordInput,
+                      confirmPassword: confirmPasswordInput,
+                      expectedHash: currentCustomer.passwordHash,
+                    });
+                    if (result.error || !result.nextHash) {
+                      setPasswordChangeError(result.error ?? 'Unable to update password.');
+                      return;
+                    }
+                    onUpdateCustomer({
+                      ...currentCustomer,
+                      passwordHash: result.nextHash,
+                    });
+                    setCurrentPasswordInput('');
+                    setNewPasswordInput('');
+                    setConfirmPasswordInput('');
+                    setPasswordChangeError('');
+                    setNotice('Account password updated successfully.');
+                  }}
+                  noValidate
+                  className="glass-surface rounded-3xl p-6 space-y-4"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h3 className="font-display text-base font-bold text-zinc-900 inline-flex items-center gap-2">
+                        <KeyRound className="w-4 h-4 text-amber-700" />
+                        <span>Account Password &amp; Security</span>
+                      </h3>
+                      <p className="mt-1 text-xs text-zinc-500">
+                        Update the password required to sign in to your BEE4 customer account.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowPasswordFields((prev) => !prev)}
+                      className="text-xs font-semibold text-zinc-700 hover:text-zinc-900"
+                    >
+                      {showPasswordFields ? 'Hide passwords' : 'Show passwords'}
+                    </button>
+                  </div>
+
+                  {passwordChangeError && (
+                    <div
+                      role="alert"
+                      className="p-3 rounded-xl bg-red-50/90 backdrop-blur-md border border-red-200 text-xs text-red-700 font-medium"
+                    >
+                      {passwordChangeError}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <label htmlFor="prof-cur-pass" className="block text-xs font-semibold text-zinc-700 mb-1.5">
+                        Current Password *
+                      </label>
+                      <input
+                        id="prof-cur-pass"
+                        type={showPasswordFields ? 'text' : 'password'}
+                        autoComplete="current-password"
+                        value={currentPasswordInput}
+                        onChange={(e) => {
+                          setCurrentPasswordInput(e.target.value);
+                          if (passwordChangeError) setPasswordChangeError('');
+                        }}
+                        className="w-full h-11 px-3.5 rounded-xl glass-input text-sm focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="prof-new-pass" className="block text-xs font-semibold text-zinc-700 mb-1.5">
+                        New Password (min 6 chars) *
+                      </label>
+                      <input
+                        id="prof-new-pass"
+                        type={showPasswordFields ? 'text' : 'password'}
+                        autoComplete="new-password"
+                        value={newPasswordInput}
+                        onChange={(e) => {
+                          setNewPasswordInput(e.target.value);
+                          if (passwordChangeError) setPasswordChangeError('');
+                        }}
+                        className="w-full h-11 px-3.5 rounded-xl glass-input text-sm focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="prof-confirm-pass" className="block text-xs font-semibold text-zinc-700 mb-1.5">
+                        Confirm New Password *
+                      </label>
+                      <input
+                        id="prof-confirm-pass"
+                        type={showPasswordFields ? 'text' : 'password'}
+                        autoComplete="new-password"
+                        value={confirmPasswordInput}
+                        onChange={(e) => {
+                          setConfirmPasswordInput(e.target.value);
+                          if (passwordChangeError) setPasswordChangeError('');
+                        }}
+                        className="w-full h-11 px-3.5 rounded-xl glass-input text-sm focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-1 flex justify-end">
+                    <button
+                      type="submit"
+                      className="px-5 py-2.5 rounded-xl glass-btn-secondary text-zinc-900 hover:text-amber-800 text-xs font-semibold transition-all"
+                    >
+                      Update Password
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <div className="glass-surface rounded-3xl p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
                     <h3 className="font-display text-base font-bold text-zinc-900 inline-flex items-center gap-2">
-                      <KeyRound className="w-4 h-4 text-amber-700" />
-                      <span>Account Password &amp; Security</span>
+                      <ShieldCheck className="w-4 h-4 text-emerald-700" />
+                      <span>Connected via Google Auth</span>
                     </h3>
-                    <p className="mt-1 text-xs text-zinc-500">
-                      Update the password required to sign in to your BEE4 customer account.
+                    <p className="mt-1 text-xs text-zinc-600">
+                      Signed in securely with{' '}
+                      <span className="font-semibold text-zinc-900">
+                        {firebaseUserEmail || currentCustomer.email || 'Google Account'}
+                      </span>
+                      . Your orders, wishlist, and saved addresses sync automatically with Cloud Firestore.
                     </p>
                   </div>
                   <button
                     type="button"
-                    onClick={() => setShowPasswordFields((prev) => !prev)}
-                    className="text-xs font-semibold text-zinc-700 hover:text-zinc-900"
+                    onClick={onSignOut}
+                    className="px-4 py-2 rounded-xl glass-btn-secondary hover:bg-red-50/90 hover:text-red-700 text-xs font-semibold text-zinc-800 inline-flex items-center gap-1.5 self-start sm:self-auto whitespace-nowrap transition-all"
                   >
-                    {showPasswordFields ? 'Hide passwords' : 'Show passwords'}
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Sign Out</span>
                   </button>
                 </div>
-
-                {passwordChangeError && (
-                  <div
-                    role="alert"
-                    className="p-3 rounded-xl bg-red-50/90 backdrop-blur-md border border-red-200 text-xs text-red-700 font-medium"
-                  >
-                    {passwordChangeError}
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div>
-                    <label htmlFor="prof-cur-pass" className="block text-xs font-semibold text-zinc-700 mb-1.5">
-                      Current Password *
-                    </label>
-                    <input
-                      id="prof-cur-pass"
-                      type={showPasswordFields ? 'text' : 'password'}
-                      autoComplete="current-password"
-                      value={currentPasswordInput}
-                      onChange={(e) => {
-                        setCurrentPasswordInput(e.target.value);
-                        if (passwordChangeError) setPasswordChangeError('');
-                      }}
-                      className="w-full h-11 px-3.5 rounded-xl glass-input text-sm focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="prof-new-pass" className="block text-xs font-semibold text-zinc-700 mb-1.5">
-                      New Password (min 6 chars) *
-                    </label>
-                    <input
-                      id="prof-new-pass"
-                      type={showPasswordFields ? 'text' : 'password'}
-                      autoComplete="new-password"
-                      value={newPasswordInput}
-                      onChange={(e) => {
-                        setNewPasswordInput(e.target.value);
-                        if (passwordChangeError) setPasswordChangeError('');
-                      }}
-                      className="w-full h-11 px-3.5 rounded-xl glass-input text-sm focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="prof-confirm-pass" className="block text-xs font-semibold text-zinc-700 mb-1.5">
-                      Confirm New Password *
-                    </label>
-                    <input
-                      id="prof-confirm-pass"
-                      type={showPasswordFields ? 'text' : 'password'}
-                      autoComplete="new-password"
-                      value={confirmPasswordInput}
-                      onChange={(e) => {
-                        setConfirmPasswordInput(e.target.value);
-                        if (passwordChangeError) setPasswordChangeError('');
-                      }}
-                      className="w-full h-11 px-3.5 rounded-xl glass-input text-sm focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-1 flex justify-end">
-                  <button
-                    type="submit"
-                    className="px-5 py-2.5 rounded-xl glass-btn-secondary text-zinc-900 hover:text-amber-800 text-xs font-semibold transition-all"
-                  >
-                    Update Password
-                  </button>
-                </div>
-              </form>
+              )}
             </div>
           )}
         </div>
@@ -2023,7 +2512,7 @@ function OrderTrackingCard({
         <button
           type="button"
           onClick={onDownloadInvoice}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl glass-btn-ink text-white text-xs font-semibold transition-all"
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl glass-btn-ink text-xs font-semibold transition-all"
         >
           <Download className="w-3.5 h-3.5" />
           <span>Download Invoice</span>

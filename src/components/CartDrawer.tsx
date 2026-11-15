@@ -6,7 +6,6 @@ import {
   calculateCartTotals,
   formatINR,
   formatWhatsAppBagMessage,
-  FREE_SHIPPING_THRESHOLD,
 } from '../utils/storeLogic';
 import { ProductImage } from './ProductImage';
 
@@ -57,28 +56,36 @@ export function CartDrawer({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-label="Shopping Bag">
+    <div
+      className="fixed inset-0 z-50 flex justify-end"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Shopping Bag"
+    >
       <div
-        className="fixed inset-0 bg-zinc-900/25 backdrop-blur-md"
+        className="fixed inset-0 bg-zinc-900/35 backdrop-blur-md"
         onClick={onClose}
         aria-hidden="true"
       />
 
       <aside className="relative z-10 w-full max-w-md glass-drawer border-y-0 border-r-0 h-full flex flex-col">
-        <div className="px-6 py-5 border-b border-white/75 flex items-center justify-between">
+        <div className="px-6 py-5 border-b border-white/75 dark:border-white/10 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-full glass-orb flex items-center justify-center shrink-0">
-              <ShoppingBag className="w-4 h-4 text-amber-600" />
+              <ShoppingBag className="w-4 h-4 text-amber-600 dark:text-amber-400" />
             </div>
-            <h2 className="font-display text-lg font-bold text-zinc-900">
-              Your Bag <span className="text-zinc-500 font-normal tabular-nums">({totals.itemCount})</span>
+            <h2 className="font-display text-lg font-bold text-zinc-900 dark:text-white">
+              Your Bag{' '}
+              <span className="text-zinc-500 dark:text-zinc-400 font-normal tabular-nums">
+                ({totals.itemCount})
+              </span>
             </h2>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close shopping bag"
-            className="p-2 rounded-xl text-zinc-600 hover:text-zinc-900 hover:bg-white/60 transition-colors"
+            className="p-2 rounded-xl text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-white/10 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -86,12 +93,12 @@ export function CartDrawer({
 
         {/* Free shipping progress */}
         <div className="px-6 py-3.5 glass-subtle border-x-0 border-t-0">
-          <p className="text-xs font-medium text-zinc-700 tabular-nums">
+          <p className="text-xs font-medium text-zinc-700 dark:text-zinc-200 tabular-nums">
             {totals.amountToFreeShipping === 0 && totals.subtotal > 0
               ? 'Free India-wide delivery unlocked on this order.'
               : `Add ${formatINR(totals.amountToFreeShipping)} more to unlock free delivery (orders ${formatINR(freeShippingThreshold)}+).`}
           </p>
-          <div className="mt-2 h-2 w-full bg-zinc-900/10 rounded-full overflow-hidden p-[1px]">
+          <div className="mt-2 h-2 w-full bg-zinc-900/10 dark:bg-white/15 rounded-full overflow-hidden p-[1px]">
             <div
               className="h-full rounded-full bg-gradient-to-r from-amber-500 to-amber-600 transition-all duration-300 shadow-[0_0_8px_rgba(245,158,11,0.5)]"
               style={{ width: `${progressPercent}%` }}
@@ -103,11 +110,14 @@ export function CartDrawer({
           {items.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center py-12">
               <div className="w-16 h-16 rounded-full glass-orb flex items-center justify-center mb-4">
-                <ShoppingBag className="w-7 h-7 text-amber-700/80" />
+                <ShoppingBag className="w-7 h-7 text-amber-700/80 dark:text-amber-400" />
               </div>
-              <h3 className="font-display text-base font-semibold text-zinc-900">Your bag is empty</h3>
-              <p className="mt-1.5 text-sm text-zinc-600 max-w-[240px]">
-                Explore trendy gifts, water bottles, handbags, and 3D toys starting at ₹199.
+              <h3 className="font-display text-base font-semibold text-zinc-900 dark:text-white">
+                Your bag is empty
+              </h3>
+              <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-300 max-w-[260px]">
+                Explore Japanese, Korean &amp; Chinese screen-free 3D-printed brain toys starting at
+                ₹349.
               </p>
               <button
                 type="button"
@@ -117,14 +127,17 @@ export function CartDrawer({
                 }}
                 className="mt-6 px-5 py-2.5 rounded-xl glass-btn-amber text-white text-sm font-semibold transition-all"
               >
-                Browse Products
+                Browse Brain Toys
               </button>
             </div>
           ) : (
             <ul className="space-y-3">
               {items.map((item) => (
-                <li key={`${item.productId}::${item.variant}`} className="p-3 rounded-2xl glass-subtle flex gap-3.5">
-                  <div className="w-20 h-16 rounded-xl bg-white/50 overflow-hidden shrink-0 border border-white/75">
+                <li
+                  key={`${item.productId}::${item.variant}`}
+                  className="p-3 rounded-2xl glass-subtle flex gap-3.5"
+                >
+                  <div className="w-20 h-16 rounded-xl bg-white/50 dark:bg-slate-900/60 overflow-hidden shrink-0 border border-white/75 dark:border-white/15">
                     <ProductImage
                       src={item.image}
                       alt={item.title}
@@ -134,10 +147,12 @@ export function CartDrawer({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <h3 className="text-sm font-semibold text-zinc-900 line-clamp-1">
+                        <h3 className="text-sm font-semibold text-zinc-900 dark:text-white line-clamp-1">
                           {item.title}
                         </h3>
-                        <p className="text-xs text-zinc-500 mt-0.5">{item.variant}</p>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                          {item.variant}
+                        </p>
                       </div>
                       <button
                         type="button"
@@ -155,24 +170,24 @@ export function CartDrawer({
                           type="button"
                           onClick={() => onUpdateQuantity(item.productId, item.variant, -1)}
                           aria-label={`Decrease quantity of ${item.title}`}
-                          className="p-1.5 text-zinc-600 hover:text-zinc-900"
+                          className="p-1.5 text-zinc-600 dark:text-zinc-200"
                         >
                           <Minus className="w-3.5 h-3.5" />
                         </button>
-                        <span className="px-2.5 text-xs font-semibold tabular-nums text-zinc-900">
+                        <span className="px-2.5 text-xs font-semibold tabular-nums text-zinc-900 dark:text-white">
                           {item.quantity}
                         </span>
                         <button
                           type="button"
                           onClick={() => onUpdateQuantity(item.productId, item.variant, 1)}
                           aria-label={`Increase quantity of ${item.title}`}
-                          className="p-1.5 text-zinc-600 hover:text-zinc-900"
+                          className="p-1.5 text-zinc-600 dark:text-zinc-200"
                         >
                           <Plus className="w-3.5 h-3.5" />
                         </button>
                       </div>
 
-                      <span className="text-sm font-bold text-zinc-900 tabular-nums">
+                      <span className="text-sm font-bold text-zinc-900 dark:text-white tabular-nums">
                         {formatINR(item.price * item.quantity)}
                       </span>
                     </div>
@@ -184,21 +199,21 @@ export function CartDrawer({
         </div>
 
         {items.length > 0 && (
-          <div className="p-6 border-t border-white/75 glass-subtle border-x-0 border-b-0 space-y-3">
+          <div className="p-6 border-t border-white/75 dark:border-white/10 glass-subtle border-x-0 border-b-0 space-y-3">
             <div className="space-y-1.5 text-sm">
-              <div className="flex justify-between text-zinc-600">
+              <div className="flex justify-between text-zinc-600 dark:text-zinc-300">
                 <span>Subtotal</span>
-                <span className="tabular-nums font-medium text-zinc-900">
+                <span className="tabular-nums font-medium text-zinc-900 dark:text-white">
                   {formatINR(totals.subtotal)}
                 </span>
               </div>
-              <div className="flex justify-between text-zinc-600">
+              <div className="flex justify-between text-zinc-600 dark:text-zinc-300">
                 <span>Shipping</span>
-                <span className="tabular-nums font-medium text-zinc-900">
+                <span className="tabular-nums font-medium text-zinc-900 dark:text-white">
                   {totals.shippingFee === 0 ? 'FREE' : formatINR(totals.shippingFee)}
                 </span>
               </div>
-              <div className="flex justify-between text-base font-bold text-zinc-900 pt-2 border-t border-zinc-900/10">
+              <div className="flex justify-between text-base font-bold text-zinc-900 dark:text-white pt-2 border-t border-zinc-900/10 dark:border-white/10">
                 <span>Estimated Total</span>
                 <span className="tabular-nums">{formatINR(totals.total)}</span>
               </div>
@@ -220,9 +235,9 @@ export function CartDrawer({
               href={whatsAppUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="w-full py-2.5 px-4 rounded-xl glass-btn-secondary text-zinc-800 text-xs font-semibold inline-flex items-center justify-center gap-2 transition-all"
+              className="w-full py-2.5 px-4 rounded-xl glass-btn-secondary text-zinc-800 dark:text-zinc-100 text-xs font-semibold inline-flex items-center justify-center gap-2 transition-all"
             >
-              <MessageCircle className="w-4 h-4 text-emerald-700" />
+              <MessageCircle className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
               <span>Order Entire Bag on WhatsApp</span>
             </a>
           </div>

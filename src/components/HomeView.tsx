@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { ArrowRight, Gift, ShieldCheck, Sparkles, Truck } from 'lucide-react';
-import { HERO_IMAGE } from '../data/catalog';
-import { GiftOccasion, Product, StorePage, Testimonial } from '../types';
+import { ArrowRight, Brain, Layers, ShieldCheck, Sparkles, Truck } from 'lucide-react';
+import { AGE_GROUP_META, HERO_IMAGE } from '../data/catalog';
+import { AgeGroup, GiftOccasion, Product, ProductCategory, StorePage, Testimonial } from '../types';
+import { filterAndSortProducts, groupProductsByAge } from '../utils/storeLogic';
+import { DualFilterBar } from './DualFilterBar';
 import { ProductCard } from './ProductCard';
 import { ProductImage } from './ProductImage';
 import { Testimonials } from './Testimonials';
@@ -12,6 +14,7 @@ interface HomeViewProps {
   wishlistIds: string[];
   onNavigate: (page: StorePage) => void;
   onSelectProduct: (productId: string) => void;
+  onQuickView: (product: Product) => void;
   onQuickAdd: (product: Product) => void;
   onToggleWishlist: (productId: string) => void;
   onBrowseOccasion: (occasion: GiftOccasion) => void;
@@ -19,10 +22,10 @@ interface HomeViewProps {
 }
 
 const OCCASION_TABS: { value: Exclude<GiftOccasion, GiftOccasion.ALL>; label: string }[] = [
-  { value: GiftOccasion.BIRTHDAY, label: 'Birthday Picks' },
-  { value: GiftOccasion.FESTIVALS, label: 'Diwali & Festivals' },
-  { value: GiftOccasion.HOUSEWARMING, label: 'Housewarming' },
-  { value: GiftOccasion.DESK_COLLEGE, label: 'Desk & College' },
+  { value: GiftOccasion.BIRTHDAY, label: 'Birthday Brain Gifts' },
+  { value: GiftOccasion.FESTIVALS, label: 'Festive & Return Gifts' },
+  { value: GiftOccasion.DESK_COLLEGE, label: 'Study Desk & Focus' },
+  { value: GiftOccasion.EVERYDAY, label: 'Screen-Free Everyday' },
 ];
 
 export function HomeView({
@@ -31,65 +34,96 @@ export function HomeView({
   wishlistIds,
   onNavigate,
   onSelectProduct,
+  onQuickView,
   onQuickAdd,
   onToggleWishlist,
   onBrowseOccasion,
   onAddTestimonial,
 }: HomeViewProps) {
+  const [selectedCategory, setSelectedCategory] = useState<ProductCategory>(ProductCategory.ALL);
+  const [selectedAgeGroup, setSelectedAgeGroup] = useState<AgeGroup>(AgeGroup.ALL);
+  const [groupByAge, setGroupByAge] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedOccasion, setSelectedOccasion] = useState<
     Exclude<GiftOccasion, GiftOccasion.ALL>
   >(GiftOccasion.BIRTHDAY);
 
-  const featuredProducts = products.filter((p) => p.featured).slice(0, 6);
-  const displayFeatured =
-    featuredProducts.length >= 3 ? featuredProducts : products.slice(0, 6);
+  const filteredProducts = filterAndSortProducts(products, {
+    category: selectedCategory,
+    ageGroup: selectedAgeGroup,
+    occasion: GiftOccasion.ALL,
+    search: searchQuery,
+    maxPrice: null,
+    sortBy: 'featured',
+  });
+
+  const groupedSections = groupProductsByAge(filteredProducts);
 
   const occasionPicks = products
     .filter((p) => p.occasion === selectedOccasion)
     .slice(0, 3);
 
+  const handleResetFilters = () => {
+    setSelectedCategory(ProductCategory.ALL);
+    setSelectedAgeGroup(AgeGroup.ALL);
+    setSearchQuery('');
+  };
+
+  const scrollToCatalog = () => {
+    const el = document.getElementById('brain-toys-catalog');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   return (
     <div>
       {/* 1. Storefront Hero */}
-      <section className="max-w-[1200px] mx-auto px-4 sm:px-6 pt-8 sm:pt-12 pb-10">
+      <section className="max-w-[1200px] mx-auto px-4 sm:px-6 pt-8 sm:pt-12 pb-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-stretch">
-          <div className="lg:col-span-5 flex flex-col justify-center py-2">
-            <p className="text-xs font-semibold tracking-wide text-amber-700">
-              Curated Indian Lifestyle &amp; Gifting
+          <div className="lg:col-span-6 flex flex-col justify-center py-2">
+            <p className="text-xs font-semibold tracking-wide text-amber-700 dark:text-amber-400">
+              East-Asian Screen-Free Brain-Training Studio · bee4.in
             </p>
-            <h1 className="mt-3 font-display text-[clamp(2.2rem,4vw,3.25rem)] font-bold leading-[1.1] tracking-tight text-zinc-900 text-balance">
-              Thoughtful everyday finds &amp; trendy gifts, ₹199 to ₹999.
+            <h1 className="mt-3 font-display text-[clamp(2rem,3.8vw,3.15rem)] font-bold leading-[1.1] tracking-tight text-zinc-900 dark:text-white text-balance">
+              Japanese, Korean &amp; Chinese Brain-Training Toys — Built for Deep Focus.
             </h1>
-            <p className="mt-4 text-base text-zinc-600 leading-relaxed max-w-md">
-              From insulated bottles and structured handbags to 3D desk toys and handmade
-              showpieces — quality essentials priced honestly for daily joy and gifting.
+            <p className="mt-4 text-base text-zinc-600 dark:text-zinc-300 leading-relaxed max-w-xl">
+              Scientifically crafted mechanical puzzles, Japanese Karakuri boxes, Korean Gabe cubes,
+              and kinetic STEM kits designed for ages 3–15 — small-batch 3D-printed from{' '}
+              <strong className="text-zinc-900 dark:text-white">₹349 to ₹899</strong>, shipping
+              across India, the US, and the UK.
             </p>
 
             <div className="mt-7 flex flex-wrap items-center gap-4">
               <button
                 type="button"
-                onClick={() => onNavigate('shop')}
+                onClick={scrollToCatalog}
                 className="px-6 py-3 rounded-xl glass-btn-amber text-white text-sm font-semibold inline-flex items-center gap-2 transition-all whitespace-nowrap shrink-0"
               >
-                <span>Shop Collection</span>
+                <span>Explore All {products.length} Brain Toys</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
               <button
                 type="button"
-                onClick={() => onNavigate('gifts')}
-                className="px-5 py-3 rounded-xl glass-btn-secondary text-zinc-900 text-sm font-semibold transition-all whitespace-nowrap shrink-0"
+                onClick={() => {
+                  setGroupByAge(true);
+                  scrollToCatalog();
+                }}
+                className="px-5 py-3 rounded-xl glass-btn-secondary text-zinc-900 dark:text-white text-sm font-semibold inline-flex items-center gap-2 transition-all whitespace-nowrap shrink-0"
               >
-                Explore Gift Ideas
+                <Layers className="w-4 h-4 text-amber-600" />
+                <span>Browse by Child&apos;s Age</span>
               </button>
             </div>
           </div>
 
-          <div className="lg:col-span-7">
-            <div className="h-full min-h-[280px] sm:min-h-[380px] p-2.5 rounded-3xl glass-surface">
-              <div className="h-full w-full rounded-2xl overflow-hidden bg-white/40 border border-white/60">
+          <div className="lg:col-span-6">
+            <div className="h-full min-h-[260px] sm:min-h-[360px] p-2.5 rounded-3xl glass-surface">
+              <div className="h-full w-full rounded-2xl overflow-hidden bg-white/40 dark:bg-slate-900/50 border border-white/60 dark:border-white/10">
                 <ProductImage
                   src={HERO_IMAGE}
-                  alt="BEE4 curated collection featuring canvas tote, amber flask, 3D desk figurine, and ceramic arch vase"
+                  alt="BEE4 custom 3D-printed East-Asian brain toys including Karakuri trick box, Korean tangram, open-gear automaton, and Strandbeest walking kit"
                   className="w-full h-full object-cover"
                 />
               </div>
@@ -97,96 +131,176 @@ export function HomeView({
           </div>
         </div>
 
-        {/* 4-Column Store Promise Strip with Soft Bubble Icon Wells */}
+        {/* 4-Column Trust Strip */}
         <div className="mt-8 grid grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="p-4 rounded-2xl glass-subtle flex items-start gap-3">
             <div className="w-9 h-9 rounded-full glass-orb flex items-center justify-center shrink-0">
-              <Sparkles className="w-4 h-4 text-amber-700" />
+              <Sparkles className="w-4 h-4 text-amber-700 dark:text-amber-400" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-zinc-900 tabular-nums">₹199 – ₹999</p>
-              <p className="text-xs text-zinc-600 mt-0.5">Budget-friendly daily pricing</p>
+              <p className="text-sm font-semibold text-zinc-900 dark:text-white tabular-nums">
+                ₹349 – ₹899
+              </p>
+              <p className="text-xs text-zinc-600 dark:text-zinc-300 mt-0.5">
+                Custom 3D-printed Bio-PLA
+              </p>
             </div>
           </div>
           <div className="p-4 rounded-2xl glass-subtle flex items-start gap-3">
             <div className="w-9 h-9 rounded-full glass-orb flex items-center justify-center shrink-0">
-              <Truck className="w-4 h-4 text-amber-700" />
+              <Brain className="w-4 h-4 text-amber-700 dark:text-amber-400" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-zinc-900">Free Shipping ₹499+</p>
-              <p className="text-xs text-zinc-600 mt-0.5">3–5 day delivery across India</p>
+              <p className="text-sm font-semibold text-zinc-900 dark:text-white">
+                100% Screen-Free IQ
+              </p>
+              <p className="text-xs text-zinc-600 dark:text-zinc-300 mt-0.5">
+                Japanese, Korean &amp; Chinese craft
+              </p>
             </div>
           </div>
           <div className="p-4 rounded-2xl glass-subtle flex items-start gap-3">
             <div className="w-9 h-9 rounded-full glass-orb flex items-center justify-center shrink-0">
-              <ShieldCheck className="w-4 h-4 text-amber-700" />
+              <Truck className="w-4 h-4 text-amber-700 dark:text-amber-400" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-zinc-900">UPI, Cards &amp; COD</p>
-              <p className="text-xs text-zinc-600 mt-0.5">Instant or WhatsApp checkout</p>
+              <p className="text-sm font-semibold text-zinc-900 dark:text-white">
+                Worldwide Dispatch
+              </p>
+              <p className="text-xs text-zinc-600 dark:text-zinc-300 mt-0.5">
+                India, US &amp; UK delivery
+              </p>
             </div>
           </div>
           <div className="p-4 rounded-2xl glass-subtle flex items-start gap-3">
             <div className="w-9 h-9 rounded-full glass-orb flex items-center justify-center shrink-0">
-              <Gift className="w-4 h-4 text-amber-700" />
+              <ShieldCheck className="w-4 h-4 text-amber-700 dark:text-amber-400" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-zinc-900">Ready Gift Wrapping</p>
-              <p className="text-xs text-zinc-600 mt-0.5">Add handwritten notes at checkout</p>
+              <p className="text-sm font-semibold text-zinc-900 dark:text-white">
+                Secure Checkout
+              </p>
+              <p className="text-xs text-zinc-600 dark:text-zinc-300 mt-0.5">
+                Cards, UPI, COD &amp; invoice
+              </p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* 2. Featured Collection Grid */}
-      <section className="max-w-[1200px] mx-auto px-4 sm:px-6 py-12 border-t border-white/70">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
-          <div>
-            <p className="text-xs font-semibold tracking-wide text-zinc-500">
-              Featured Picks
-            </p>
-            <h2 className="mt-1.5 font-display text-2xl sm:text-3xl font-bold text-zinc-900">
-              Bestsellers Across Every Room
+      {/* 2. Dual-Filter Navigation Bar + Complete 16-Product Catalog */}
+      <section
+        id="brain-toys-catalog"
+        className="max-w-[1200px] mx-auto px-4 sm:px-6 pt-4 pb-14 space-y-8"
+      >
+        <DualFilterBar
+          products={products}
+          filteredCount={filteredProducts.length}
+          selectedCategory={selectedCategory}
+          selectedAgeGroup={selectedAgeGroup}
+          groupByAge={groupByAge}
+          search={searchQuery}
+          onChangeCategory={setSelectedCategory}
+          onChangeAgeGroup={setSelectedAgeGroup}
+          onToggleGroupByAge={() => setGroupByAge((prev) => !prev)}
+          onChangeSearch={setSearchQuery}
+          onResetFilters={handleResetFilters}
+        />
+
+        {filteredProducts.length === 0 ? (
+          <div className="py-16 px-6 text-center glass-surface rounded-3xl">
+            <h2 className="font-display text-lg font-bold text-zinc-900 dark:text-white">
+              No toys match that Skill + Age combination
             </h2>
+            <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-300 max-w-md mx-auto">
+              Switch back to All Skills or All Ages to browse all {products.length} East-Asian
+              screen-free brain toys.
+            </p>
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="mt-5 px-5 py-2.5 rounded-xl glass-btn-amber text-white text-sm font-semibold"
+            >
+              Reset All Filters
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => onNavigate('shop')}
-            className="text-sm font-semibold text-amber-700 hover:text-amber-800 inline-flex items-center gap-1.5 self-start sm:self-auto whitespace-nowrap"
-          >
-            <span>View All {products.length} Products</span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
-        </div>
+        ) : groupByAge ? (
+          <div className="space-y-12">
+            {groupedSections.map(({ ageGroup, items }) => {
+              const meta = AGE_GROUP_META.find((m) => m.ageGroup === ageGroup);
+              return (
+                <div key={ageGroup} className="space-y-5">
+                  <div className="glass-surface rounded-2xl p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="space-y-1.5">
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        <span
+                          className={`px-3 py-1 rounded-lg border text-xs font-bold ${
+                            meta?.badgeClasses ?? ''
+                          }`}
+                        >
+                          {ageGroup} · {meta?.shortSubtitle}
+                        </span>
+                        <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 tabular-nums">
+                          {items.length} curated toys
+                        </span>
+                      </div>
+                      <h2 className="font-display text-xl sm:text-2xl font-bold text-zinc-900 dark:text-white">
+                        {meta?.sectionHeadline}
+                      </h2>
+                      <p className="text-sm text-zinc-700 dark:text-zinc-300 max-w-3xl leading-relaxed">
+                        {meta?.sectionSubtextHi}
+                      </p>
+                    </div>
+                  </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-          {displayFeatured.map((product) => (
-            <ProductCard
-              key={product.id}
-              product={product}
-              isWishlisted={wishlistIds.includes(product.id)}
-              onSelectProduct={onSelectProduct}
-              onQuickAdd={onQuickAdd}
-              onToggleWishlist={onToggleWishlist}
-            />
-          ))}
-        </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                    {items.map((product) => (
+                      <ProductCard
+                        key={product.id}
+                        product={product}
+                        isWishlisted={wishlistIds.includes(product.id)}
+                        onSelectProduct={onSelectProduct}
+                        onQuickView={onQuickView}
+                        onQuickAdd={onQuickAdd}
+                        onToggleWishlist={onToggleWishlist}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {filteredProducts.map((product) => (
+              <ProductCard
+                key={product.id}
+                product={product}
+                isWishlisted={wishlistIds.includes(product.id)}
+                onSelectProduct={onSelectProduct}
+                onQuickView={onQuickView}
+                onQuickAdd={onQuickAdd}
+                onToggleWishlist={onToggleWishlist}
+              />
+            ))}
+          </div>
+        )}
       </section>
 
-      {/* 3. Interactive Gift Finder / Occasions */}
+      {/* 3. Occasion & Return Gift Finder */}
       <section className="glass-subtle border-x-0 py-14">
         <div className="max-w-[1200px] mx-auto px-4 sm:px-6">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
             <div>
-              <p className="text-xs font-semibold tracking-wide text-amber-700">
-                Gift Finder
+              <p className="text-xs font-semibold tracking-wide text-amber-700 dark:text-amber-400">
+                Smart Gifting Finder
               </p>
-              <h2 className="mt-1.5 font-display text-2xl sm:text-3xl font-bold text-zinc-900">
+              <h2 className="mt-1.5 font-display text-2xl sm:text-3xl font-bold text-zinc-900 dark:text-white">
                 Shop by Occasion
               </h2>
-              <p className="mt-2 text-sm text-zinc-600 max-w-lg">
-                Buying for a friend&apos;s birthday, Diwali hosting, or a college desk upgrade? Pick an
-                occasion to see curated ideas.
+              <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300 max-w-lg">
+                Picking a meaningful birthday surprise, return gift hamper, or study-desk brain
+                booster? Select an occasion to preview curated picks.
               </p>
             </div>
 
@@ -206,8 +320,8 @@ export function HomeView({
                     onClick={() => setSelectedOccasion(tab.value)}
                     className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
                       active
-                        ? 'glass-btn-ink text-white'
-                        : 'text-zinc-700 hover:text-zinc-900 hover:bg-white/70'
+                        ? 'glass-btn-ink'
+                        : 'text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-white/70 dark:hover:bg-white/10'
                     }`}
                   >
                     {tab.label}
@@ -224,6 +338,7 @@ export function HomeView({
                 product={product}
                 isWishlisted={wishlistIds.includes(product.id)}
                 onSelectProduct={onSelectProduct}
+                onQuickView={onQuickView}
                 onQuickAdd={onQuickAdd}
                 onToggleWishlist={onToggleWishlist}
               />
@@ -234,7 +349,7 @@ export function HomeView({
             <button
               type="button"
               onClick={() => onBrowseOccasion(selectedOccasion)}
-              className="px-5 py-2.5 rounded-xl glass-btn-secondary text-zinc-900 hover:text-amber-800 text-sm font-semibold inline-flex items-center gap-2 transition-all"
+              className="px-5 py-2.5 rounded-xl glass-btn-secondary text-zinc-900 dark:text-white hover:text-amber-800 text-sm font-semibold inline-flex items-center gap-2 transition-all"
             >
               <span>See All {selectedOccasion} Gifts</span>
               <ArrowRight className="w-4 h-4" />
@@ -243,61 +358,78 @@ export function HomeView({
         </div>
       </section>
 
-      {/* 4. Brand & Craft Story */}
+      {/* 4. Engineering Philosophy & Craft Story */}
       <section className="max-w-[1200px] mx-auto px-4 sm:px-6 pt-14">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-center glass-surface rounded-3xl p-6 sm:p-10">
           <div className="md:col-span-7">
-            <p className="text-xs font-semibold tracking-wide text-zinc-500">
-              Why BEE4
+            <p className="text-xs font-semibold tracking-wide text-zinc-500 dark:text-zinc-400">
+              Why BEE4 Brain Toys
             </p>
-            <h2 className="mt-2 font-display text-2xl sm:text-3xl font-bold text-zinc-900 text-balance">
-              Small-batch handmade pieces meet everyday smart utility.
+            <h2 className="mt-2 font-display text-2xl sm:text-3xl font-bold text-zinc-900 dark:text-white text-balance">
+              Precision East-Asian cognitive mechanics, small-batch 3D-printed for families worldwide.
             </h2>
-            <p className="mt-3 text-sm sm:text-base text-zinc-600 leading-relaxed">
-              We started BEE4 with one simple goal: you shouldn&apos;t have to choose between
-              boring cheap plastic and overpriced boutique decor. Every bottle, handbag, 3D-printed
-              desk buddy, and clay showpiece is quality-checked before it leaves our Bengaluru studio.
+            <p className="mt-3 text-sm sm:text-base text-zinc-600 dark:text-zinc-300 leading-relaxed">
+              Imported Japanese Karakuri puzzle boxes or Korean Gabe kits typically cost 3×–5× more.
+              Our Bengaluru 3D-print studio fabricates these proven spatial, motor, and binary-STEM
+              mechanisms using non-toxic Bio-PLA — hand-inspected and shipped globally to India, the
+              US, and the UK.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               <button
                 type="button"
                 onClick={() => onNavigate('about')}
-                className="px-4 py-2.5 rounded-xl glass-btn-secondary text-zinc-900 text-sm font-semibold transition-all"
+                className="px-4 py-2.5 rounded-xl glass-btn-secondary text-zinc-900 dark:text-white text-sm font-semibold transition-all"
               >
                 Read Our Story
               </button>
               <button
                 type="button"
                 onClick={() => onNavigate('contact')}
-                className="px-4 py-2.5 rounded-xl text-zinc-700 hover:text-zinc-900 hover:bg-white/50 text-sm font-semibold transition-colors"
+                className="px-4 py-2.5 rounded-xl text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-white/10 text-sm font-semibold transition-colors"
               >
-                Need Bulk Event Gifts? Contact Us →
+                School / Return Gift Bulk Inquiry →
               </button>
             </div>
           </div>
 
           <div className="md:col-span-5 grid grid-cols-2 gap-4">
             <div className="p-4 rounded-2xl glass-subtle">
-              <p className="font-display text-2xl font-bold text-zinc-900 tabular-nums">15+</p>
-              <p className="mt-1 text-xs text-zinc-600">Curated launch essentials across 7 categories</p>
+              <p className="font-display text-2xl font-bold text-zinc-900 dark:text-white tabular-nums">
+                16
+              </p>
+              <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-300">
+                Custom 3D-printed toys across 4 skills &amp; 4 age groups
+              </p>
             </div>
             <div className="p-4 rounded-2xl glass-subtle">
-              <p className="font-display text-2xl font-bold text-zinc-900 tabular-nums">4.8/5</p>
-              <p className="mt-1 text-xs text-zinc-600">Quality check score across packaging &amp; build</p>
+              <p className="font-display text-2xl font-bold text-zinc-900 dark:text-white tabular-nums">
+                0%
+              </p>
+              <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-300">
+                Screens, batteries, or passive cartoon distractions
+              </p>
             </div>
             <div className="p-4 rounded-2xl glass-subtle">
-              <p className="font-display text-2xl font-bold text-zinc-900 tabular-nums">₹499</p>
-              <p className="mt-1 text-xs text-zinc-600">Free delivery threshold pan-India</p>
+              <p className="font-display text-2xl font-bold text-zinc-900 dark:text-white tabular-nums">
+                US · UK · IN
+              </p>
+              <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-300">
+                International studio dispatch ready
+              </p>
             </div>
             <div className="p-4 rounded-2xl glass-subtle">
-              <p className="font-display text-2xl font-bold text-zinc-900 tabular-nums">48 hr</p>
-              <p className="mt-1 text-xs text-zinc-600">Dispatch turnaround from order confirmation</p>
+              <p className="font-display text-2xl font-bold text-zinc-900 dark:text-white tabular-nums">
+                48 hr
+              </p>
+              <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-300">
+                Small-batch inspection &amp; dispatch turnaround
+              </p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* 5. Customer Testimonials & Feedback Form */}
+      {/* 5. Parent Reviews & Feedback Form */}
       <Testimonials
         testimonials={testimonials}
         products={products}

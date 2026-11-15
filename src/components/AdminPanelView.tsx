@@ -2,20 +2,24 @@ import { ChangeEvent, FormEvent, useState } from 'react';
 import {
   ArrowLeft,
   Box,
+  Cloud,
   Inbox,
   LayoutDashboard,
   Lock,
   MessageCircle,
   Pencil,
   Plus,
+  RefreshCw,
   RotateCcw,
   Search,
   Settings,
+  ShieldCheck,
   ShoppingBag,
   Trash2,
   Upload,
 } from 'lucide-react';
 import {
+  AgeGroup,
   CustomerInquiry,
   GiftOccasion,
   OrderRecord,
@@ -24,6 +28,7 @@ import {
   ProductCategory,
   StoreSettings,
 } from '../types';
+import { AGE_GROUP_META } from '../data/catalog';
 import {
   buildWhatsAppUrl,
   calculateAdminMetrics,
@@ -44,6 +49,10 @@ interface AdminPanelViewProps {
   inquiries: CustomerInquiry[];
   settings: StoreSettings;
   adminPasswordHash: string;
+  firebaseAdminEmail?: string | null;
+  firebaseSignedInEmail?: string | null;
+  onConnectGoogleAdmin?: () => Promise<void>;
+  onSyncCatalogToCloud?: () => Promise<void>;
   onUpdateSettings: (next: StoreSettings) => void;
   onSaveProduct: (product: Product) => void;
   onToggleProductStock: (productId: string) => void;
@@ -60,6 +69,10 @@ const EDITABLE_CATEGORIES = Object.values(ProductCategory).filter(
   (c) => c !== ProductCategory.ALL
 ) as Exclude<ProductCategory, ProductCategory.ALL>[];
 
+const EDITABLE_AGE_GROUPS = Object.values(AgeGroup).filter(
+  (a) => a !== AgeGroup.ALL
+) as Exclude<AgeGroup, AgeGroup.ALL>[];
+
 const EDITABLE_OCCASIONS = Object.values(GiftOccasion).filter(
   (o) => o !== GiftOccasion.ALL
 ) as Exclude<GiftOccasion, GiftOccasion.ALL>[];
@@ -72,23 +85,53 @@ const ORDER_STATUSES: OrderStatus[] = [
   'Cancelled',
 ];
 
+const DEFAULT_CUSTOM_IMAGE = '/src/assets/images/toy_engineering_front_1794767911598.jpg';
+
 function emptyProductDraft(): Product {
   return {
     id: `bee4-custom-${Date.now()}`,
     title: '',
-    category: ProductCategory.GIFTS,
+    category: ProductCategory.ENGINEERING,
+    ageGroup: AgeGroup.AGE_6_8,
+    originConcept: '🇯🇵 Japanese Brain-Training Mechanism',
     occasion: GiftOccasion.BIRTHDAY,
     price: 499,
-    compareAtPrice: 699,
-    image: '/src/assets/images/prod_birthday_gift_box_1794722094947.jpg',
-    variants: ['Standard Edition'],
-    shortSpec: 'Everyday quality · Ready to ship',
+    compareAtPrice: 899,
+    image: DEFAULT_CUSTOM_IMAGE,
+    gallery: [
+      {
+        id: 'front',
+        label: 'View 1: Front',
+        shortLabel: 'Front',
+        url: DEFAULT_CUSTOM_IMAGE,
+        objectPosition: '50% 50%',
+      },
+      {
+        id: 'mechanism',
+        label: 'View 2: Mechanism/Inside',
+        shortLabel: 'Mechanism',
+        url: '/src/assets/images/toy_mechanism_inside_1794767912639.jpg',
+        objectPosition: '50% 50%',
+      },
+      {
+        id: 'scale',
+        label: 'View 3: Hands-On Scale',
+        shortLabel: 'Scale',
+        url: '/src/assets/images/toy_hands_on_scale_1794767913261.jpg',
+        objectPosition: '50% 50%',
+      },
+    ],
+    variants: ['Standard Studio Edition'],
+    shortSpec: 'Custom 3D-printed Bio-PLA · Precision interlocking fit',
     description: '',
-    materials: 'Curated Studio Material',
-    dimensions: 'Standard Size',
+    useCaseHi: 'Custom 3D-printed mechanism engineered for effortless hands-on assembly and play.',
+    brainBenefitsHi: 'Strengthens spatial IQ, logical sequencing, and bilateral coordination.',
+    whyParentsBuyHi: 'Replaces passive screen habits with engaging, quiet tactile focus.',
+    materials: 'Food-Safe Matte Bio-PLA+',
+    dimensions: 'Standard Tabletop Size',
     inStock: true,
     featured: false,
-    tag: 'New',
+    tag: 'New Release',
   };
 }
 
@@ -140,6 +183,10 @@ export function AdminPanelView({
   inquiries,
   settings,
   adminPasswordHash,
+  firebaseAdminEmail = null,
+  firebaseSignedInEmail = null,
+  onConnectGoogleAdmin,
+  onSyncCatalogToCloud,
   onUpdateSettings,
   onSaveProduct,
   onToggleProductStock,
@@ -153,6 +200,8 @@ export function AdminPanelView({
 }: AdminPanelViewProps) {
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
   const [statusNotice, setStatusNotice] = useState('');
+  const [cloudActionLoading, setCloudActionLoading] = useState(false);
+  const [cloudActionError, setCloudActionError] = useState('');
 
   // Product management state
   const [productSearch, setProductSearch] = useState('');
@@ -244,19 +293,36 @@ export function AdminPanelView({
       .map((v) => v.trim())
       .filter(Boolean);
 
+    const syncedGallery: Product['gallery'] = editing.gallery
+      ? [
+          { ...editing.gallery[0], url: editing.image },
+          editing.gallery[1],
+          editing.gallery[2],
+        ]
+      : [
+          { id: 'front', label: 'View 1: Front', shortLabel: 'Front', url: editing.image, objectPosition: '50% 50%' },
+          { id: 'mechanism', label: 'View 2: Mechanism/Inside', shortLabel: 'Mechanism', url: '/src/assets/images/toy_mechanism_inside_1794767912639.jpg', objectPosition: '50% 50%' },
+          { id: 'scale', label: 'View 3: Hands-On Scale', shortLabel: 'Scale', url: '/src/assets/images/toy_hands_on_scale_1794767913261.jpg', objectPosition: '50% 50%' },
+        ];
+
     const saved: Product = {
       ...editing,
       title: editing.title.trim(),
+      originConcept: editing.originConcept.trim() || '🇯🇵 East-Asian Brain Toy',
       price: Math.round(editing.price),
       compareAtPrice:
         editing.compareAtPrice && editing.compareAtPrice > editing.price
           ? Math.round(editing.compareAtPrice)
           : undefined,
-      variants: parsedVariants.length > 0 ? parsedVariants : ['Standard Edition'],
+      gallery: syncedGallery,
+      variants: parsedVariants.length > 0 ? parsedVariants : ['Standard Studio Edition'],
       description:
         editing.description.trim() ||
-        'Quality everyday find curated by BEE4 for gifting and daily utility.',
-      shortSpec: editing.shortSpec.trim() || 'Everyday quality · Pan-India shipping',
+        'Screen-free East-Asian brain-training toy precision 3D-printed in small batches.',
+      shortSpec: editing.shortSpec.trim() || '3D-printed Bio-PLA+ · Worldwide shipping',
+      useCaseHi: editing.useCaseHi.trim() || 'Hands-on mechanical puzzle engineered to spark curiosity away from screens.',
+      brainBenefitsHi: editing.brainBenefitsHi.trim() || 'Strengthens logical thinking, focus, and spatial dexterity.',
+      whyParentsBuyHi: editing.whyParentsBuyHi.trim() || 'Ideal for nurturing screen-free concentration and creative thinking.',
     };
 
     onSaveProduct(saved);
@@ -315,6 +381,42 @@ export function AdminPanelView({
     setConfirmPassDraft('');
     setPassError('');
     setStatusNotice('Admin password updated successfully.');
+  };
+
+  const handleConnectGoogleCloud = async () => {
+    if (!onConnectGoogleAdmin) return;
+    setCloudActionError('');
+    setCloudActionLoading(true);
+    try {
+      await onConnectGoogleAdmin();
+      setStatusNotice('Google account connected for Cloud Firestore admin sync.');
+    } catch (err) {
+      setCloudActionError(
+        err instanceof Error && err.message
+          ? err.message
+          : 'Unable to connect Google account. Please allow popups and retry.'
+      );
+    } finally {
+      setCloudActionLoading(false);
+    }
+  };
+
+  const handleSyncCatalogCloud = async () => {
+    if (!onSyncCatalogToCloud) return;
+    setCloudActionError('');
+    setCloudActionLoading(true);
+    try {
+      await onSyncCatalogToCloud();
+      setStatusNotice('Catalog, settings, and testimonials synced to Cloud Firestore.');
+    } catch (err) {
+      setCloudActionError(
+        err instanceof Error && err.message
+          ? err.message
+          : 'Unable to sync catalog to Cloud Firestore.'
+      );
+    } finally {
+      setCloudActionLoading(false);
+    }
   };
 
   const tabTitle: Record<AdminTab, string> = {
@@ -377,6 +479,73 @@ export function AdminPanelView({
         </div>
       </div>
 
+      {/* Cloud Firestore Sync Bar */}
+      <div className="mt-4 glass-subtle rounded-2xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-start sm:items-center gap-2.5 min-w-0">
+          {firebaseAdminEmail ? (
+            <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5 sm:mt-0" />
+          ) : (
+            <Cloud className="w-4 h-4 text-amber-700 shrink-0 mt-0.5 sm:mt-0" />
+          )}
+          <div className="text-xs text-zinc-700 min-w-0">
+            {firebaseAdminEmail ? (
+              <span>
+                <strong className="font-semibold text-zinc-900">Cloud Firestore Active</strong> ·{' '}
+                <span className="text-emerald-700 font-medium">{firebaseAdminEmail}</span>
+              </span>
+            ) : firebaseSignedInEmail ? (
+              <span>
+                Signed in as <strong className="text-zinc-900">{firebaseSignedInEmail}</strong>. Connect
+                the store admin Google account (<code className="text-[11px]">ranjitbgm@gmail.com</code>)
+                for live Firestore writes.
+              </span>
+            ) : (
+              <span>
+                <strong className="font-semibold text-zinc-900">Local Store Mode</strong> · Connect
+                Google Cloud Sync to save catalog, orders, inquiries, and settings to Firestore.
+              </span>
+            )}
+            {cloudActionError && (
+              <p className="mt-1 text-xs font-medium text-red-600">{cloudActionError}</p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          {firebaseAdminEmail ? (
+            onSyncCatalogToCloud && (
+              <button
+                type="button"
+                onClick={handleSyncCatalogCloud}
+                disabled={cloudActionLoading}
+                className="px-3.5 py-2 rounded-xl glass-btn-secondary text-zinc-900 text-xs font-semibold inline-flex items-center gap-1.5 disabled:opacity-60 whitespace-nowrap transition-all"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${cloudActionLoading ? 'animate-spin' : ''}`} />
+                <span>{cloudActionLoading ? 'Syncing...' : 'Sync Catalog to Cloud'}</span>
+              </button>
+            )
+          ) : (
+            onConnectGoogleAdmin && (
+              <button
+                type="button"
+                onClick={handleConnectGoogleCloud}
+                disabled={cloudActionLoading}
+                className="px-3.5 py-2 rounded-xl glass-btn-ink text-xs font-semibold inline-flex items-center gap-1.5 disabled:opacity-60 whitespace-nowrap transition-all"
+              >
+                <Cloud className="w-3.5 h-3.5" />
+                <span>
+                  {cloudActionLoading
+                    ? 'Connecting...'
+                    : firebaseSignedInEmail
+                      ? 'Switch Google Account'
+                      : 'Connect Google Cloud Sync'}
+                </span>
+              </button>
+            )
+          )}
+        </div>
+      </div>
+
       {/* Workspace Layout: Sidebar + Main Content */}
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Left Sidebar Navigation */}
@@ -396,8 +565,8 @@ export function AdminPanelView({
                   aria-current={isActive ? 'page' : undefined}
                   className={`flex items-center justify-between gap-2.5 px-3.5 py-2.5 rounded-2xl text-sm font-medium transition-all whitespace-nowrap shrink-0 ${
                     isActive
-                      ? 'glass-btn-ink text-white font-semibold'
-                      : 'text-zinc-700 hover:bg-white/65 hover:text-zinc-900'
+                      ? 'glass-btn-ink font-semibold'
+                      : 'text-zinc-700 dark:text-zinc-200 hover:bg-white/65 dark:hover:bg-white/10 hover:text-zinc-900 dark:hover:text-white'
                   }`}
                 >
                   <span className="inline-flex items-center gap-2.5">
@@ -407,7 +576,7 @@ export function AdminPanelView({
                   {item.count !== undefined && (
                     <span
                       className={`text-xs tabular-nums font-semibold ${
-                        isActive ? 'text-amber-300' : 'text-zinc-500'
+                        isActive ? 'text-amber-300 dark:text-zinc-900' : 'text-zinc-500 dark:text-zinc-400'
                       }`}
                     >
                       {item.count}
@@ -616,8 +785,8 @@ export function AdminPanelView({
                       </div>
 
                       <div>
-                        <label htmlFor="adm-cat" className="block text-xs font-semibold text-zinc-700 mb-1">
-                          Category
+                        <label htmlFor="adm-cat" className="block text-xs font-semibold text-zinc-700 dark:text-zinc-200 mb-1">
+                          Skill Category
                         </label>
                         <select
                           id="adm-cat"
@@ -639,7 +808,47 @@ export function AdminPanelView({
                       </div>
 
                       <div>
-                        <label htmlFor="adm-occ" className="block text-xs font-semibold text-zinc-700 mb-1">
+                        <label htmlFor="adm-age" className="block text-xs font-semibold text-zinc-700 dark:text-zinc-200 mb-1">
+                          Child Age Group
+                        </label>
+                        <select
+                          id="adm-age"
+                          value={editing.ageGroup}
+                          onChange={(e) =>
+                            setEditing({
+                              ...editing,
+                              ageGroup: e.target.value as Exclude<AgeGroup, AgeGroup.ALL>,
+                            })
+                          }
+                          className="w-full px-3.5 py-2 text-sm glass-input rounded-xl focus:outline-none"
+                        >
+                          {EDITABLE_AGE_GROUPS.map((age) => {
+                            const meta = AGE_GROUP_META.find((m) => m.ageGroup === age);
+                            return (
+                              <option key={age} value={age}>
+                                {meta?.filterLabel ?? age}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label htmlFor="adm-origin" className="block text-xs font-semibold text-zinc-700 dark:text-zinc-200 mb-1">
+                          East-Asian Origin Badge
+                        </label>
+                        <input
+                          id="adm-origin"
+                          type="text"
+                          value={editing.originConcept}
+                          onChange={(e) => setEditing({ ...editing, originConcept: e.target.value })}
+                          placeholder="e.g. 🇯🇵 Japanese Karakuri"
+                          className="w-full px-3.5 py-2 text-sm glass-input rounded-xl focus:outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="adm-occ" className="block text-xs font-semibold text-zinc-700 dark:text-zinc-200 mb-1">
                           Gift Occasion
                         </label>
                         <select
@@ -721,7 +930,7 @@ export function AdminPanelView({
                       </div>
 
                       <div className="sm:col-span-2">
-                        <label htmlFor="adm-desc" className="block text-xs font-semibold text-zinc-700 mb-1">
+                        <label htmlFor="adm-desc" className="block text-xs font-semibold text-zinc-700 dark:text-zinc-200 mb-1">
                           Description
                         </label>
                         <textarea
@@ -733,8 +942,47 @@ export function AdminPanelView({
                         />
                       </div>
 
+                      <div className="sm:col-span-2">
+                        <label htmlFor="adm-usehi" className="block text-xs font-semibold text-zinc-700 dark:text-zinc-200 mb-1">
+                          How It Works (Mechanism &amp; Play Guide)
+                        </label>
+                        <textarea
+                          id="adm-usehi"
+                          rows={2}
+                          value={editing.useCaseHi}
+                          onChange={(e) => setEditing({ ...editing, useCaseHi: e.target.value })}
+                          className="w-full px-3.5 py-2 text-sm glass-input rounded-xl focus:outline-none"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label htmlFor="adm-brainhi" className="block text-xs font-semibold text-zinc-700 dark:text-zinc-200 mb-1">
+                          Cognitive Benefits (Brain Development)
+                        </label>
+                        <textarea
+                          id="adm-brainhi"
+                          rows={2}
+                          value={editing.brainBenefitsHi}
+                          onChange={(e) => setEditing({ ...editing, brainBenefitsHi: e.target.value })}
+                          className="w-full px-3.5 py-2 text-sm glass-input rounded-xl focus:outline-none"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label htmlFor="adm-parentshi" className="block text-xs font-semibold text-zinc-700 dark:text-zinc-200 mb-1">
+                          Why Families Choose It
+                        </label>
+                        <textarea
+                          id="adm-parentshi"
+                          rows={2}
+                          value={editing.whyParentsBuyHi}
+                          onChange={(e) => setEditing({ ...editing, whyParentsBuyHi: e.target.value })}
+                          className="w-full px-3.5 py-2 text-sm glass-input rounded-xl focus:outline-none"
+                        />
+                      </div>
+
                       <div className="sm:col-span-2 flex flex-wrap items-center gap-6">
-                        <label className="inline-flex items-center gap-2 text-xs font-semibold text-zinc-800">
+                        <label className="inline-flex items-center gap-2 text-xs font-semibold text-zinc-800 dark:text-zinc-200">
                           <input
                             type="checkbox"
                             checked={editing.inStock}
@@ -744,7 +992,7 @@ export function AdminPanelView({
                           <span>In Stock</span>
                         </label>
 
-                        <label className="inline-flex items-center gap-2 text-xs font-semibold text-zinc-800">
+                        <label className="inline-flex items-center gap-2 text-xs font-semibold text-zinc-800 dark:text-zinc-200">
                           <input
                             type="checkbox"
                             checked={Boolean(editing.featured)}
@@ -757,11 +1005,11 @@ export function AdminPanelView({
                     </div>
                   </div>
 
-                  <div className="flex justify-end gap-3 pt-2 border-t border-zinc-900/8">
+                  <div className="flex justify-end gap-3 pt-2 border-t border-zinc-900/8 dark:border-white/10">
                     <button
                       type="button"
                       onClick={() => setEditing(null)}
-                      className="px-4 py-2 rounded-xl glass-btn-secondary text-xs font-semibold text-zinc-700"
+                      className="px-4 py-2 rounded-xl glass-btn-secondary text-xs font-semibold text-zinc-700 dark:text-zinc-200"
                     >
                       Cancel
                     </button>
@@ -777,7 +1025,7 @@ export function AdminPanelView({
 
               {/* Product Toolbar */}
               <div className="glass-surface rounded-3xl overflow-hidden">
-                <div className="p-4 border-b border-white/75 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="p-4 border-b border-white/75 dark:border-white/12 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex flex-wrap items-center gap-2.5 flex-1">
                     <div className="relative flex-1 min-w-[200px] max-w-xs">
                       <label htmlFor="adm-prod-search" className="sr-only">
@@ -798,7 +1046,7 @@ export function AdminPanelView({
                       aria-label="Filter inventory by category"
                       value={productCatFilter}
                       onChange={(e) => setProductCatFilter(e.target.value as ProductCategory)}
-                      className="px-3 py-2 text-xs glass-input rounded-xl font-medium text-zinc-700 focus:outline-none"
+                      className="px-3 py-2 text-xs glass-input rounded-xl font-medium text-zinc-700 dark:text-zinc-200 focus:outline-none"
                     >
                       {Object.values(ProductCategory).map((c) => (
                         <option key={c} value={c}>
@@ -812,30 +1060,30 @@ export function AdminPanelView({
                     <button
                       type="button"
                       onClick={() => setConfirmReset(true)}
-                      className="px-3 py-2 rounded-xl glass-btn-secondary text-zinc-700 text-xs font-semibold inline-flex items-center gap-1.5 self-start sm:self-auto"
+                      className="px-3 py-2 rounded-xl glass-btn-secondary text-zinc-700 dark:text-zinc-200 text-xs font-semibold inline-flex items-center gap-1.5 self-start sm:self-auto"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
                       <span>Reset Default Catalog</span>
                     </button>
                   ) : (
-                    <div className="flex items-center gap-2 bg-amber-50/85 backdrop-blur-md border border-amber-200 px-3 py-1.5 rounded-xl">
-                      <span className="text-xs font-medium text-amber-900">Restore 15 defaults?</span>
+                    <div className="flex items-center gap-2 bg-amber-50/85 dark:bg-amber-950/60 backdrop-blur-md border border-amber-200 dark:border-amber-500/30 px-3 py-1.5 rounded-xl">
+                      <span className="text-xs font-medium text-amber-900 dark:text-amber-200">Restore 16 defaults?</span>
                       <button
                         type="button"
                         onClick={() => {
                           onResetCatalog();
                           setConfirmReset(false);
                           setEditing(null);
-                          setStatusNotice('Restored default 15-product BEE4 catalog.');
+                          setStatusNotice('Restored default 16-product BEE4 Brain-Training catalog.');
                         }}
-                        className="text-xs font-bold text-amber-800 underline"
+                        className="text-xs font-bold text-amber-800 dark:text-amber-300 underline"
                       >
                         Confirm
                       </button>
                       <button
                         type="button"
                         onClick={() => setConfirmReset(false)}
-                        className="text-xs text-zinc-600"
+                        className="text-xs text-zinc-600 dark:text-zinc-300"
                       >
                         Cancel
                       </button>
@@ -964,8 +1212,8 @@ export function AdminPanelView({
                         onClick={() => setOrderStatusFilter(st)}
                         className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
                           active
-                            ? 'glass-btn-ink text-white'
-                            : 'glass-btn-secondary text-zinc-700 hover:text-zinc-900'
+                            ? 'glass-btn-ink'
+                            : 'glass-btn-secondary text-zinc-700 dark:text-zinc-200 hover:text-zinc-900 dark:hover:text-white'
                         }`}
                       >
                         {st}
@@ -1345,7 +1593,7 @@ export function AdminPanelView({
                 <div className="pt-2 flex justify-end">
                   <button
                     type="submit"
-                    className="px-5 py-2.5 rounded-xl glass-btn-ink text-white text-sm font-semibold transition-all"
+                    className="px-5 py-2.5 rounded-xl glass-btn-ink text-sm font-semibold transition-all"
                   >
                     Update Admin Password
                   </button>
