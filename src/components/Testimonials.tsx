@@ -110,7 +110,7 @@ export function Testimonials({
             testimonials.map((item) => (
               <article
                 key={item.id}
-                className="p-5 sm:p-6 rounded-2xl glass-surface transition-all duration-200 hover:-translate-y-0.5"
+                className="p-5 sm:p-6 rounded-2xl glass-surface transition-all duration-300 hover:bg-white/68"
               >
                 <div className="flex items-center justify-between gap-4 mb-3">
                   <div

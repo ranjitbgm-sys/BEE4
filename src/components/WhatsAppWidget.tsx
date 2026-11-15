@@ -157,7 +157,7 @@ export function WhatsAppWidget({
         onClick={() => setIsOpen((prev) => !prev)}
         aria-label={isOpen ? 'Close WhatsApp quick order' : 'Chat or order on WhatsApp'}
         aria-expanded={isOpen}
-        className="h-11 px-4 rounded-full glass-btn-emerald text-white inline-flex items-center gap-2 text-sm font-semibold transition-all hover:scale-[1.03] whitespace-nowrap shrink-0"
+        className="h-11 px-4 rounded-full glass-btn-emerald text-white inline-flex items-center gap-2 text-sm font-semibold transition-all whitespace-nowrap shrink-0"
       >
         <MessageCircle className="w-4 h-4 shrink-0" />
         <span>WhatsApp</span>

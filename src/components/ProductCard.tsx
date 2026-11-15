@@ -29,7 +29,7 @@ export function ProductCard({
   };
 
   return (
-    <article className="group flex flex-col glass-surface rounded-2xl overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
+    <article className="group flex flex-col glass-surface rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/68 hover:shadow-[0_18px_40px_-16px_rgba(24,24,27,0.14)]">
       <div className="relative aspect-[4/3] w-full bg-white/40 overflow-hidden border-b border-white/60">
         <button
           type="button"
@@ -40,7 +40,7 @@ export function ProductCard({
           <ProductImage
             src={product.image}
             alt={product.title}
-            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+            className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.015]"
           />
         </button>
 
@@ -54,10 +54,10 @@ export function ProductCard({
                 : `Save ${product.title} to wishlist`
             }
             aria-pressed={isWishlisted}
-            className={`absolute top-3 right-3 z-10 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 ${
+            className={`absolute top-3 right-3 z-10 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 ${
               isWishlisted
                 ? 'glass-btn-ink text-amber-400'
-                : 'glass-orb text-zinc-700 hover:text-zinc-900 hover:scale-105'
+                : 'glass-orb text-zinc-700 hover:text-zinc-900 hover:bg-white/80'
             }`}
           >
             <Heart className={`w-4 h-4 ${isWishlisted ? 'fill-amber-400' : ''}`} />
@@ -82,7 +82,7 @@ export function ProductCard({
             onClick={() => onSelectProduct(product.id)}
             className="mt-1.5 text-left block w-full"
           >
-            <h3 className="font-display text-base font-semibold text-zinc-900 group-hover:text-amber-700 transition-colors line-clamp-1">
+            <h3 className="font-display text-base font-semibold text-zinc-900 group-hover:text-amber-800 transition-colors duration-300 line-clamp-1">
               {product.title}
             </h3>
           </button>
@@ -105,12 +105,12 @@ export function ProductCard({
             disabled={!product.inStock}
             onClick={handleQuickAdd}
             aria-label={`Add ${product.title} to bag`}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
+            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all duration-300 whitespace-nowrap shrink-0 ${
               !product.inStock
                 ? 'bg-zinc-200/70 text-zinc-400 cursor-not-allowed'
                 : justAdded
                   ? 'glass-btn-ink text-white'
-                  : 'glass-btn-secondary text-zinc-900 hover:bg-amber-600 hover:text-white hover:border-amber-500'
+                  : 'glass-btn-secondary text-zinc-900 hover:bg-amber-50/85 hover:text-amber-800 hover:border-amber-200/90'
             }`}
           >
             {!product.inStock ? (

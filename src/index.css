@@ -3,6 +3,8 @@
 @theme {
   --font-display: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --default-transition-duration: 280ms;
+  --default-transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @layer base {
@@ -57,6 +59,7 @@
     box-shadow:
       0 8px 28px -8px rgba(24, 24, 27, 0.09),
       inset 0 1px 0 rgba(255, 255, 255, 0.96);
+    transition: background-color 300ms cubic-bezier(0.22, 1, 0.36, 1), border-color 300ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .glass-surface {
@@ -69,6 +72,11 @@
       0 4px 12px -4px rgba(24, 24, 27, 0.05),
       inset 0 1.5px 0 rgba(255, 255, 255, 0.98),
       inset 0 -1px 0 rgba(255, 255, 255, 0.45);
+    transition:
+      background-color 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .glass-subtle {
@@ -79,6 +87,10 @@
     box-shadow:
       0 8px 24px -12px rgba(24, 24, 27, 0.08),
       inset 0 1px 0 rgba(255, 255, 255, 0.94);
+    transition:
+      background-color 300ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 300ms cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 300ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .glass-drawer {
@@ -99,14 +111,17 @@
     box-shadow:
       inset 0 1px 2px rgba(24, 24, 27, 0.04),
       inset 0 -1px 0 rgba(255, 255, 255, 0.85);
-    transition: background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+    transition:
+      background-color 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 280ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .glass-input:focus {
-    background: rgba(255, 255, 255, 0.92);
+    background: rgba(255, 255, 255, 0.9);
     border-color: #d97706;
     box-shadow:
-      0 0 0 3px rgba(217, 119, 6, 0.15),
+      0 0 0 3px rgba(217, 119, 6, 0.13),
       inset 0 1px 2px rgba(24, 24, 27, 0.02);
   }
 
@@ -116,52 +131,77 @@
     -webkit-backdrop-filter: blur(16px) saturate(175%);
     border: 1px solid rgba(255, 255, 255, 0.9);
     box-shadow:
-      0 6px 18px -6px rgba(24, 24, 27, 0.1),
+      0 6px 18px -6px rgba(24, 24, 27, 0.09),
       inset 0 1px 0 rgba(255, 255, 255, 0.98);
+    transition:
+      background-color 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      color 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 280ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .glass-btn-secondary:hover:not(:disabled) {
-    background-color: rgba(255, 255, 255, 0.92);
+    background-color: rgba(255, 255, 255, 0.82);
+    border-color: rgba(255, 255, 255, 0.98);
   }
 
   .glass-btn-amber {
-    background: linear-gradient(180deg, rgba(245, 158, 11, 0.95) 0%, rgba(217, 119, 6, 0.98) 100%);
+    background-color: rgba(226, 130, 8, 0.96);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(0, 0, 0, 0.05) 100%);
     border: 1px solid rgba(255, 255, 255, 0.42);
     box-shadow:
-      0 12px 26px -8px rgba(217, 119, 6, 0.48),
+      0 12px 26px -8px rgba(217, 119, 6, 0.42),
       inset 0 1px 0 rgba(255, 255, 255, 0.48);
+    transition:
+      background-color 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 280ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .glass-btn-amber:hover:not(:disabled) {
-    background: linear-gradient(180deg, rgba(217, 119, 6, 0.98) 0%, rgba(180, 83, 9, 1) 100%);
+    background-color: rgba(206, 114, 5, 0.98);
+    box-shadow:
+      0 14px 28px -8px rgba(217, 119, 6, 0.48),
+      inset 0 1px 0 rgba(255, 255, 255, 0.55);
   }
 
   .glass-btn-ink {
-    background: linear-gradient(180deg, rgba(39, 39, 42, 0.9) 0%, rgba(24, 24, 27, 0.95) 100%);
+    background-color: rgba(28, 28, 32, 0.93);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(0, 0, 0, 0.08) 100%);
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
     border: 1px solid rgba(255, 255, 255, 0.22);
     box-shadow:
-      0 10px 24px -8px rgba(24, 24, 27, 0.36),
+      0 10px 24px -8px rgba(24, 24, 27, 0.32),
       inset 0 1px 0 rgba(255, 255, 255, 0.28);
+    transition:
+      background-color 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 280ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .glass-btn-ink:hover:not(:disabled) {
-    background: linear-gradient(180deg, rgba(217, 119, 6, 0.96) 0%, rgba(180, 83, 9, 0.98) 100%);
+    background-color: rgba(44, 44, 50, 0.95);
+    border-color: rgba(255, 255, 255, 0.3);
   }
 
   .glass-btn-emerald {
-    background: linear-gradient(180deg, rgba(16, 185, 129, 0.94) 0%, rgba(4, 120, 87, 0.98) 100%);
+    background-color: rgba(8, 138, 96, 0.95);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0%, rgba(0, 0, 0, 0.07) 100%);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     border: 1px solid rgba(255, 255, 255, 0.45);
     box-shadow:
-      0 12px 28px -6px rgba(4, 120, 87, 0.44),
+      0 12px 28px -6px rgba(4, 120, 87, 0.4),
       inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    transition:
+      background-color 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 280ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .glass-btn-emerald:hover:not(:disabled) {
-    background: linear-gradient(180deg, rgba(5, 150, 105, 0.98) 0%, rgba(6, 95, 70, 1) 100%);
+    background-color: rgba(6, 118, 82, 0.97);
   }
 
   /* Soft iOS 27 Glass Bubble Orbs & Specular Rim */
@@ -180,6 +220,11 @@
       0 16px 36px -12px rgba(24, 24, 27, 0.14),
       inset 0 3px 8px rgba(255, 255, 255, 1),
       inset 0 -10px 20px rgba(147, 197, 253, 0.18);
+    transition:
+      background-color 300ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 300ms cubic-bezier(0.22, 1, 0.36, 1),
+      color 300ms cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 300ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .glass-bokeh-amber {
@@ -222,29 +267,29 @@
 @keyframes floatBubbleSlow {
   0%,
   100% {
-    transform: translate3d(0, 0, 0) scale(1);
+    transform: translate3d(0, 0, 0);
   }
   50% {
-    transform: translate3d(10px, -16px, 0) scale(1.03);
+    transform: translate3d(6px, -8px, 0);
   }
 }
 
 @keyframes floatBubbleReverse {
   0%,
   100% {
-    transform: translate3d(0, 0, 0) scale(1);
+    transform: translate3d(0, 0, 0);
   }
   50% {
-    transform: translate3d(-12px, 14px, 0) scale(0.97);
+    transform: translate3d(-6px, 8px, 0);
   }
 }
 
 .animate-bubble-slow {
-  animation: floatBubbleSlow 16s ease-in-out infinite;
+  animation: floatBubbleSlow 24s ease-in-out infinite;
 }
 
 .animate-bubble-reverse {
-  animation: floatBubbleReverse 20s ease-in-out infinite;
+  animation: floatBubbleReverse 28s ease-in-out infinite;
 }
 
 .tabular-nums {

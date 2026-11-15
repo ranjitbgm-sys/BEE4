@@ -234,7 +234,7 @@ export function HomeView({
             <button
               type="button"
               onClick={() => onBrowseOccasion(selectedOccasion)}
-              className="px-5 py-2.5 rounded-xl glass-btn-secondary hover:bg-zinc-900 hover:text-white text-zinc-900 text-sm font-semibold inline-flex items-center gap-2 transition-all"
+              className="px-5 py-2.5 rounded-xl glass-btn-secondary text-zinc-900 hover:text-amber-800 text-sm font-semibold inline-flex items-center gap-2 transition-all"
             >
               <span>See All {selectedOccasion} Gifts</span>
               <ArrowRight className="w-4 h-4" />

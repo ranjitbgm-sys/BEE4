@@ -1895,7 +1895,7 @@ export function CustomerAccountView({
                 <div className="pt-1 flex justify-end">
                   <button
                     type="submit"
-                    className="px-5 py-2.5 rounded-xl glass-btn-secondary hover:bg-zinc-900 hover:text-white text-zinc-900 text-xs font-semibold transition-all"
+                    className="px-5 py-2.5 rounded-xl glass-btn-secondary text-zinc-900 hover:text-amber-800 text-xs font-semibold transition-all"
                   >
                     Update Password
                   </button>
@@ -2032,7 +2032,7 @@ function OrderTrackingCard({
         <button
           type="button"
           onClick={onReorder}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl glass-btn-secondary hover:bg-zinc-900 hover:text-white text-zinc-900 text-xs font-semibold transition-all"
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl glass-btn-secondary text-zinc-900 hover:text-amber-800 text-xs font-semibold transition-all"
         >
           <RotateCcw className="w-3.5 h-3.5" />
           <span>Reorder Items</span>
