@@ -69,7 +69,7 @@ export function HomeView({
               <button
                 type="button"
                 onClick={() => onNavigate('shop')}
-                className="px-6 py-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold inline-flex items-center gap-2 transition-colors whitespace-nowrap shrink-0"
+                className="px-6 py-3 rounded-xl glass-btn-amber text-white text-sm font-semibold inline-flex items-center gap-2 transition-all whitespace-nowrap shrink-0"
               >
                 <span>Shop Collection</span>
                 <ArrowRight className="w-4 h-4" />
@@ -77,7 +77,7 @@ export function HomeView({
               <button
                 type="button"
                 onClick={() => onNavigate('gifts')}
-                className="px-5 py-3 rounded-lg border border-[#E6E4DD] bg-white hover:bg-[#F7F6F2] text-zinc-900 text-sm font-semibold transition-colors whitespace-nowrap shrink-0"
+                className="px-5 py-3 rounded-xl glass-btn-secondary text-zinc-900 text-sm font-semibold transition-all whitespace-nowrap shrink-0"
               >
                 Explore Gift Ideas
               </button>
@@ -85,41 +85,51 @@ export function HomeView({
           </div>
 
           <div className="lg:col-span-7">
-            <div className="h-full min-h-[280px] sm:min-h-[380px] rounded-2xl overflow-hidden bg-[#F7F6F2] border border-[#E6E4DD]">
-              <ProductImage
-                src={HERO_IMAGE}
-                alt="BEE4 curated collection featuring canvas tote, amber flask, 3D desk figurine, and ceramic arch vase"
-                className="w-full h-full object-cover"
-              />
+            <div className="h-full min-h-[280px] sm:min-h-[380px] p-2.5 rounded-3xl glass-surface">
+              <div className="h-full w-full rounded-2xl overflow-hidden bg-white/40 border border-white/60">
+                <ProductImage
+                  src={HERO_IMAGE}
+                  alt="BEE4 curated collection featuring canvas tote, amber flask, 3D desk figurine, and ceramic arch vase"
+                  className="w-full h-full object-cover"
+                />
+              </div>
             </div>
           </div>
         </div>
 
-        {/* 4-Column Store Promise Strip */}
+        {/* 4-Column Store Promise Strip with Soft Bubble Icon Wells */}
         <div className="mt-8 grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="p-4 rounded-xl bg-[#F7F6F2] border border-[#E6E4DD] flex items-start gap-3">
-            <Sparkles className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+          <div className="p-4 rounded-2xl glass-subtle flex items-start gap-3">
+            <div className="w-9 h-9 rounded-full glass-orb flex items-center justify-center shrink-0">
+              <Sparkles className="w-4 h-4 text-amber-700" />
+            </div>
             <div>
               <p className="text-sm font-semibold text-zinc-900 tabular-nums">₹199 – ₹999</p>
               <p className="text-xs text-zinc-600 mt-0.5">Budget-friendly daily pricing</p>
             </div>
           </div>
-          <div className="p-4 rounded-xl bg-[#F7F6F2] border border-[#E6E4DD] flex items-start gap-3">
-            <Truck className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+          <div className="p-4 rounded-2xl glass-subtle flex items-start gap-3">
+            <div className="w-9 h-9 rounded-full glass-orb flex items-center justify-center shrink-0">
+              <Truck className="w-4 h-4 text-amber-700" />
+            </div>
             <div>
               <p className="text-sm font-semibold text-zinc-900">Free Shipping ₹499+</p>
               <p className="text-xs text-zinc-600 mt-0.5">3–5 day delivery across India</p>
             </div>
           </div>
-          <div className="p-4 rounded-xl bg-[#F7F6F2] border border-[#E6E4DD] flex items-start gap-3">
-            <ShieldCheck className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+          <div className="p-4 rounded-2xl glass-subtle flex items-start gap-3">
+            <div className="w-9 h-9 rounded-full glass-orb flex items-center justify-center shrink-0">
+              <ShieldCheck className="w-4 h-4 text-amber-700" />
+            </div>
             <div>
               <p className="text-sm font-semibold text-zinc-900">UPI, Cards &amp; COD</p>
               <p className="text-xs text-zinc-600 mt-0.5">Instant or WhatsApp checkout</p>
             </div>
           </div>
-          <div className="p-4 rounded-xl bg-[#F7F6F2] border border-[#E6E4DD] flex items-start gap-3">
-            <Gift className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+          <div className="p-4 rounded-2xl glass-subtle flex items-start gap-3">
+            <div className="w-9 h-9 rounded-full glass-orb flex items-center justify-center shrink-0">
+              <Gift className="w-4 h-4 text-amber-700" />
+            </div>
             <div>
               <p className="text-sm font-semibold text-zinc-900">Ready Gift Wrapping</p>
               <p className="text-xs text-zinc-600 mt-0.5">Add handwritten notes at checkout</p>
@@ -129,7 +139,7 @@ export function HomeView({
       </section>
 
       {/* 2. Featured Collection Grid */}
-      <section className="max-w-[1200px] mx-auto px-4 sm:px-6 py-12 border-t border-[#F0EFEA]">
+      <section className="max-w-[1200px] mx-auto px-4 sm:px-6 py-12 border-t border-white/70">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
           <div>
             <p className="text-xs font-semibold tracking-wide text-zinc-500">
@@ -164,7 +174,7 @@ export function HomeView({
       </section>
 
       {/* 3. Interactive Gift Finder / Occasions */}
-      <section className="bg-[#F7F6F2] border-y border-[#E6E4DD] py-14">
+      <section className="glass-subtle border-x-0 py-14">
         <div className="max-w-[1200px] mx-auto px-4 sm:px-6">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
             <div>
@@ -183,7 +193,7 @@ export function HomeView({
             <div
               role="tablist"
               aria-label="Gift occasions"
-              className="flex flex-wrap items-center gap-1.5 p-1 bg-white border border-[#E6E4DD] rounded-xl"
+              className="flex flex-wrap items-center gap-1.5 p-1.5 glass-surface rounded-2xl"
             >
               {OCCASION_TABS.map((tab) => {
                 const active = selectedOccasion === tab.value;
@@ -194,10 +204,10 @@ export function HomeView({
                     role="tab"
                     aria-selected={active}
                     onClick={() => setSelectedOccasion(tab.value)}
-                    className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
+                    className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
                       active
-                        ? 'bg-zinc-900 text-white'
-                        : 'text-zinc-600 hover:text-zinc-900 hover:bg-[#F7F6F2]'
+                        ? 'glass-btn-ink text-white'
+                        : 'text-zinc-700 hover:text-zinc-900 hover:bg-white/70'
                     }`}
                   >
                     {tab.label}
@@ -224,7 +234,7 @@ export function HomeView({
             <button
               type="button"
               onClick={() => onBrowseOccasion(selectedOccasion)}
-              className="px-5 py-2.5 rounded-lg border border-[#E6E4DD] bg-white hover:bg-zinc-900 hover:text-white text-zinc-900 text-sm font-semibold inline-flex items-center gap-2 transition-colors"
+              className="px-5 py-2.5 rounded-xl glass-btn-secondary hover:bg-zinc-900 hover:text-white text-zinc-900 text-sm font-semibold inline-flex items-center gap-2 transition-all"
             >
               <span>See All {selectedOccasion} Gifts</span>
               <ArrowRight className="w-4 h-4" />
@@ -235,7 +245,7 @@ export function HomeView({
 
       {/* 4. Brand & Craft Story */}
       <section className="max-w-[1200px] mx-auto px-4 sm:px-6 pt-14">
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-center bg-white border border-[#E6E4DD] rounded-2xl p-6 sm:p-10">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-center glass-surface rounded-3xl p-6 sm:p-10">
           <div className="md:col-span-7">
             <p className="text-xs font-semibold tracking-wide text-zinc-500">
               Why BEE4
@@ -252,14 +262,14 @@ export function HomeView({
               <button
                 type="button"
                 onClick={() => onNavigate('about')}
-                className="px-4 py-2.5 rounded-lg bg-[#F7F6F2] hover:bg-[#EFECE6] text-zinc-900 text-sm font-semibold transition-colors"
+                className="px-4 py-2.5 rounded-xl glass-btn-secondary text-zinc-900 text-sm font-semibold transition-all"
               >
                 Read Our Story
               </button>
               <button
                 type="button"
                 onClick={() => onNavigate('contact')}
-                className="px-4 py-2.5 rounded-lg text-zinc-700 hover:text-zinc-900 text-sm font-semibold transition-colors"
+                className="px-4 py-2.5 rounded-xl text-zinc-700 hover:text-zinc-900 hover:bg-white/50 text-sm font-semibold transition-colors"
               >
                 Need Bulk Event Gifts? Contact Us →
               </button>
@@ -267,19 +277,19 @@ export function HomeView({
           </div>
 
           <div className="md:col-span-5 grid grid-cols-2 gap-4">
-            <div className="p-4 rounded-xl bg-[#F7F6F2] border border-[#E6E4DD]">
+            <div className="p-4 rounded-2xl glass-subtle">
               <p className="font-display text-2xl font-bold text-zinc-900 tabular-nums">15+</p>
               <p className="mt-1 text-xs text-zinc-600">Curated launch essentials across 7 categories</p>
             </div>
-            <div className="p-4 rounded-xl bg-[#F7F6F2] border border-[#E6E4DD]">
+            <div className="p-4 rounded-2xl glass-subtle">
               <p className="font-display text-2xl font-bold text-zinc-900 tabular-nums">4.8/5</p>
               <p className="mt-1 text-xs text-zinc-600">Quality check score across packaging &amp; build</p>
             </div>
-            <div className="p-4 rounded-xl bg-[#F7F6F2] border border-[#E6E4DD]">
+            <div className="p-4 rounded-2xl glass-subtle">
               <p className="font-display text-2xl font-bold text-zinc-900 tabular-nums">₹499</p>
               <p className="mt-1 text-xs text-zinc-600">Free delivery threshold pan-India</p>
             </div>
-            <div className="p-4 rounded-xl bg-[#F7F6F2] border border-[#E6E4DD]">
+            <div className="p-4 rounded-2xl glass-subtle">
               <p className="font-display text-2xl font-bold text-zinc-900 tabular-nums">48 hr</p>
               <p className="mt-1 text-xs text-zinc-600">Dispatch turnaround from order confirmation</p>
             </div>

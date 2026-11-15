@@ -85,7 +85,7 @@ export function Testimonials({
           </h2>
         </div>
 
-        <div className="flex items-center gap-2 text-sm text-zinc-700 tabular-nums">
+        <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-2xl glass-subtle text-sm text-zinc-700 tabular-nums">
           <Star className="w-4 h-4 fill-amber-500 text-amber-500 shrink-0" aria-hidden="true" />
           <span className="font-semibold text-zinc-900">
             {summary.averageRating.toFixed(1)} / 5
@@ -103,14 +103,14 @@ export function Testimonials({
         {/* Customer Reviews List */}
         <div className="lg:col-span-7 space-y-4">
           {testimonials.length === 0 ? (
-            <div className="p-8 rounded-2xl bg-[#F7F6F2] border border-[#E6E4DD] text-sm text-zinc-600">
+            <div className="p-8 rounded-3xl glass-surface text-sm text-zinc-600">
               No customer reviews yet. Be the first to share your experience with BEE4.
             </div>
           ) : (
             testimonials.map((item) => (
               <article
                 key={item.id}
-                className="p-5 sm:p-6 rounded-2xl bg-white border border-[#E6E4DD]"
+                className="p-5 sm:p-6 rounded-2xl glass-surface transition-all duration-200 hover:-translate-y-0.5"
               >
                 <div className="flex items-center justify-between gap-4 mb-3">
                   <div
@@ -138,7 +138,7 @@ export function Testimonials({
                   &ldquo;{item.feedback}&rdquo;
                 </p>
 
-                <div className="mt-4 pt-3 border-t border-[#F0EFEA] flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-600">
+                <div className="mt-4 pt-3 border-t border-zinc-900/8 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-600">
                   <span className="font-semibold text-zinc-900">{item.customerName}</span>
                   <span className="text-zinc-400" aria-hidden="true">
                     ·
@@ -158,10 +158,12 @@ export function Testimonials({
         <form
           onSubmit={handleSubmit}
           noValidate
-          className="lg:col-span-5 p-6 rounded-2xl bg-[#F7F6F2] border border-[#E6E4DD] space-y-4"
+          className="lg:col-span-5 p-6 rounded-3xl glass-surface space-y-4"
         >
-          <div className="flex items-center gap-2">
-            <MessageSquarePlus className="w-4 h-4 text-amber-700 shrink-0" aria-hidden="true" />
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-full glass-orb flex items-center justify-center shrink-0">
+              <MessageSquarePlus className="w-4 h-4 text-amber-700" aria-hidden="true" />
+            </div>
             <h3 className="font-display text-lg font-bold text-zinc-900">
               Share Your Feedback
             </h3>
@@ -174,7 +176,7 @@ export function Testimonials({
           {submittedNotice && (
             <div
               role="status"
-              className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 font-medium"
+              className="p-3 rounded-xl bg-emerald-50/85 backdrop-blur-md border border-emerald-200/80 text-xs text-emerald-800 font-medium"
             >
               Thank you for sharing your review. It is now live in the customer showcase.
             </div>
@@ -197,7 +199,7 @@ export function Testimonials({
                   if (errors.customerName) setErrors({ ...errors, customerName: undefined });
                 }}
                 placeholder="e.g. Kavya Menon"
-                className="w-full h-11 px-3 rounded-lg bg-white border border-[#E6E4DD] text-sm text-zinc-900 focus:outline-none focus:border-zinc-900"
+                className="w-full h-11 px-3 rounded-xl glass-input text-sm text-zinc-900 focus:outline-none"
               />
               {errors.customerName && (
                 <p className="mt-1 text-xs text-red-600">{errors.customerName}</p>
@@ -220,7 +222,7 @@ export function Testimonials({
                   if (errors.cityOrRole) setErrors({ ...errors, cityOrRole: undefined });
                 }}
                 placeholder="e.g. Gift Buyer · Kochi"
-                className="w-full h-11 px-3 rounded-lg bg-white border border-[#E6E4DD] text-sm text-zinc-900 focus:outline-none focus:border-zinc-900"
+                className="w-full h-11 px-3 rounded-xl glass-input text-sm text-zinc-900 focus:outline-none"
               />
               {errors.cityOrRole && (
                 <p className="mt-1 text-xs text-red-600">{errors.cityOrRole}</p>
@@ -239,7 +241,7 @@ export function Testimonials({
               id="testimonial-product"
               value={productName}
               onChange={(e) => setProductName(e.target.value)}
-              className="w-full h-11 px-3 rounded-lg bg-white border border-[#E6E4DD] text-sm text-zinc-900 focus:outline-none focus:border-zinc-900"
+              className="w-full h-11 px-3 rounded-xl glass-input text-sm text-zinc-900 focus:outline-none"
             >
               {products.map((product) => (
                 <option key={product.id} value={product.title}>
@@ -264,7 +266,7 @@ export function Testimonials({
                     onClick={() => setRating(star)}
                     aria-label={`Rate ${star} out of 5 stars`}
                     aria-pressed={rating === star}
-                    className="w-11 h-11 rounded-lg bg-white border border-[#E6E4DD] hover:border-zinc-900 inline-flex items-center justify-center transition-colors"
+                    className="w-11 h-11 rounded-xl glass-btn-secondary inline-flex items-center justify-center transition-all"
                   >
                     <Star
                       className={`w-5 h-5 ${
@@ -296,7 +298,7 @@ export function Testimonials({
                 if (errors.feedback) setErrors({ ...errors, feedback: undefined });
               }}
               placeholder="Share what you liked about the build quality, packaging, or gifting experience..."
-              className="w-full p-3 rounded-lg bg-white border border-[#E6E4DD] text-sm text-zinc-900 focus:outline-none focus:border-zinc-900"
+              className="w-full p-3 rounded-xl glass-input text-sm text-zinc-900 focus:outline-none"
             />
             {errors.feedback && (
               <p className="mt-1 text-xs text-red-600">{errors.feedback}</p>
@@ -305,7 +307,7 @@ export function Testimonials({
 
           <button
             type="submit"
-            className="w-full h-11 rounded-lg bg-zinc-900 hover:bg-amber-700 text-white text-sm font-semibold transition-colors"
+            className="w-full h-11 rounded-xl glass-btn-ink text-white text-sm font-semibold transition-all"
           >
             Post Feedback
           </button>

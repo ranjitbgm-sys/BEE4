@@ -89,9 +89,9 @@ export function AdminAuthGate({
         <span>Back to Storefront</span>
       </button>
 
-      <div className="bg-white border border-[#E6E4DD] rounded-2xl p-6 sm:p-8 space-y-6">
+      <div className="glass-surface rounded-3xl p-6 sm:p-8 space-y-6">
         <div className="flex items-start gap-3.5">
-          <div className="w-11 h-11 rounded-xl bg-[#F7F6F2] border border-[#E6E4DD] flex items-center justify-center shrink-0">
+          <div className="w-11 h-11 rounded-full glass-orb flex items-center justify-center shrink-0">
             <Lock className="w-5 h-5 text-amber-700" />
           </div>
           <div>
@@ -122,13 +122,13 @@ export function AdminAuthGate({
                   if (error) setError('');
                 }}
                 placeholder="Enter admin password"
-                className="w-full h-11 pl-3.5 pr-11 rounded-lg border border-[#E6E4DD] text-sm focus:border-amber-600 focus:outline-none disabled:bg-[#F7F6F2] disabled:text-zinc-500"
+                className="w-full h-11 pl-3.5 pr-11 rounded-xl glass-input text-sm focus:outline-none disabled:opacity-60 disabled:text-zinc-500"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((prev) => !prev)}
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-zinc-500 hover:text-zinc-900"
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-zinc-500 hover:text-zinc-900"
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -138,7 +138,7 @@ export function AdminAuthGate({
           {(error || lockout.isLocked) && (
             <div
               role="alert"
-              className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs font-medium text-red-700 tabular-nums"
+              className="p-3 rounded-xl bg-red-50/90 backdrop-blur-md border border-red-200 text-xs font-medium text-red-700 tabular-nums"
             >
               {lockout.isLocked
                 ? `Too many incorrect attempts. Try again in ${lockout.remainingSeconds}s.`
@@ -149,13 +149,13 @@ export function AdminAuthGate({
           <button
             type="submit"
             disabled={lockout.isLocked}
-            className="w-full h-11 rounded-lg bg-zinc-900 hover:bg-amber-700 disabled:bg-zinc-300 disabled:text-zinc-600 text-white text-sm font-semibold transition-colors"
+            className="w-full h-11 rounded-xl glass-btn-ink disabled:opacity-50 text-white text-sm font-semibold transition-all"
           >
             {lockout.isLocked ? `Locked (${lockout.remainingSeconds}s)` : 'Unlock Admin Panel'}
           </button>
         </form>
 
-        <p className="pt-4 border-t border-[#F0EFEA] text-xs text-zinc-500 flex items-center gap-2">
+        <p className="pt-4 border-t border-zinc-900/8 text-xs text-zinc-500 flex items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-amber-700 shrink-0" />
           <span>Protected session · Locks automatically when you sign out or close this tab.</span>
         </p>

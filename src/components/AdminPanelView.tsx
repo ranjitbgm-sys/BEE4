@@ -336,7 +336,7 @@ export function AdminPanelView({
   return (
     <div className="max-w-[1280px] mx-auto px-4 sm:px-6 pt-6 pb-16">
       {/* Top Workspace Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-[#E6E4DD]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-white/75">
         <div>
           <p className="text-xs font-medium text-zinc-500">
             BEE4 Admin <span aria-hidden="true">/</span>{' '}
@@ -351,7 +351,7 @@ export function AdminPanelView({
           <button
             type="button"
             onClick={onBackToStore}
-            className="px-4 py-2 rounded-lg border border-[#E6E4DD] bg-white hover:bg-[#F7F6F2] text-zinc-800 text-xs font-semibold inline-flex items-center gap-1.5 whitespace-nowrap"
+            className="px-4 py-2 rounded-xl glass-btn-secondary text-zinc-800 text-xs font-semibold inline-flex items-center gap-1.5 whitespace-nowrap transition-all"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>View Storefront</span>
@@ -360,7 +360,7 @@ export function AdminPanelView({
           <button
             type="button"
             onClick={onLockAdmin}
-            className="px-4 py-2 rounded-lg border border-[#E6E4DD] bg-white hover:bg-red-50 hover:text-red-700 text-zinc-800 text-xs font-semibold inline-flex items-center gap-1.5 whitespace-nowrap transition-colors"
+            className="px-4 py-2 rounded-xl glass-btn-secondary hover:bg-red-50/90 hover:text-red-700 text-zinc-800 text-xs font-semibold inline-flex items-center gap-1.5 whitespace-nowrap transition-all"
           >
             <Lock className="w-3.5 h-3.5" />
             <span>Lock Admin</span>
@@ -369,7 +369,7 @@ export function AdminPanelView({
           <button
             type="button"
             onClick={openNewProduct}
-            className="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold inline-flex items-center gap-1.5 whitespace-nowrap"
+            className="px-4 py-2 rounded-xl glass-btn-amber text-white text-xs font-semibold inline-flex items-center gap-1.5 whitespace-nowrap transition-all"
           >
             <Plus className="w-4 h-4" />
             <span>Add Product</span>
@@ -380,7 +380,7 @@ export function AdminPanelView({
       {/* Workspace Layout: Sidebar + Main Content */}
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Left Sidebar Navigation */}
-        <aside className="lg:col-span-3 bg-[#F7F6F2] border border-[#E6E4DD] rounded-2xl p-3">
+        <aside className="lg:col-span-3 glass-surface rounded-3xl p-3">
           <nav aria-label="Admin sections" className="flex lg:flex-col gap-1 overflow-x-auto">
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -394,10 +394,10 @@ export function AdminPanelView({
                     setStatusNotice('');
                   }}
                   aria-current={isActive ? 'page' : undefined}
-                  className={`flex items-center justify-between gap-2.5 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
+                  className={`flex items-center justify-between gap-2.5 px-3.5 py-2.5 rounded-2xl text-sm font-medium transition-all whitespace-nowrap shrink-0 ${
                     isActive
-                      ? 'bg-zinc-900 text-white font-semibold'
-                      : 'text-zinc-700 hover:bg-white hover:text-zinc-900'
+                      ? 'glass-btn-ink text-white font-semibold'
+                      : 'text-zinc-700 hover:bg-white/65 hover:text-zinc-900'
                   }`}
                 >
                   <span className="inline-flex items-center gap-2.5">
@@ -422,7 +422,7 @@ export function AdminPanelView({
         {/* Main Admin Content */}
         <div className="lg:col-span-9 space-y-6 min-w-0">
           {statusNotice && (
-            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-800 font-medium">
+            <div className="p-3.5 rounded-2xl bg-emerald-50/85 backdrop-blur-md border border-emerald-200/80 text-sm text-emerald-800 font-medium">
               {statusNotice}
             </div>
           )}
@@ -432,7 +432,7 @@ export function AdminPanelView({
             <div className="space-y-6">
               {/* 4-Column KPI Grid */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="p-4 rounded-xl bg-white border border-[#E6E4DD]">
+                <div className="p-4 rounded-2xl glass-surface">
                   <p className="text-xs font-medium text-zinc-500">Total Revenue</p>
                   <p className="mt-1.5 font-display text-2xl font-bold tabular-nums text-zinc-900">
                     {formatINR(metrics.totalRevenue)}
@@ -442,7 +442,7 @@ export function AdminPanelView({
                   </p>
                 </div>
 
-                <div className="p-4 rounded-xl bg-white border border-[#E6E4DD]">
+                <div className="p-4 rounded-2xl glass-surface">
                   <p className="text-xs font-medium text-zinc-500">Total Orders</p>
                   <p className="mt-1.5 font-display text-2xl font-bold tabular-nums text-zinc-900">
                     {metrics.totalOrders}
@@ -452,7 +452,7 @@ export function AdminPanelView({
                   </p>
                 </div>
 
-                <div className="p-4 rounded-xl bg-white border border-[#E6E4DD]">
+                <div className="p-4 rounded-2xl glass-surface">
                   <p className="text-xs font-medium text-zinc-500">Catalog Products</p>
                   <p className="mt-1.5 font-display text-2xl font-bold tabular-nums text-zinc-900">
                     {metrics.totalProducts}
@@ -462,7 +462,7 @@ export function AdminPanelView({
                   </p>
                 </div>
 
-                <div className="p-4 rounded-xl bg-white border border-[#E6E4DD]">
+                <div className="p-4 rounded-2xl glass-surface">
                   <p className="text-xs font-medium text-zinc-500">Open Inquiries</p>
                   <p className="mt-1.5 font-display text-2xl font-bold tabular-nums text-zinc-900">
                     {newInquiriesCount}
@@ -474,8 +474,8 @@ export function AdminPanelView({
               </div>
 
               {/* Recent Orders Preview */}
-              <div className="bg-white border border-[#E6E4DD] rounded-2xl overflow-hidden">
-                <div className="px-5 py-4 border-b border-[#E6E4DD] flex items-center justify-between">
+              <div className="glass-surface rounded-3xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-white/75 flex items-center justify-between">
                   <h2 className="font-display text-base font-bold text-zinc-900">
                     Recent Orders
                   </h2>
@@ -494,7 +494,7 @@ export function AdminPanelView({
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                       <thead>
-                        <tr className="bg-[#F7F6F2] text-xs font-semibold text-zinc-600 border-b border-[#E6E4DD]">
+                        <tr className="bg-white/45 text-xs font-semibold text-zinc-600 border-b border-white/75">
                           <th className="py-2.5 px-2.5 sm:px-4 whitespace-nowrap">Order</th>
                           <th className="py-2.5 px-2.5 sm:px-4">Customer</th>
                           <th className="hidden sm:table-cell py-2.5 px-4">Payment</th>
@@ -502,9 +502,9 @@ export function AdminPanelView({
                           <th className="py-2.5 px-2.5 sm:px-4 text-right whitespace-nowrap">Amount</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-[#F0EFEA] text-xs sm:text-sm">
+                      <tbody className="divide-y divide-zinc-900/6 text-xs sm:text-sm">
                         {orders.slice(0, 5).map((order) => (
-                          <tr key={order.orderNumber} className="hover:bg-[#F7F6F2]/50">
+                          <tr key={order.orderNumber} className="hover:bg-white/55">
                             <td className="py-3 px-2.5 sm:px-4 font-semibold tabular-nums text-zinc-900 whitespace-nowrap">
                               {order.orderNumber}
                             </td>
@@ -530,7 +530,7 @@ export function AdminPanelView({
               </div>
 
               {/* Category Mix */}
-              <div className="bg-white border border-[#E6E4DD] rounded-2xl p-5">
+              <div className="glass-surface rounded-3xl p-5">
                 <h2 className="font-display text-base font-bold text-zinc-900 mb-4">
                   Inventory by Category
                 </h2>
@@ -538,7 +538,7 @@ export function AdminPanelView({
                   {metrics.categoryCounts.map((entry) => (
                     <div
                       key={entry.category}
-                      className="p-3 rounded-xl bg-[#F7F6F2] border border-[#E6E4DD]"
+                      className="p-3 rounded-2xl glass-subtle"
                     >
                       <p className="text-xs font-medium text-zinc-600 truncate">{entry.category}</p>
                       <p className="mt-1 font-display text-lg font-bold tabular-nums text-zinc-900">
@@ -557,7 +557,7 @@ export function AdminPanelView({
               {editing && (
                 <form
                   onSubmit={handleSaveProduct}
-                  className="bg-[#F7F6F2] border border-[#E6E4DD] rounded-2xl p-6 space-y-5"
+                  className="glass-surface rounded-3xl p-6 space-y-5"
                 >
                   <div className="flex items-center justify-between">
                     <h2 className="font-display text-lg font-bold text-zinc-900">
@@ -573,14 +573,14 @@ export function AdminPanelView({
                   </div>
 
                   {formError && (
-                    <p className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700">
+                    <p className="p-3 rounded-xl bg-red-50/90 backdrop-blur-md border border-red-200 text-xs text-red-700">
                       {formError}
                     </p>
                   )}
 
                   <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
                     <div className="md:col-span-4 space-y-3">
-                      <div className="aspect-[4/3] w-full rounded-xl overflow-hidden bg-white border border-[#E6E4DD]">
+                      <div className="aspect-[4/3] w-full rounded-2xl overflow-hidden bg-white/50 border border-white/75">
                         <ProductImage
                           src={editing.image}
                           alt={editing.title || 'Product preview'}
@@ -588,7 +588,7 @@ export function AdminPanelView({
                         />
                       </div>
 
-                      <label className="w-full py-2.5 px-4 rounded-lg bg-white border border-[#E6E4DD] hover:bg-zinc-50 text-zinc-900 text-xs font-semibold inline-flex items-center justify-center gap-2 cursor-pointer">
+                      <label className="w-full py-2.5 px-4 rounded-xl glass-btn-secondary text-zinc-900 text-xs font-semibold inline-flex items-center justify-center gap-2 cursor-pointer">
                         <Upload className="w-4 h-4 text-amber-700" />
                         <span>Upload Product Photo</span>
                         <input
@@ -611,7 +611,7 @@ export function AdminPanelView({
                           value={editing.title}
                           onChange={(e) => setEditing({ ...editing, title: e.target.value })}
                           placeholder="e.g. Ceramic Chai Cup Set"
-                          className="w-full px-3.5 py-2 text-sm bg-white border border-[#E6E4DD] rounded-lg"
+                          className="w-full px-3.5 py-2 text-sm glass-input rounded-xl focus:outline-none"
                         />
                       </div>
 
@@ -628,7 +628,7 @@ export function AdminPanelView({
                               category: e.target.value as Exclude<ProductCategory, ProductCategory.ALL>,
                             })
                           }
-                          className="w-full px-3.5 py-2 text-sm bg-white border border-[#E6E4DD] rounded-lg"
+                          className="w-full px-3.5 py-2 text-sm glass-input rounded-xl focus:outline-none"
                         >
                           {EDITABLE_CATEGORIES.map((c) => (
                             <option key={c} value={c}>
@@ -651,7 +651,7 @@ export function AdminPanelView({
                               occasion: e.target.value as Exclude<GiftOccasion, GiftOccasion.ALL>,
                             })
                           }
-                          className="w-full px-3.5 py-2 text-sm bg-white border border-[#E6E4DD] rounded-lg"
+                          className="w-full px-3.5 py-2 text-sm glass-input rounded-xl focus:outline-none"
                         >
                           {EDITABLE_OCCASIONS.map((o) => (
                             <option key={o} value={o}>
@@ -671,7 +671,7 @@ export function AdminPanelView({
                           min={1}
                           value={editing.price}
                           onChange={(e) => setEditing({ ...editing, price: Number(e.target.value) })}
-                          className="w-full px-3.5 py-2 text-sm bg-white border border-[#E6E4DD] rounded-lg tabular-nums"
+                          className="w-full px-3.5 py-2 text-sm glass-input rounded-xl tabular-nums focus:outline-none"
                         />
                       </div>
 
@@ -690,7 +690,7 @@ export function AdminPanelView({
                               compareAtPrice: e.target.value ? Number(e.target.value) : undefined,
                             })
                           }
-                          className="w-full px-3.5 py-2 text-sm bg-white border border-[#E6E4DD] rounded-lg tabular-nums"
+                          className="w-full px-3.5 py-2 text-sm glass-input rounded-xl tabular-nums focus:outline-none"
                         />
                       </div>
 
@@ -703,7 +703,7 @@ export function AdminPanelView({
                           type="text"
                           value={variantsText}
                           onChange={(e) => setVariantsText(e.target.value)}
-                          className="w-full px-3.5 py-2 text-sm bg-white border border-[#E6E4DD] rounded-lg"
+                          className="w-full px-3.5 py-2 text-sm glass-input rounded-xl focus:outline-none"
                         />
                       </div>
 
@@ -716,7 +716,7 @@ export function AdminPanelView({
                           type="text"
                           value={editing.shortSpec}
                           onChange={(e) => setEditing({ ...editing, shortSpec: e.target.value })}
-                          className="w-full px-3.5 py-2 text-sm bg-white border border-[#E6E4DD] rounded-lg"
+                          className="w-full px-3.5 py-2 text-sm glass-input rounded-xl focus:outline-none"
                         />
                       </div>
 
@@ -729,7 +729,7 @@ export function AdminPanelView({
                           rows={2}
                           value={editing.description}
                           onChange={(e) => setEditing({ ...editing, description: e.target.value })}
-                          className="w-full px-3.5 py-2 text-sm bg-white border border-[#E6E4DD] rounded-lg"
+                          className="w-full px-3.5 py-2 text-sm glass-input rounded-xl focus:outline-none"
                         />
                       </div>
 
@@ -757,17 +757,17 @@ export function AdminPanelView({
                     </div>
                   </div>
 
-                  <div className="flex justify-end gap-3 pt-2 border-t border-[#E6E4DD]">
+                  <div className="flex justify-end gap-3 pt-2 border-t border-zinc-900/8">
                     <button
                       type="button"
                       onClick={() => setEditing(null)}
-                      className="px-4 py-2 rounded-lg border border-[#E6E4DD] bg-white text-xs font-semibold text-zinc-700"
+                      className="px-4 py-2 rounded-xl glass-btn-secondary text-xs font-semibold text-zinc-700"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      className="px-5 py-2.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold"
+                      className="px-5 py-2.5 rounded-xl glass-btn-amber text-white text-sm font-semibold"
                     >
                       Save Product
                     </button>
@@ -776,8 +776,8 @@ export function AdminPanelView({
               )}
 
               {/* Product Toolbar */}
-              <div className="bg-white border border-[#E6E4DD] rounded-2xl overflow-hidden">
-                <div className="p-4 border-b border-[#E6E4DD] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="glass-surface rounded-3xl overflow-hidden">
+                <div className="p-4 border-b border-white/75 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex flex-wrap items-center gap-2.5 flex-1">
                     <div className="relative flex-1 min-w-[200px] max-w-xs">
                       <label htmlFor="adm-prod-search" className="sr-only">
@@ -790,7 +790,7 @@ export function AdminPanelView({
                         value={productSearch}
                         onChange={(e) => setProductSearch(e.target.value)}
                         placeholder="Search products..."
-                        className="w-full pl-9 pr-3 py-2 text-xs bg-[#F7F6F2] border border-[#E6E4DD] rounded-lg focus:bg-white focus:border-amber-600 focus:outline-none"
+                        className="w-full pl-9 pr-3 py-2 text-xs glass-input rounded-xl focus:outline-none"
                       />
                     </div>
 
@@ -798,7 +798,7 @@ export function AdminPanelView({
                       aria-label="Filter inventory by category"
                       value={productCatFilter}
                       onChange={(e) => setProductCatFilter(e.target.value as ProductCategory)}
-                      className="px-3 py-2 text-xs bg-white border border-[#E6E4DD] rounded-lg font-medium text-zinc-700"
+                      className="px-3 py-2 text-xs glass-input rounded-xl font-medium text-zinc-700 focus:outline-none"
                     >
                       {Object.values(ProductCategory).map((c) => (
                         <option key={c} value={c}>
@@ -812,13 +812,13 @@ export function AdminPanelView({
                     <button
                       type="button"
                       onClick={() => setConfirmReset(true)}
-                      className="px-3 py-2 rounded-lg border border-[#E6E4DD] bg-white hover:bg-[#F7F6F2] text-zinc-700 text-xs font-semibold inline-flex items-center gap-1.5 self-start sm:self-auto"
+                      className="px-3 py-2 rounded-xl glass-btn-secondary text-zinc-700 text-xs font-semibold inline-flex items-center gap-1.5 self-start sm:self-auto"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
                       <span>Reset Default Catalog</span>
                     </button>
                   ) : (
-                    <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg">
+                    <div className="flex items-center gap-2 bg-amber-50/85 backdrop-blur-md border border-amber-200 px-3 py-1.5 rounded-xl">
                       <span className="text-xs font-medium text-amber-900">Restore 15 defaults?</span>
                       <button
                         type="button"
@@ -855,7 +855,7 @@ export function AdminPanelView({
                         setProductSearch('');
                         setProductCatFilter(ProductCategory.ALL);
                       }}
-                      className="mt-4 px-4 py-2 rounded-lg bg-[#F7F6F2] text-xs font-semibold text-zinc-900"
+                      className="mt-4 px-4 py-2 rounded-xl glass-btn-secondary text-xs font-semibold text-zinc-900"
                     >
                       Clear Filter
                     </button>
@@ -864,7 +864,7 @@ export function AdminPanelView({
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                       <thead>
-                        <tr className="bg-[#F7F6F2] text-xs font-semibold text-zinc-600 border-b border-[#E6E4DD]">
+                        <tr className="bg-white/45 text-xs font-semibold text-zinc-600 border-b border-white/75">
                           <th className="py-2.5 px-4">Product</th>
                           <th className="py-2.5 px-4">Category</th>
                           <th className="py-2.5 px-4 text-right">Price</th>
@@ -872,12 +872,12 @@ export function AdminPanelView({
                           <th className="py-2.5 px-4 text-right">Actions</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-[#F0EFEA] text-sm">
+                      <tbody className="divide-y divide-zinc-900/6 text-sm">
                         {filteredProducts.map((product) => (
-                          <tr key={product.id} className="hover:bg-[#F7F6F2]/50">
+                          <tr key={product.id} className="hover:bg-white/55">
                             <td className="py-2.5 px-4">
                               <div className="flex items-center gap-3">
-                                <div className="w-11 h-8 rounded-md overflow-hidden bg-[#F7F6F2] border border-[#E6E4DD] shrink-0">
+                                <div className="w-11 h-8 rounded-lg overflow-hidden bg-white/50 border border-white/75 shrink-0">
                                   <ProductImage
                                     src={product.image}
                                     alt={product.title}
@@ -908,7 +908,7 @@ export function AdminPanelView({
                                   type="button"
                                   onClick={() => openEditor(product)}
                                   aria-label={`Edit ${product.title}`}
-                                  className="p-1.5 rounded-lg border border-[#E6E4DD] hover:bg-[#F7F6F2] text-zinc-700"
+                                  className="p-1.5 rounded-xl glass-btn-secondary text-zinc-700"
                                 >
                                   <Pencil className="w-3.5 h-3.5" />
                                 </button>
@@ -919,7 +919,7 @@ export function AdminPanelView({
                                     setStatusNotice(`Removed "${product.title}" from catalog.`);
                                   }}
                                   aria-label={`Delete ${product.title}`}
-                                  className="p-1.5 rounded-lg border border-[#E6E4DD] hover:bg-red-50 text-zinc-500 hover:text-red-600"
+                                  className="p-1.5 rounded-xl glass-btn-secondary hover:bg-red-50/90 text-zinc-500 hover:text-red-600"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
@@ -937,8 +937,8 @@ export function AdminPanelView({
 
           {/* 3. ORDERS TAB */}
           {activeTab === 'orders' && (
-            <div className="bg-white border border-[#E6E4DD] rounded-2xl overflow-hidden">
-              <div className="p-4 border-b border-[#E6E4DD] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="glass-surface rounded-3xl overflow-hidden">
+              <div className="p-4 border-b border-white/75 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="relative flex-1 max-w-xs">
                   <label htmlFor="adm-order-search" className="sr-only">
                     Search orders
@@ -950,7 +950,7 @@ export function AdminPanelView({
                     value={orderSearch}
                     onChange={(e) => setOrderSearch(e.target.value)}
                     placeholder="Search order #, name, city, PIN..."
-                    className="w-full pl-9 pr-3 py-2 text-xs bg-[#F7F6F2] border border-[#E6E4DD] rounded-lg focus:bg-white focus:border-amber-600 focus:outline-none"
+                    className="w-full pl-9 pr-3 py-2 text-xs glass-input rounded-xl focus:outline-none"
                   />
                 </div>
 
@@ -962,10 +962,10 @@ export function AdminPanelView({
                         key={st}
                         type="button"
                         onClick={() => setOrderStatusFilter(st)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
                           active
-                            ? 'bg-zinc-900 text-white border-zinc-900'
-                            : 'bg-[#F7F6F2] text-zinc-700 border-[#E6E4DD] hover:text-zinc-900'
+                            ? 'glass-btn-ink text-white'
+                            : 'glass-btn-secondary text-zinc-700 hover:text-zinc-900'
                         }`}
                       >
                         {st}
@@ -983,7 +983,7 @@ export function AdminPanelView({
                   </p>
                 </div>
               ) : (
-                <ul className="divide-y divide-[#F0EFEA]">
+                <ul className="divide-y divide-zinc-900/6">
                   {filteredOrders.map((order) => {
                     const isExpanded = expandedOrder === order.orderNumber;
                     return (
@@ -1024,7 +1024,7 @@ export function AdminPanelView({
                                   `Updated ${order.orderNumber} status to ${nextStatus}.`
                                 );
                               }}
-                              className={`px-3 py-1.5 text-xs font-semibold border border-[#E6E4DD] rounded-lg bg-white ${statusTone(order.status)}`}
+                              className={`px-3 py-1.5 text-xs font-semibold glass-input rounded-xl focus:outline-none ${statusTone(order.status)}`}
                             >
                               {ORDER_STATUSES.map((st) => (
                                 <option key={st} value={st} className="text-zinc-900">
@@ -1038,7 +1038,7 @@ export function AdminPanelView({
                               onClick={() =>
                                 setExpandedOrder(isExpanded ? null : order.orderNumber)
                               }
-                              className="px-3 py-1.5 rounded-lg border border-[#E6E4DD] bg-[#F7F6F2] hover:bg-[#EFECE6] text-xs font-semibold text-zinc-800"
+                              className="px-3 py-1.5 rounded-xl glass-btn-secondary text-xs font-semibold text-zinc-800"
                             >
                               {isExpanded ? 'Hide Items' : `Items (${order.items.length})`}
                             </button>
@@ -1051,7 +1051,7 @@ export function AdminPanelView({
                               target="_blank"
                               rel="noopener noreferrer"
                               aria-label={`Message ${order.customer.fullName} on WhatsApp`}
-                              className="p-2 rounded-lg border border-[#E6E4DD] hover:bg-emerald-50 text-emerald-700"
+                              className="p-2 rounded-xl glass-btn-secondary hover:bg-emerald-50/90 text-emerald-700"
                             >
                               <MessageCircle className="w-4 h-4" />
                             </a>
@@ -1059,7 +1059,7 @@ export function AdminPanelView({
                         </div>
 
                         {isExpanded && (
-                          <div className="mt-4 pt-3 border-t border-[#F0EFEA] space-y-2 text-xs text-zinc-700">
+                          <div className="mt-4 pt-3 border-t border-zinc-900/8 space-y-2 text-xs text-zinc-700">
                             {order.items.map((item) => (
                               <div
                                 key={`${item.productId}::${item.variant}`}
@@ -1091,8 +1091,8 @@ export function AdminPanelView({
 
           {/* 4. INQUIRIES TAB */}
           {activeTab === 'inquiries' && (
-            <div className="bg-white border border-[#E6E4DD] rounded-2xl overflow-hidden">
-              <div className="px-5 py-4 border-b border-[#E6E4DD]">
+            <div className="glass-surface rounded-3xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-white/75">
                 <h2 className="font-display text-base font-bold text-zinc-900">
                   Customer Inquiries ({inquiries.length})
                 </h2>
@@ -1106,7 +1106,7 @@ export function AdminPanelView({
                   </p>
                 </div>
               ) : (
-                <ul className="divide-y divide-[#F0EFEA]">
+                <ul className="divide-y divide-zinc-900/6">
                   {inquiries.map((inq) => (
                     <li
                       key={inq.id}
@@ -1127,10 +1127,10 @@ export function AdminPanelView({
                         <button
                           type="button"
                           onClick={() => onToggleInquiryStatus(inq.id)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${
+                          className={`px-3 py-1.5 rounded-xl text-xs font-semibold border backdrop-blur-md ${
                             inq.status === 'New'
-                              ? 'bg-amber-50 border-amber-200 text-amber-800'
-                              : 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                              ? 'bg-amber-50/85 border-amber-200 text-amber-800'
+                              : 'bg-emerald-50/85 border-emerald-200 text-emerald-700'
                           }`}
                         >
                           {inq.status === 'New' ? 'Mark Resolved' : 'Resolved ✓'}
@@ -1148,7 +1148,7 @@ export function AdminPanelView({
             <div className="space-y-6">
               <form
                 onSubmit={handleSaveSettings}
-                className="bg-white border border-[#E6E4DD] rounded-2xl p-6 space-y-5"
+                className="glass-surface rounded-3xl p-6 space-y-5"
               >
                 <div>
                   <h2 className="font-display text-lg font-bold text-zinc-900">
@@ -1161,7 +1161,7 @@ export function AdminPanelView({
                 </div>
 
                 {settingsError && (
-                  <p className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700">
+                  <p className="p-3 rounded-xl bg-red-50/90 backdrop-blur-md border border-red-200 text-xs text-red-700">
                     {settingsError}
                   </p>
                 )}
@@ -1177,7 +1177,7 @@ export function AdminPanelView({
                       value={waDraft}
                       onChange={(e) => setWaDraft(e.target.value)}
                       placeholder="9876543210"
-                      className="w-full px-3.5 py-2 text-sm border border-[#E6E4DD] rounded-lg tabular-nums"
+                      className="w-full px-3.5 py-2 text-sm glass-input rounded-xl tabular-nums focus:outline-none"
                     />
                     <p className="mt-1 text-[11px] text-zinc-500">
                       Active: {formatWhatsAppDisplay(settings.whatsappNumber)}
@@ -1193,7 +1193,7 @@ export function AdminPanelView({
                       type="email"
                       value={emailDraft}
                       onChange={(e) => setEmailDraft(e.target.value)}
-                      className="w-full px-3.5 py-2 text-sm border border-[#E6E4DD] rounded-lg"
+                      className="w-full px-3.5 py-2 text-sm glass-input rounded-xl focus:outline-none"
                     />
                   </div>
 
@@ -1206,7 +1206,7 @@ export function AdminPanelView({
                       type="text"
                       value={bannerDraft}
                       onChange={(e) => setBannerDraft(e.target.value)}
-                      className="w-full px-3.5 py-2 text-sm border border-[#E6E4DD] rounded-lg"
+                      className="w-full px-3.5 py-2 text-sm glass-input rounded-xl focus:outline-none"
                     />
                   </div>
 
@@ -1220,7 +1220,7 @@ export function AdminPanelView({
                       min={0}
                       value={shippingDraft}
                       onChange={(e) => setShippingDraft(e.target.value)}
-                      className="w-full px-3.5 py-2 text-sm border border-[#E6E4DD] rounded-lg tabular-nums"
+                      className="w-full px-3.5 py-2 text-sm glass-input rounded-xl tabular-nums focus:outline-none"
                     />
                   </div>
 
@@ -1234,7 +1234,7 @@ export function AdminPanelView({
                         type="text"
                         value={promoCodeDraft}
                         onChange={(e) => setPromoCodeDraft(e.target.value)}
-                        className="w-full px-3.5 py-2 text-sm border border-[#E6E4DD] rounded-lg uppercase"
+                        className="w-full px-3.5 py-2 text-sm glass-input rounded-xl uppercase focus:outline-none"
                       />
                     </div>
                     <div>
@@ -1248,13 +1248,13 @@ export function AdminPanelView({
                         max={80}
                         value={promoPercentDraft}
                         onChange={(e) => setPromoPercentDraft(e.target.value)}
-                        className="w-full px-3.5 py-2 text-sm border border-[#E6E4DD] rounded-lg tabular-nums"
+                        className="w-full px-3.5 py-2 text-sm glass-input rounded-xl tabular-nums focus:outline-none"
                       />
                     </div>
                   </div>
                 </div>
 
-                <div className="pt-3 border-t border-[#F0EFEA] flex flex-wrap items-center justify-between gap-3">
+                <div className="pt-3 border-t border-zinc-900/8 flex flex-wrap items-center justify-between gap-3">
                   <a
                     href={buildWhatsAppUrl('Hi! Testing my BEE4 store WhatsApp link.', settings.whatsappNumber)}
                     target="_blank"
@@ -1266,7 +1266,7 @@ export function AdminPanelView({
 
                   <button
                     type="submit"
-                    className="px-5 py-2.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold transition-colors"
+                    className="px-5 py-2.5 rounded-xl glass-btn-amber text-white text-sm font-semibold transition-all"
                   >
                     Save Store Settings
                   </button>
@@ -1276,7 +1276,7 @@ export function AdminPanelView({
               <form
                 onSubmit={handlePasswordChange}
                 noValidate
-                className="bg-white border border-[#E6E4DD] rounded-2xl p-6 space-y-4"
+                className="glass-surface rounded-3xl p-6 space-y-4"
               >
                 <div>
                   <h2 className="font-display text-lg font-bold text-zinc-900">
@@ -1288,7 +1288,7 @@ export function AdminPanelView({
                 </div>
 
                 {passError && (
-                  <p role="alert" className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700">
+                  <p role="alert" className="p-3 rounded-xl bg-red-50/90 backdrop-blur-md border border-red-200 text-xs text-red-700">
                     {passError}
                   </p>
                 )}
@@ -1306,7 +1306,7 @@ export function AdminPanelView({
                         setCurrPassDraft(e.target.value);
                         if (passError) setPassError('');
                       }}
-                      className="w-full px-3.5 py-2 text-sm border border-[#E6E4DD] rounded-lg"
+                      className="w-full px-3.5 py-2 text-sm glass-input rounded-xl focus:outline-none"
                     />
                   </div>
                   <div>
@@ -1322,7 +1322,7 @@ export function AdminPanelView({
                         if (passError) setPassError('');
                       }}
                       placeholder="Min 8 characters"
-                      className="w-full px-3.5 py-2 text-sm border border-[#E6E4DD] rounded-lg"
+                      className="w-full px-3.5 py-2 text-sm glass-input rounded-xl focus:outline-none"
                     />
                   </div>
                   <div>
@@ -1337,7 +1337,7 @@ export function AdminPanelView({
                         setConfirmPassDraft(e.target.value);
                         if (passError) setPassError('');
                       }}
-                      className="w-full px-3.5 py-2 text-sm border border-[#E6E4DD] rounded-lg"
+                      className="w-full px-3.5 py-2 text-sm glass-input rounded-xl focus:outline-none"
                     />
                   </div>
                 </div>
@@ -1345,7 +1345,7 @@ export function AdminPanelView({
                 <div className="pt-2 flex justify-end">
                   <button
                     type="submit"
-                    className="px-5 py-2.5 rounded-lg bg-zinc-900 hover:bg-amber-700 text-white text-sm font-semibold transition-colors"
+                    className="px-5 py-2.5 rounded-xl glass-btn-ink text-white text-sm font-semibold transition-all"
                   >
                     Update Admin Password
                   </button>

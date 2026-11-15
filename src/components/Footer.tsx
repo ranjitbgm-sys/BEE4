@@ -17,7 +17,7 @@ export function Footer({
   onNavigate,
 }: FooterProps) {
   return (
-    <footer className="bg-[#F7F6F2] border-t border-[#E6E4DD] mt-20">
+    <footer className="glass-surface border-x-0 border-b-0 mt-20">
       <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-12 sm:py-16">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
           <div className="md:col-span-2">
@@ -107,7 +107,7 @@ export function Footer({
           </div>
         </div>
 
-        <div className="mt-10 pt-6 border-t border-[#E6E4DD] flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-500">
+        <div className="mt-10 pt-6 border-t border-zinc-900/10 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-500">
           <p>© {new Date().getFullYear()} BEE4 India. All rights reserved.</p>
           {promoCode && promoDiscountPercent > 0 && (
             <p>

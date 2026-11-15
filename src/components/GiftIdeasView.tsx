@@ -42,7 +42,7 @@ export function GiftIdeasView({
 
   return (
     <section className="max-w-[1200px] mx-auto px-4 sm:px-6 pt-8 pb-12">
-      <div className="bg-[#F7F6F2] border border-[#E6E4DD] rounded-2xl p-6 sm:p-10 mb-10">
+      <div className="glass-surface rounded-3xl p-6 sm:p-10 mb-10">
         <div className="max-w-2xl">
           <p className="text-xs font-semibold tracking-wide text-amber-700">
             Gift Finder &amp; Occasions
@@ -65,10 +65,10 @@ export function GiftIdeasView({
                 key={card.occasion}
                 type="button"
                 onClick={() => setSelectedOccasion(card.occasion)}
-                className={`p-3.5 rounded-xl border text-left transition-colors ${
+                className={`p-3.5 rounded-2xl text-left transition-all ${
                   active
-                    ? 'bg-zinc-900 text-white border-zinc-900'
-                    : 'bg-white text-zinc-900 border-[#E6E4DD] hover:border-amber-600'
+                    ? 'glass-btn-ink text-white'
+                    : 'glass-btn-secondary text-zinc-900 hover:border-amber-400'
                 }`}
               >
                 <p className="text-sm font-semibold">{card.occasion}</p>
@@ -97,10 +97,10 @@ export function GiftIdeasView({
                 key={opt.label}
                 type="button"
                 onClick={() => setBudgetCap(opt.value)}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
                   active
-                    ? 'bg-amber-600 text-white border-amber-600'
-                    : 'bg-white text-zinc-700 border-[#E6E4DD] hover:text-zinc-900'
+                    ? 'glass-btn-amber text-white'
+                    : 'glass-btn-secondary text-zinc-700 hover:text-zinc-900'
                 }`}
               >
                 {opt.label}
@@ -111,7 +111,7 @@ export function GiftIdeasView({
       </div>
 
       {/* Gift Wrap Info Strip */}
-      <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#E6E4DD]">
+      <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/75">
         <div className="flex items-center gap-2.5 text-sm text-zinc-700">
           <Gift className="w-4 h-4 text-amber-700 shrink-0" />
           <span>
@@ -126,7 +126,7 @@ export function GiftIdeasView({
       </div>
 
       {giftItems.length === 0 ? (
-        <div className="py-14 px-6 text-center bg-[#F7F6F2] border border-[#E6E4DD] rounded-2xl">
+        <div className="py-14 px-6 text-center glass-surface rounded-3xl">
           <p className="font-display text-lg font-bold text-zinc-900">
             No items under that exact filter
           </p>
@@ -139,7 +139,7 @@ export function GiftIdeasView({
               setSelectedOccasion(GiftOccasion.ALL);
               setBudgetCap(null);
             }}
-            className="mt-4 px-5 py-2.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold"
+            className="mt-4 px-5 py-2.5 rounded-xl glass-btn-amber text-white text-sm font-semibold"
           >
             Show All Gift Picks
           </button>

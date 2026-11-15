@@ -29,8 +29,8 @@ export function ProductCard({
   };
 
   return (
-    <article className="group flex flex-col bg-white border border-[#E6E4DD] rounded-xl overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
-      <div className="relative aspect-[4/3] w-full bg-[#F7F6F2] overflow-hidden">
+    <article className="group flex flex-col glass-surface rounded-2xl overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
+      <div className="relative aspect-[4/3] w-full bg-white/40 overflow-hidden border-b border-white/60">
         <button
           type="button"
           onClick={() => onSelectProduct(product.id)}
@@ -54,10 +54,10 @@ export function ProductCard({
                 : `Save ${product.title} to wishlist`
             }
             aria-pressed={isWishlisted}
-            className={`absolute top-3 right-3 z-10 w-8 h-8 rounded-full border flex items-center justify-center transition-colors ${
+            className={`absolute top-3 right-3 z-10 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 ${
               isWishlisted
-                ? 'bg-zinc-900 border-zinc-900 text-amber-400'
-                : 'bg-white/95 border-[#E6E4DD] text-zinc-700 hover:border-zinc-900 hover:text-zinc-900'
+                ? 'glass-btn-ink text-amber-400'
+                : 'glass-orb text-zinc-700 hover:text-zinc-900 hover:scale-105'
             }`}
           >
             <Heart className={`w-4 h-4 ${isWishlisted ? 'fill-amber-400' : ''}`} />
@@ -87,10 +87,10 @@ export function ProductCard({
             </h3>
           </button>
 
-          <p className="mt-1 text-xs text-zinc-500 line-clamp-1">{product.shortSpec}</p>
+          <p className="mt-1 text-xs text-zinc-600 line-clamp-1">{product.shortSpec}</p>
         </div>
 
-        <div className="flex items-center justify-between gap-3 pt-2 border-t border-[#F0EFEA]">
+        <div className="flex items-center justify-between gap-3 pt-2.5 border-t border-zinc-900/8">
           <div className="flex items-baseline gap-2 tabular-nums">
             <span className="text-[15px] font-bold text-zinc-900">{formatINR(product.price)}</span>
             {product.compareAtPrice && product.compareAtPrice > product.price && (
@@ -105,12 +105,12 @@ export function ProductCard({
             disabled={!product.inStock}
             onClick={handleQuickAdd}
             aria-label={`Add ${product.title} to bag`}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
+            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
               !product.inStock
-                ? 'bg-zinc-100 text-zinc-400 cursor-not-allowed'
+                ? 'bg-zinc-200/70 text-zinc-400 cursor-not-allowed'
                 : justAdded
-                  ? 'bg-zinc-900 text-white'
-                  : 'bg-[#F7F6F2] text-zinc-900 hover:bg-amber-600 hover:text-white'
+                  ? 'glass-btn-ink text-white'
+                  : 'glass-btn-secondary text-zinc-900 hover:bg-amber-600 hover:text-white hover:border-amber-500'
             }`}
           >
             {!product.inStock ? (

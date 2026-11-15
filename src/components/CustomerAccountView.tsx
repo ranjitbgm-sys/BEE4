@@ -346,7 +346,7 @@ export function CustomerAccountView({
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Left: Auth Card */}
-          <div className="lg:col-span-7 bg-white border border-[#E6E4DD] rounded-2xl p-6 sm:p-8 space-y-6">
+          <div className="lg:col-span-7 glass-surface rounded-3xl p-6 sm:p-8 space-y-6">
             <div>
               <p className="text-xs font-semibold text-amber-700">BEE4 Customer Account</p>
               <h1 className="mt-1 font-display text-2xl sm:text-3xl font-bold text-zinc-900">
@@ -360,7 +360,7 @@ export function CustomerAccountView({
             <div
               role="tablist"
               aria-label="Customer authentication mode"
-              className="inline-flex p-1 rounded-xl bg-[#F7F6F2] border border-[#E6E4DD]"
+              className="inline-flex p-1.5 rounded-2xl glass-subtle"
             >
               <button
                 type="button"
@@ -372,10 +372,10 @@ export function CustomerAccountView({
                   setSigninNotice('');
                   resetForgotState();
                 }}
-                className={`px-4 py-2 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+                className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all whitespace-nowrap ${
                   authMode === 'signup'
-                    ? 'bg-zinc-900 text-white'
-                    : 'text-zinc-700 hover:text-zinc-900'
+                    ? 'glass-btn-ink text-white'
+                    : 'text-zinc-700 hover:text-zinc-900 hover:bg-white/60'
                 }`}
               >
                 Create Account
@@ -390,10 +390,10 @@ export function CustomerAccountView({
                   setSigninNotice('');
                   resetForgotState();
                 }}
-                className={`px-4 py-2 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+                className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all whitespace-nowrap ${
                   authMode === 'signin' || authMode === 'forgot'
-                    ? 'bg-zinc-900 text-white'
-                    : 'text-zinc-700 hover:text-zinc-900'
+                    ? 'glass-btn-ink text-white'
+                    : 'text-zinc-700 hover:text-zinc-900 hover:bg-white/60'
                 }`}
               >
                 Sign In
@@ -415,7 +415,7 @@ export function CustomerAccountView({
                       if (signupErrors.fullName) setSignupErrors({ ...signupErrors, fullName: undefined });
                     }}
                     placeholder="e.g. Kabir Mehta"
-                    className="w-full h-11 px-3.5 rounded-lg border border-[#E6E4DD] text-sm focus:border-amber-600 focus:outline-none"
+                    className="w-full h-11 px-3.5 rounded-xl glass-input text-sm focus:outline-none"
                   />
                   {signupErrors.fullName && (
                     <p className="mt-1 text-xs text-red-600">{signupErrors.fullName}</p>
@@ -437,7 +437,7 @@ export function CustomerAccountView({
                       }
                     }}
                     placeholder="9876543210 or kabir@example.com"
-                    className="w-full h-11 px-3.5 rounded-lg border border-[#E6E4DD] text-sm focus:border-amber-600 focus:outline-none"
+                    className="w-full h-11 px-3.5 rounded-xl glass-input text-sm focus:outline-none"
                   />
                   {signupErrors.contactIdentifier && (
                     <p className="mt-1 text-xs text-red-600">{signupErrors.contactIdentifier}</p>
@@ -461,13 +461,13 @@ export function CustomerAccountView({
                         }
                       }}
                       placeholder="Enter a strong password"
-                      className="w-full h-11 pl-3.5 pr-11 rounded-lg border border-[#E6E4DD] text-sm focus:border-amber-600 focus:outline-none"
+                      className="w-full h-11 pl-3.5 pr-11 rounded-xl glass-input text-sm focus:outline-none"
                     />
                     <button
                       type="button"
                       onClick={() => setShowSignupPassword((prev) => !prev)}
                       aria-label={showSignupPassword ? 'Hide password' : 'Show password'}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-zinc-500 hover:text-zinc-900"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-zinc-500 hover:text-zinc-900"
                     >
                       {showSignupPassword ? (
                         <EyeOff className="w-4 h-4" />
@@ -483,7 +483,7 @@ export function CustomerAccountView({
 
                 <button
                   type="submit"
-                  className="w-full h-11 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold transition-colors"
+                  className="w-full h-11 rounded-xl glass-btn-amber text-white text-sm font-semibold transition-all"
                 >
                   Create Customer Account
                 </button>
@@ -495,7 +495,7 @@ export function CustomerAccountView({
                 {signinNotice && (
                   <div
                     role="status"
-                    className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 font-medium"
+                    className="p-3 rounded-xl bg-emerald-50/85 backdrop-blur-md border border-emerald-200/80 text-xs text-emerald-800 font-medium"
                   >
                     {signinNotice}
                   </div>
@@ -504,7 +504,7 @@ export function CustomerAccountView({
                 {signinError && (
                   <div
                     role="alert"
-                    className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 font-medium"
+                    className="p-3 rounded-xl bg-red-50/90 backdrop-blur-md border border-red-200 text-xs text-red-700 font-medium"
                   >
                     {signinError}
                   </div>
@@ -524,7 +524,7 @@ export function CustomerAccountView({
                       if (signinError) setSigninError('');
                     }}
                     placeholder="e.g. 9820112233 or ananya.v@example.com"
-                    className="w-full h-11 px-3.5 rounded-lg border border-[#E6E4DD] text-sm focus:border-amber-600 focus:outline-none"
+                    className="w-full h-11 px-3.5 rounded-xl glass-input text-sm focus:outline-none"
                   />
                 </div>
 
@@ -557,13 +557,13 @@ export function CustomerAccountView({
                         if (signinError) setSigninError('');
                       }}
                       placeholder="Enter your account password"
-                      className="w-full h-11 pl-3.5 pr-11 rounded-lg border border-[#E6E4DD] text-sm focus:border-amber-600 focus:outline-none"
+                      className="w-full h-11 pl-3.5 pr-11 rounded-xl glass-input text-sm focus:outline-none"
                     />
                     <button
                       type="button"
                       onClick={() => setShowSigninPassword((prev) => !prev)}
                       aria-label={showSigninPassword ? 'Hide password' : 'Show password'}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-zinc-500 hover:text-zinc-900"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-zinc-500 hover:text-zinc-900"
                     >
                       {showSigninPassword ? (
                         <EyeOff className="w-4 h-4" />
@@ -576,7 +576,7 @@ export function CustomerAccountView({
 
                 <button
                   type="submit"
-                  className="w-full h-11 rounded-lg bg-zinc-900 hover:bg-amber-700 text-white text-sm font-semibold transition-colors"
+                  className="w-full h-11 rounded-xl glass-btn-ink text-white text-sm font-semibold transition-all"
                 >
                   Sign In to My Account
                 </button>
@@ -585,7 +585,7 @@ export function CustomerAccountView({
 
             {authMode === 'forgot' && (
               <div className="space-y-4">
-                <div className="flex items-center justify-between gap-2 pb-3 border-b border-[#F0EFEA]">
+                <div className="flex items-center justify-between gap-2 pb-3 border-b border-zinc-900/8">
                   <div>
                     <h2 className="font-display text-base font-bold text-zinc-900 inline-flex items-center gap-2">
                       <ShieldCheck className="w-4 h-4 text-amber-700" />
@@ -610,7 +610,7 @@ export function CustomerAccountView({
                 {resetError && (
                   <div
                     role="alert"
-                    className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 font-medium"
+                    className="p-3 rounded-xl bg-red-50/90 backdrop-blur-md border border-red-200 text-xs text-red-700 font-medium"
                   >
                     {resetError}
                   </div>
@@ -631,20 +631,20 @@ export function CustomerAccountView({
                           if (resetError) setResetError('');
                         }}
                         placeholder="e.g. 9820112233 or ananya.v@example.com"
-                        className="w-full h-11 px-3.5 rounded-lg border border-[#E6E4DD] text-sm focus:border-amber-600 focus:outline-none"
+                        className="w-full h-11 px-3.5 rounded-xl glass-input text-sm focus:outline-none"
                       />
                     </div>
 
                     <button
                       type="submit"
-                      className="w-full h-11 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold transition-colors"
+                      className="w-full h-11 rounded-xl glass-btn-amber text-white text-sm font-semibold transition-all"
                     >
                       Send 6-Digit OTP
                     </button>
                   </form>
                 ) : (
                   <form onSubmit={handleVerifyOtpAndResetPassword} noValidate className="space-y-4">
-                    <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200 space-y-1.5">
+                    <div className="p-3.5 rounded-2xl bg-amber-50/75 backdrop-blur-md border border-amber-200/80 space-y-1.5">
                       <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                         <span className="font-semibold text-zinc-900">
                           OTP sent to {otpChallenge.maskedTarget}
@@ -657,7 +657,7 @@ export function CustomerAccountView({
                       </div>
                       <p className="text-xs text-zinc-700">
                         Verification code for this session:{' '}
-                        <strong className="font-mono tabular-nums text-zinc-900 bg-white px-2 py-0.5 rounded border border-amber-200">
+                        <strong className="font-mono tabular-nums text-zinc-900 bg-white/90 px-2 py-0.5 rounded-lg border border-amber-200 shadow-xs">
                           {issuedOtpPreview}
                         </strong>
                       </p>
@@ -691,7 +691,7 @@ export function CustomerAccountView({
                           if (resetError) setResetError('');
                         }}
                         placeholder="6-digit OTP"
-                        className="w-full h-11 px-3.5 rounded-lg border border-[#E6E4DD] text-sm font-mono tracking-widest tabular-nums focus:border-amber-600 focus:outline-none"
+                        className="w-full h-11 px-3.5 rounded-xl glass-input text-sm font-mono tracking-widest tabular-nums focus:outline-none"
                       />
                     </div>
 
@@ -711,13 +711,13 @@ export function CustomerAccountView({
                               if (resetError) setResetError('');
                             }}
                             placeholder="New password"
-                            className="w-full h-11 pl-3.5 pr-10 rounded-lg border border-[#E6E4DD] text-sm focus:border-amber-600 focus:outline-none"
+                            className="w-full h-11 pl-3.5 pr-10 rounded-xl glass-input text-sm focus:outline-none"
                           />
                           <button
                             type="button"
                             onClick={() => setShowResetPasswords((prev) => !prev)}
                             aria-label={showResetPasswords ? 'Hide passwords' : 'Show passwords'}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-zinc-500 hover:text-zinc-900"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-zinc-500 hover:text-zinc-900"
                           >
                             {showResetPasswords ? (
                               <EyeOff className="w-4 h-4" />
@@ -742,7 +742,7 @@ export function CustomerAccountView({
                             if (resetError) setResetError('');
                           }}
                           placeholder="Confirm password"
-                          className="w-full h-11 px-3.5 rounded-lg border border-[#E6E4DD] text-sm focus:border-amber-600 focus:outline-none"
+                          className="w-full h-11 px-3.5 rounded-xl glass-input text-sm focus:outline-none"
                         />
                       </div>
                     </div>
@@ -750,7 +750,7 @@ export function CustomerAccountView({
                     <div className="flex flex-wrap items-center gap-2.5">
                       <button
                         type="submit"
-                        className="flex-1 min-w-[200px] h-11 rounded-lg bg-zinc-900 hover:bg-amber-700 text-white text-sm font-semibold transition-colors"
+                        className="flex-1 min-w-[200px] h-11 rounded-xl glass-btn-ink text-white text-sm font-semibold transition-all"
                       >
                         Verify OTP &amp; Reset Password
                       </button>
@@ -762,7 +762,7 @@ export function CustomerAccountView({
                           setEnteredOtp('');
                           setResetError('');
                         }}
-                        className="h-11 px-4 rounded-lg border border-[#E6E4DD] bg-white hover:bg-[#F7F6F2] text-xs font-semibold text-zinc-700"
+                        className="h-11 px-4 rounded-xl glass-btn-secondary text-xs font-semibold text-zinc-700"
                       >
                         Change Account
                       </button>
@@ -775,32 +775,40 @@ export function CustomerAccountView({
 
           {/* Right: Customer Benefits & Guest Wishlist */}
           <div className="lg:col-span-5 space-y-4">
-            <div className="p-6 rounded-2xl bg-[#F7F6F2] border border-[#E6E4DD] space-y-4">
+            <div className="p-6 rounded-3xl glass-surface space-y-4">
               <h2 className="font-display text-lg font-bold text-zinc-900">
                 Inside Your BEE4 User Panel
               </h2>
               <ul className="space-y-3 text-sm text-zinc-700">
                 <li className="flex items-start gap-2.5">
-                  <Package className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-                  <span>Track shipments step-by-step, cancel before dispatch, or reorder in 1 click.</span>
+                  <div className="w-7 h-7 rounded-full glass-orb flex items-center justify-center shrink-0">
+                    <Package className="w-3.5 h-3.5 text-amber-700" />
+                  </div>
+                  <span className="pt-0.5">Track shipments step-by-step, cancel before dispatch, or reorder in 1 click.</span>
                 </li>
                 <li className="flex items-start gap-2.5">
-                  <MapPin className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-                  <span>Save Home, Work, or gifting addresses for instant checkout autofill.</span>
+                  <div className="w-7 h-7 rounded-full glass-orb flex items-center justify-center shrink-0">
+                    <MapPin className="w-3.5 h-3.5 text-amber-700" />
+                  </div>
+                  <span className="pt-0.5">Save Home, Work, or gifting addresses for instant checkout autofill.</span>
                 </li>
                 <li className="flex items-start gap-2.5">
-                  <Heart className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-                  <span>Keep a synced Wishlist across every category and gift occasion.</span>
+                  <div className="w-7 h-7 rounded-full glass-orb flex items-center justify-center shrink-0">
+                    <Heart className="w-3.5 h-3.5 text-amber-700" />
+                  </div>
+                  <span className="pt-0.5">Keep a synced Wishlist across every category and gift occasion.</span>
                 </li>
                 <li className="flex items-start gap-2.5">
-                  <UserCheck className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-                  <span>Save your preferred payment mode (UPI, Card, or COD) and celebration month.</span>
+                  <div className="w-7 h-7 rounded-full glass-orb flex items-center justify-center shrink-0">
+                    <UserCheck className="w-3.5 h-3.5 text-amber-700" />
+                  </div>
+                  <span className="pt-0.5">Save your preferred payment mode (UPI, Card, or COD) and celebration month.</span>
                 </li>
               </ul>
             </div>
 
             {guestProducts.length > 0 && (
-              <div className="p-5 rounded-2xl bg-white border border-[#E6E4DD]">
+              <div className="p-5 rounded-3xl glass-subtle">
                 <p className="text-xs font-semibold text-zinc-900">
                   Saved Guest Wishlist ({guestProducts.length})
                 </p>
@@ -994,7 +1002,7 @@ export function CustomerAccountView({
   return (
     <section className="max-w-[1200px] mx-auto px-4 sm:px-6 pt-6 pb-16">
       {/* Top Account Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-[#E6E4DD]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-white/75">
         <div>
           <p className="text-xs font-medium text-zinc-500">
             BEE4 Account / <span className="text-zinc-900 font-semibold">{tabMeta[activeTab]}</span>
@@ -1008,7 +1016,7 @@ export function CustomerAccountView({
           <button
             type="button"
             onClick={onContinueShopping}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#E6E4DD] bg-white hover:bg-[#F7F6F2] text-xs font-semibold text-zinc-800 whitespace-nowrap"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl glass-btn-secondary text-xs font-semibold text-zinc-800 whitespace-nowrap"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Continue Shopping</span>
@@ -1016,7 +1024,7 @@ export function CustomerAccountView({
           <button
             type="button"
             onClick={onSignOut}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#E6E4DD] bg-white hover:bg-red-50 hover:text-red-700 text-xs font-semibold text-zinc-700 whitespace-nowrap transition-colors"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl glass-btn-secondary hover:bg-red-50/90 hover:text-red-700 text-xs font-semibold text-zinc-700 whitespace-nowrap transition-all"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span>Sign Out</span>
@@ -1027,7 +1035,7 @@ export function CustomerAccountView({
       {/* Workspace Shell */}
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Sidebar */}
-        <aside className="lg:col-span-3 bg-[#F7F6F2] border border-[#E6E4DD] rounded-2xl p-3">
+        <aside className="lg:col-span-3 glass-surface rounded-3xl p-3">
           <nav aria-label="Customer account sections" className="flex lg:flex-col gap-1 overflow-x-auto">
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -1042,10 +1050,10 @@ export function CustomerAccountView({
                     if (item.id === 'profile') syncProfileDrafts(currentCustomer);
                   }}
                   aria-current={isActive ? 'page' : undefined}
-                  className={`flex items-center justify-between gap-2.5 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
+                  className={`flex items-center justify-between gap-2.5 px-3.5 py-2.5 rounded-2xl text-sm font-medium transition-all whitespace-nowrap shrink-0 ${
                     isActive
-                      ? 'bg-zinc-900 text-white font-semibold'
-                      : 'text-zinc-700 hover:bg-white hover:text-zinc-900'
+                      ? 'glass-btn-ink text-white font-semibold'
+                      : 'text-zinc-700 hover:bg-white/65 hover:text-zinc-900'
                   }`}
                 >
                   <span className="inline-flex items-center gap-2.5">
@@ -1072,7 +1080,7 @@ export function CustomerAccountView({
           {notice && (
             <div
               role="status"
-              className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-800 font-medium"
+              className="p-3.5 rounded-2xl bg-emerald-50/85 backdrop-blur-md border border-emerald-200/80 text-sm text-emerald-800 font-medium"
             >
               {notice}
             </div>
@@ -1082,7 +1090,7 @@ export function CustomerAccountView({
           {activeTab === 'overview' && (
             <div className="space-y-6">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="p-4 rounded-xl bg-white border border-[#E6E4DD]">
+                <div className="p-4 rounded-2xl glass-surface">
                   <p className="text-xs font-medium text-zinc-500">My Orders</p>
                   <p className="mt-1.5 font-display text-2xl font-bold tabular-nums text-zinc-900">
                     {customerOrders.length}
@@ -1092,7 +1100,7 @@ export function CustomerAccountView({
                   </p>
                 </div>
 
-                <div className="p-4 rounded-xl bg-white border border-[#E6E4DD]">
+                <div className="p-4 rounded-2xl glass-surface">
                   <p className="text-xs font-medium text-zinc-500">Wishlist Items</p>
                   <p className="mt-1.5 font-display text-2xl font-bold tabular-nums text-zinc-900">
                     {wishlistProducts.length}
@@ -1100,7 +1108,7 @@ export function CustomerAccountView({
                   <p className="mt-1 text-xs text-zinc-500">Saved for later</p>
                 </div>
 
-                <div className="p-4 rounded-xl bg-white border border-[#E6E4DD]">
+                <div className="p-4 rounded-2xl glass-surface">
                   <p className="text-xs font-medium text-zinc-500">Saved Addresses</p>
                   <p className="mt-1.5 font-display text-2xl font-bold tabular-nums text-zinc-900">
                     {currentCustomer.addresses.length}
@@ -1108,7 +1116,7 @@ export function CustomerAccountView({
                   <p className="mt-1 text-xs text-zinc-500">Fast checkout ready</p>
                 </div>
 
-                <div className="p-4 rounded-xl bg-white border border-[#E6E4DD]">
+                <div className="p-4 rounded-2xl glass-surface">
                   <p className="text-xs font-medium text-zinc-500">Preferred Pay</p>
                   <p className="mt-1.5 font-display text-2xl font-bold uppercase text-zinc-900">
                     {currentCustomer.preferredPayment}
@@ -1118,7 +1126,7 @@ export function CustomerAccountView({
               </div>
 
               {/* Latest Order Live Tracker */}
-              <div className="bg-white border border-[#E6E4DD] rounded-2xl p-5 sm:p-6">
+              <div className="glass-surface rounded-3xl p-5 sm:p-6">
                 <div className="flex items-center justify-between gap-4 mb-4">
                   <h2 className="font-display text-base font-bold text-zinc-900">
                     Latest Order Tracking
@@ -1138,7 +1146,7 @@ export function CustomerAccountView({
                     <button
                       type="button"
                       onClick={onContinueShopping}
-                      className="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold self-start sm:self-auto"
+                      className="px-4 py-2 rounded-xl glass-btn-amber text-white text-xs font-semibold self-start sm:self-auto"
                     >
                       Explore Catalog
                     </button>
@@ -1174,7 +1182,7 @@ export function CustomerAccountView({
                     setActiveTab('addresses');
                     openNewAddressForm();
                   }}
-                  className="p-4 rounded-xl bg-[#F7F6F2] border border-[#E6E4DD] hover:border-zinc-900 text-left transition-colors"
+                  className="p-4 rounded-2xl glass-subtle hover:bg-white/75 text-left transition-all"
                 >
                   <p className="text-sm font-semibold text-zinc-900">+ Add Delivery Address</p>
                   <p className="mt-1 text-xs text-zinc-600">Save home or office PIN codes</p>
@@ -1182,7 +1190,7 @@ export function CustomerAccountView({
                 <button
                   type="button"
                   onClick={() => setActiveTab('wishlist')}
-                  className="p-4 rounded-xl bg-[#F7F6F2] border border-[#E6E4DD] hover:border-zinc-900 text-left transition-colors"
+                  className="p-4 rounded-2xl glass-subtle hover:bg-white/75 text-left transition-all"
                 >
                   <p className="text-sm font-semibold text-zinc-900">View Saved Wishlist</p>
                   <p className="mt-1 text-xs text-zinc-600">Move favorites straight to bag</p>
@@ -1193,7 +1201,7 @@ export function CustomerAccountView({
                     syncProfileDrafts(currentCustomer);
                     setActiveTab('profile');
                   }}
-                  className="p-4 rounded-xl bg-[#F7F6F2] border border-[#E6E4DD] hover:border-zinc-900 text-left transition-colors"
+                  className="p-4 rounded-2xl glass-subtle hover:bg-white/75 text-left transition-all"
                 >
                   <p className="text-sm font-semibold text-zinc-900">Edit Profile &amp; Payment</p>
                   <p className="mt-1 text-xs text-zinc-600">Update phone, email or UPI default</p>
@@ -1205,14 +1213,14 @@ export function CustomerAccountView({
           {/* 2. MY ORDERS & TRACKING */}
           {activeTab === 'orders' && (
             <div className="space-y-4">
-              <div className="bg-white border border-[#E6E4DD] rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div className="glass-surface rounded-3xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
                 <input
                   type="search"
                   aria-label="Search my orders"
                   value={orderSearch}
                   onChange={(e) => setOrderSearch(e.target.value)}
                   placeholder="Search by order # or item name..."
-                  className="w-full md:w-72 px-3.5 py-2 rounded-lg bg-[#F7F6F2] border border-[#E6E4DD] text-sm focus:bg-white focus:border-amber-600 focus:outline-none"
+                  className="w-full md:w-72 px-3.5 py-2 rounded-xl glass-input text-sm focus:outline-none"
                 />
 
                 <div className="flex flex-wrap gap-1.5">
@@ -1221,10 +1229,10 @@ export function CustomerAccountView({
                       key={filter}
                       type="button"
                       onClick={() => setOrderFilter(filter)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap ${
                         orderFilter === filter
-                          ? 'bg-zinc-900 text-white'
-                          : 'bg-[#F7F6F2] text-zinc-700 hover:bg-[#EFECE6]'
+                          ? 'glass-btn-ink text-white'
+                          : 'glass-btn-secondary text-zinc-700'
                       }`}
                     >
                       {filter}
@@ -1234,14 +1242,14 @@ export function CustomerAccountView({
               </div>
 
               {filteredCustomerOrders.length === 0 ? (
-                <div className="bg-white border border-[#E6E4DD] rounded-2xl p-10 text-center">
+                <div className="glass-surface rounded-3xl p-10 text-center">
                   <p className="text-sm text-zinc-600">
                     No matching orders found for your account.
                   </p>
                   <button
                     type="button"
                     onClick={onContinueShopping}
-                    className="mt-4 px-5 py-2.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold"
+                    className="mt-4 px-5 py-2.5 rounded-xl glass-btn-amber text-white text-xs font-semibold"
                   >
                     Shop Curated Finds
                   </button>
@@ -1251,7 +1259,7 @@ export function CustomerAccountView({
                   {filteredCustomerOrders.map((order) => (
                     <div
                       key={order.orderNumber}
-                      className="bg-white border border-[#E6E4DD] rounded-2xl p-5 sm:p-6"
+                      className="glass-surface rounded-3xl p-5 sm:p-6"
                     >
                       <OrderTrackingCard
                         order={order}
@@ -1281,7 +1289,7 @@ export function CustomerAccountView({
 
           {/* 3. WISHLIST */}
           {activeTab === 'wishlist' && (
-            <div className="bg-white border border-[#E6E4DD] rounded-2xl p-5 sm:p-6">
+            <div className="glass-surface rounded-3xl p-5 sm:p-6">
               <div className="flex items-center justify-between gap-4 mb-5">
                 <h2 className="font-display text-lg font-bold text-zinc-900">
                   My Saved Wishlist ({wishlistProducts.length})
@@ -1296,7 +1304,7 @@ export function CustomerAccountView({
               </div>
 
               {wishlistProducts.length === 0 ? (
-                <div className="py-10 text-center bg-[#F7F6F2] rounded-xl border border-[#E6E4DD]">
+                <div className="py-10 text-center rounded-2xl glass-subtle">
                   <Heart className="w-7 h-7 text-zinc-400 mx-auto mb-2" />
                   <p className="text-sm font-medium text-zinc-800">Your wishlist is empty.</p>
                   <p className="mt-1 text-xs text-zinc-600">
@@ -1305,7 +1313,7 @@ export function CustomerAccountView({
                   <button
                     type="button"
                     onClick={onContinueShopping}
-                    className="mt-4 px-5 py-2.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold"
+                    className="mt-4 px-5 py-2.5 rounded-xl glass-btn-amber text-white text-xs font-semibold"
                   >
                     Discover Products
                   </button>
@@ -1315,12 +1323,12 @@ export function CustomerAccountView({
                   {wishlistProducts.map((item) => (
                     <div
                       key={item.id}
-                      className="p-4 rounded-xl border border-[#E6E4DD] bg-white flex gap-4 items-start"
+                      className="p-4 rounded-2xl glass-subtle flex gap-4 items-start"
                     >
                       <button
                         type="button"
                         onClick={() => onSelectProduct(item.id)}
-                        className="w-24 h-20 rounded-lg overflow-hidden bg-[#F7F6F2] shrink-0"
+                        className="w-24 h-20 rounded-xl overflow-hidden bg-white/50 border border-white/75 shrink-0"
                       >
                         <ProductImage
                           src={item.image}
@@ -1351,7 +1359,7 @@ export function CustomerAccountView({
                               onToggleWishlist(item.id);
                               setNotice(`Moved "${item.title}" to your shopping bag.`);
                             }}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 disabled:bg-zinc-200 disabled:text-zinc-500 text-white text-xs font-semibold transition-colors"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl glass-btn-amber disabled:opacity-50 text-white text-xs font-semibold transition-all"
                           >
                             <ShoppingBag className="w-3.5 h-3.5" />
                             <span>{item.inStock ? 'Move to Bag' : 'Sold Out'}</span>
@@ -1360,7 +1368,7 @@ export function CustomerAccountView({
                             type="button"
                             onClick={() => onToggleWishlist(item.id)}
                             aria-label={`Remove ${item.title} from wishlist`}
-                            className="p-1.5 rounded-lg border border-[#E6E4DD] text-zinc-600 hover:text-red-600 hover:border-red-200 transition-colors"
+                            className="p-1.5 rounded-xl glass-btn-secondary text-zinc-600 hover:text-red-600 transition-colors"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -1376,7 +1384,7 @@ export function CustomerAccountView({
           {/* 4. SAVED ADDRESSES */}
           {activeTab === 'addresses' && (
             <div className="space-y-4">
-              <div className="bg-white border border-[#E6E4DD] rounded-2xl p-5 sm:p-6">
+              <div className="glass-surface rounded-3xl p-5 sm:p-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
                   <div>
                     <h2 className="font-display text-lg font-bold text-zinc-900">
@@ -1389,7 +1397,7 @@ export function CustomerAccountView({
                   <button
                     type="button"
                     onClick={openNewAddressForm}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold self-start sm:self-auto whitespace-nowrap"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl glass-btn-amber text-white text-xs font-semibold self-start sm:self-auto whitespace-nowrap"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Add New Address</span>
@@ -1400,7 +1408,7 @@ export function CustomerAccountView({
                   <form
                     onSubmit={handleSaveAddress}
                     noValidate
-                    className="mb-6 p-5 rounded-xl bg-[#F7F6F2] border border-[#E6E4DD] space-y-4"
+                    className="mb-6 p-5 rounded-2xl glass-subtle space-y-4"
                   >
                     <div className="flex items-center justify-between">
                       <h3 className="text-sm font-bold text-zinc-900">Address Details</h3>
@@ -1410,10 +1418,10 @@ export function CustomerAccountView({
                             key={lbl}
                             type="button"
                             onClick={() => setEditingAddress({ ...editingAddress, label: lbl })}
-                            className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
+                            className={`px-3 py-1 rounded-xl text-xs font-semibold transition-all ${
                               editingAddress.label === lbl
-                                ? 'bg-zinc-900 text-white'
-                                : 'bg-white border border-[#E6E4DD] text-zinc-700'
+                                ? 'glass-btn-ink text-white'
+                                : 'glass-btn-secondary text-zinc-700'
                             }`}
                           >
                             {lbl}
@@ -1435,7 +1443,7 @@ export function CustomerAccountView({
                             setEditingAddress({ ...editingAddress, fullName: e.target.value });
                             if (addressErrors.fullName) setAddressErrors({ ...addressErrors, fullName: undefined });
                           }}
-                          className="w-full h-10 px-3 rounded-lg bg-white border border-[#E6E4DD] text-sm focus:border-amber-600 focus:outline-none"
+                          className="w-full h-10 px-3 rounded-xl glass-input text-sm focus:outline-none"
                         />
                         {addressErrors.fullName && (
                           <p className="mt-1 text-xs text-red-600">{addressErrors.fullName}</p>
@@ -1455,7 +1463,7 @@ export function CustomerAccountView({
                             if (addressErrors.phone) setAddressErrors({ ...addressErrors, phone: undefined });
                           }}
                           placeholder="9876543210"
-                          className="w-full h-10 px-3 rounded-lg bg-white border border-[#E6E4DD] text-sm tabular-nums focus:border-amber-600 focus:outline-none"
+                          className="w-full h-10 px-3 rounded-xl glass-input text-sm tabular-nums focus:outline-none"
                         />
                         {addressErrors.phone && (
                           <p className="mt-1 text-xs text-red-600">{addressErrors.phone}</p>
@@ -1476,7 +1484,7 @@ export function CustomerAccountView({
                           if (addressErrors.address) setAddressErrors({ ...addressErrors, address: undefined });
                         }}
                         placeholder="Flat 402, Indiranagar 12th Main"
-                        className="w-full h-10 px-3 rounded-lg bg-white border border-[#E6E4DD] text-sm focus:border-amber-600 focus:outline-none"
+                        className="w-full h-10 px-3 rounded-xl glass-input text-sm focus:outline-none"
                       />
                       {addressErrors.address && (
                         <p className="mt-1 text-xs text-red-600">{addressErrors.address}</p>
@@ -1497,7 +1505,7 @@ export function CustomerAccountView({
                             if (addressErrors.city) setAddressErrors({ ...addressErrors, city: undefined });
                           }}
                           placeholder="Bengaluru"
-                          className="w-full h-10 px-3 rounded-lg bg-white border border-[#E6E4DD] text-sm focus:border-amber-600 focus:outline-none"
+                          className="w-full h-10 px-3 rounded-xl glass-input text-sm focus:outline-none"
                         />
                         {addressErrors.city && (
                           <p className="mt-1 text-xs text-red-600">{addressErrors.city}</p>
@@ -1512,7 +1520,7 @@ export function CustomerAccountView({
                           id="addr-state"
                           value={editingAddress.state}
                           onChange={(e) => setEditingAddress({ ...editingAddress, state: e.target.value })}
-                          className="w-full h-10 px-3 rounded-lg bg-white border border-[#E6E4DD] text-sm focus:border-amber-600 focus:outline-none"
+                          className="w-full h-10 px-3 rounded-xl glass-input text-sm focus:outline-none"
                         >
                           {INDIAN_STATES.map((st) => (
                             <option key={st} value={st}>
@@ -1537,7 +1545,7 @@ export function CustomerAccountView({
                             if (addressErrors.pinCode) setAddressErrors({ ...addressErrors, pinCode: undefined });
                           }}
                           placeholder="560038"
-                          className="w-full h-10 px-3 rounded-lg bg-white border border-[#E6E4DD] text-sm tabular-nums focus:border-amber-600 focus:outline-none"
+                          className="w-full h-10 px-3 rounded-xl glass-input text-sm tabular-nums focus:outline-none"
                         />
                         {addressErrors.pinCode && (
                           <p className="mt-1 text-xs text-red-600">{addressErrors.pinCode}</p>
@@ -1565,13 +1573,13 @@ export function CustomerAccountView({
                             setEditingAddress(null);
                             setAddressErrors({});
                           }}
-                          className="px-4 py-2 rounded-lg border border-[#E6E4DD] bg-white text-xs font-semibold text-zinc-700"
+                          className="px-4 py-2 rounded-xl glass-btn-secondary text-xs font-semibold text-zinc-700"
                         >
                           Cancel
                         </button>
                         <button
                           type="submit"
-                          className="px-5 py-2 rounded-lg bg-zinc-900 hover:bg-amber-700 text-white text-xs font-semibold transition-colors"
+                          className="px-5 py-2 rounded-xl glass-btn-ink text-white text-xs font-semibold transition-all"
                         >
                           Save Address
                         </button>
@@ -1581,7 +1589,7 @@ export function CustomerAccountView({
                 )}
 
                 {currentCustomer.addresses.length === 0 ? (
-                  <div className="p-8 text-center rounded-xl bg-[#F7F6F2] border border-[#E6E4DD]">
+                  <div className="p-8 text-center rounded-2xl glass-subtle">
                     <p className="text-sm text-zinc-600">
                       No saved addresses yet. Add your home or office address for faster checkout.
                     </p>
@@ -1591,8 +1599,8 @@ export function CustomerAccountView({
                     {currentCustomer.addresses.map((addr) => (
                       <div
                         key={addr.id}
-                        className={`p-4 rounded-xl border ${
-                          addr.isDefault ? 'border-amber-600 bg-amber-50/30' : 'border-[#E6E4DD] bg-white'
+                        className={`p-4 rounded-2xl border backdrop-blur-md ${
+                          addr.isDefault ? 'border-amber-500/80 bg-amber-50/55' : 'glass-subtle'
                         }`}
                       >
                         <div className="flex items-center justify-between gap-2">
@@ -1615,7 +1623,7 @@ export function CustomerAccountView({
                                 setAddressErrors({});
                               }}
                               aria-label={`Edit ${addr.label} address`}
-                              className="p-1.5 rounded-lg text-zinc-600 hover:text-zinc-900 hover:bg-[#F7F6F2]"
+                              className="p-1.5 rounded-xl text-zinc-600 hover:text-zinc-900 hover:bg-white/70"
                             >
                               <Pencil className="w-3.5 h-3.5" />
                             </button>
@@ -1623,7 +1631,7 @@ export function CustomerAccountView({
                               type="button"
                               onClick={() => handleDeleteAddress(addr.id)}
                               aria-label={`Delete ${addr.label} address`}
-                              className="p-1.5 rounded-lg text-zinc-600 hover:text-red-600 hover:bg-red-50"
+                              className="p-1.5 rounded-xl text-zinc-600 hover:text-red-600 hover:bg-red-50/80"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -1660,7 +1668,7 @@ export function CustomerAccountView({
               <form
                 onSubmit={handleSaveProfile}
                 noValidate
-                className="bg-white border border-[#E6E4DD] rounded-2xl p-6 space-y-5"
+                className="glass-surface rounded-3xl p-6 space-y-5"
               >
                 <div>
                   <h2 className="font-display text-lg font-bold text-zinc-900">
@@ -1672,7 +1680,7 @@ export function CustomerAccountView({
                 </div>
 
                 {profileError && (
-                  <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 font-medium">
+                  <div className="p-3 rounded-xl bg-red-50/90 backdrop-blur-md border border-red-200 text-xs text-red-700 font-medium">
                     {profileError}
                   </div>
                 )}
@@ -1687,7 +1695,7 @@ export function CustomerAccountView({
                       type="text"
                       value={profileName}
                       onChange={(e) => setProfileName(e.target.value)}
-                      className="w-full h-11 px-3.5 rounded-lg border border-[#E6E4DD] text-sm focus:border-amber-600 focus:outline-none"
+                      className="w-full h-11 px-3.5 rounded-xl glass-input text-sm focus:outline-none"
                     />
                   </div>
 
@@ -1701,7 +1709,7 @@ export function CustomerAccountView({
                       value={profilePhone}
                       onChange={(e) => setProfilePhone(e.target.value)}
                       placeholder="9876543210"
-                      className="w-full h-11 px-3.5 rounded-lg border border-[#E6E4DD] text-sm tabular-nums focus:border-amber-600 focus:outline-none"
+                      className="w-full h-11 px-3.5 rounded-xl glass-input text-sm tabular-nums focus:outline-none"
                     />
                   </div>
 
@@ -1715,7 +1723,7 @@ export function CustomerAccountView({
                       value={profileEmail}
                       onChange={(e) => setProfileEmail(e.target.value)}
                       placeholder="you@example.com"
-                      className="w-full h-11 px-3.5 rounded-lg border border-[#E6E4DD] text-sm focus:border-amber-600 focus:outline-none"
+                      className="w-full h-11 px-3.5 rounded-xl glass-input text-sm focus:outline-none"
                     />
                   </div>
 
@@ -1727,7 +1735,7 @@ export function CustomerAccountView({
                       id="prof-month"
                       value={profileMonth}
                       onChange={(e) => setProfileMonth(e.target.value)}
-                      className="w-full h-11 px-3 rounded-lg border border-[#E6E4DD] text-sm bg-white focus:border-amber-600 focus:outline-none"
+                      className="w-full h-11 px-3 rounded-xl glass-input text-sm focus:outline-none"
                     >
                       <option value="">Select month</option>
                       {MONTHS.map((m) => (
@@ -1757,10 +1765,10 @@ export function CustomerAccountView({
                         role="radio"
                         aria-checked={profilePayment === method.id}
                         onClick={() => setProfilePayment(method.id)}
-                        className={`px-4 py-3 rounded-xl border text-xs font-semibold text-left transition-colors ${
+                        className={`px-4 py-3 rounded-2xl border text-xs font-semibold text-left transition-all ${
                           profilePayment === method.id
-                            ? 'border-amber-600 bg-amber-50/50 text-zinc-900'
-                            : 'border-[#E6E4DD] bg-white text-zinc-700 hover:bg-[#F7F6F2]'
+                            ? 'border-amber-600 bg-amber-50/65 backdrop-blur-md text-zinc-900 shadow-sm'
+                            : 'glass-btn-secondary text-zinc-700'
                         }`}
                       >
                         {method.label}
@@ -1772,7 +1780,7 @@ export function CustomerAccountView({
                 <div className="pt-2 flex justify-end">
                   <button
                     type="submit"
-                    className="px-6 py-2.5 rounded-lg bg-zinc-900 hover:bg-amber-700 text-white text-sm font-semibold transition-colors"
+                    className="px-6 py-2.5 rounded-xl glass-btn-ink text-white text-sm font-semibold transition-all"
                   >
                     Save Profile Changes
                   </button>
@@ -1803,7 +1811,7 @@ export function CustomerAccountView({
                   setNotice('Account password updated successfully.');
                 }}
                 noValidate
-                className="bg-white border border-[#E6E4DD] rounded-2xl p-6 space-y-4"
+                className="glass-surface rounded-3xl p-6 space-y-4"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
@@ -1827,7 +1835,7 @@ export function CustomerAccountView({
                 {passwordChangeError && (
                   <div
                     role="alert"
-                    className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 font-medium"
+                    className="p-3 rounded-xl bg-red-50/90 backdrop-blur-md border border-red-200 text-xs text-red-700 font-medium"
                   >
                     {passwordChangeError}
                   </div>
@@ -1847,7 +1855,7 @@ export function CustomerAccountView({
                         setCurrentPasswordInput(e.target.value);
                         if (passwordChangeError) setPasswordChangeError('');
                       }}
-                      className="w-full h-11 px-3.5 rounded-lg border border-[#E6E4DD] text-sm focus:border-amber-600 focus:outline-none"
+                      className="w-full h-11 px-3.5 rounded-xl glass-input text-sm focus:outline-none"
                     />
                   </div>
                   <div>
@@ -1863,7 +1871,7 @@ export function CustomerAccountView({
                         setNewPasswordInput(e.target.value);
                         if (passwordChangeError) setPasswordChangeError('');
                       }}
-                      className="w-full h-11 px-3.5 rounded-lg border border-[#E6E4DD] text-sm focus:border-amber-600 focus:outline-none"
+                      className="w-full h-11 px-3.5 rounded-xl glass-input text-sm focus:outline-none"
                     />
                   </div>
                   <div>
@@ -1879,7 +1887,7 @@ export function CustomerAccountView({
                         setConfirmPasswordInput(e.target.value);
                         if (passwordChangeError) setPasswordChangeError('');
                       }}
-                      className="w-full h-11 px-3.5 rounded-lg border border-[#E6E4DD] text-sm focus:border-amber-600 focus:outline-none"
+                      className="w-full h-11 px-3.5 rounded-xl glass-input text-sm focus:outline-none"
                     />
                   </div>
                 </div>
@@ -1887,7 +1895,7 @@ export function CustomerAccountView({
                 <div className="pt-1 flex justify-end">
                   <button
                     type="submit"
-                    className="px-5 py-2.5 rounded-lg border border-[#E6E4DD] bg-[#F7F6F2] hover:bg-zinc-900 hover:text-white text-zinc-900 text-xs font-semibold transition-colors"
+                    className="px-5 py-2.5 rounded-xl glass-btn-secondary hover:bg-zinc-900 hover:text-white text-zinc-900 text-xs font-semibold transition-all"
                   >
                     Update Password
                   </button>
@@ -1925,7 +1933,7 @@ function OrderTrackingCard({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#F0EFEA]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-zinc-900/8">
         <div>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
             <span className="font-bold text-zinc-900 tabular-nums">{order.orderNumber}</span>
@@ -1951,7 +1959,7 @@ function OrderTrackingCard({
 
       {/* 4-step Visual Order Progress Bar */}
       {order.status === 'Cancelled' ? (
-        <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 font-medium">
+        <div className="p-3 rounded-2xl bg-red-50/90 backdrop-blur-md border border-red-200 text-xs text-red-700 font-medium">
           This order was cancelled before dispatch. You can reorder any item below.
         </div>
       ) : (
@@ -1962,18 +1970,18 @@ function OrderTrackingCard({
             return (
               <div
                 key={step}
-                className={`p-2.5 rounded-xl border text-xs ${
+                className={`p-2.5 rounded-2xl border backdrop-blur-md text-xs ${
                   current
-                    ? 'border-amber-600 bg-amber-50/50 text-zinc-900 font-semibold'
+                    ? 'border-amber-500/80 bg-amber-50/65 text-zinc-900 font-semibold shadow-xs'
                     : done
-                      ? 'border-emerald-200 bg-emerald-50/50 text-emerald-800 font-medium'
-                      : 'border-[#E6E4DD] bg-[#F7F6F2] text-zinc-500'
+                      ? 'border-emerald-200/80 bg-emerald-50/60 text-emerald-800 font-medium'
+                      : 'glass-subtle text-zinc-500'
                 }`}
               >
                 <div className="flex items-center gap-1.5">
                   <span
                     className={`w-4 h-4 rounded-full inline-flex items-center justify-center text-[10px] font-bold shrink-0 ${
-                      done ? 'bg-emerald-600 text-white' : 'bg-zinc-200 text-zinc-600'
+                      done ? 'bg-emerald-600 text-white' : 'bg-zinc-200/80 text-zinc-600'
                     }`}
                   >
                     {done ? <Check className="w-2.5 h-2.5" /> : idx + 1}
@@ -2015,7 +2023,7 @@ function OrderTrackingCard({
         <button
           type="button"
           onClick={onDownloadInvoice}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-zinc-900 hover:bg-amber-700 text-white text-xs font-semibold transition-colors"
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl glass-btn-ink text-white text-xs font-semibold transition-all"
         >
           <Download className="w-3.5 h-3.5" />
           <span>Download Invoice</span>
@@ -2024,7 +2032,7 @@ function OrderTrackingCard({
         <button
           type="button"
           onClick={onReorder}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#F7F6F2] hover:bg-zinc-900 hover:text-white text-zinc-900 text-xs font-semibold transition-colors"
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl glass-btn-secondary hover:bg-zinc-900 hover:text-white text-zinc-900 text-xs font-semibold transition-all"
         >
           <RotateCcw className="w-3.5 h-3.5" />
           <span>Reorder Items</span>
@@ -2034,7 +2042,7 @@ function OrderTrackingCard({
           href={orderHelpUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-[#E6E4DD] bg-white hover:bg-[#F7F6F2] text-zinc-800 text-xs font-semibold transition-colors"
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl glass-btn-secondary text-zinc-800 text-xs font-semibold transition-all"
         >
           <MessageCircle className="w-3.5 h-3.5 text-emerald-700" />
           <span>Order Help</span>
@@ -2044,7 +2052,7 @@ function OrderTrackingCard({
           <button
             type="button"
             onClick={onCancel}
-            className="px-3.5 py-2 rounded-lg border border-[#E6E4DD] text-xs font-semibold text-red-600 hover:bg-red-50 transition-colors"
+            className="px-3.5 py-2 rounded-xl glass-btn-secondary text-xs font-semibold text-red-600 hover:bg-red-50/90 transition-all"
           >
             Cancel Order
           </button>

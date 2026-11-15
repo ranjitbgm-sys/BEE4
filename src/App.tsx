@@ -523,7 +523,25 @@ export default function App() {
     : null;
 
   return (
-    <div className="min-h-screen flex flex-col bg-white text-zinc-900">
+    <div className="relative isolate min-h-screen flex flex-col text-zinc-900 overflow-x-clip">
+      {/* iOS 27 Ambient Frosted Bokeh & Soft Glass Bubble Backdrop */}
+      <div
+        aria-hidden="true"
+        className="fixed inset-0 -z-10 pointer-events-none overflow-hidden"
+      >
+        {/* Soft diffused pastel luminosity blobs */}
+        <div className="glass-bokeh-amber absolute -top-24 -left-20 w-[440px] h-[440px] rounded-full blur-3xl opacity-85 animate-bubble-slow" />
+        <div className="glass-bokeh-sky absolute top-[14%] -right-24 w-[520px] h-[520px] rounded-full blur-3xl opacity-85 animate-bubble-reverse" />
+        <div className="glass-bokeh-peach absolute top-[50%] -left-20 w-[430px] h-[430px] rounded-full blur-3xl opacity-80 animate-bubble-reverse" />
+        <div className="glass-bokeh-mint absolute -bottom-24 right-[8%] w-[480px] h-[480px] rounded-full blur-3xl opacity-80 animate-bubble-slow" />
+
+        {/* Delicate liquid-glass bubble spheres with specular crescent highlights */}
+        <div className="absolute top-24 right-[4%] sm:right-[6%] w-16 h-16 sm:w-24 sm:h-24 rounded-full glass-orb opacity-85 animate-bubble-slow" />
+        <div className="hidden md:block absolute top-[44%] left-[2.5%] w-20 h-20 rounded-full glass-orb opacity-80 animate-bubble-reverse" />
+        <div className="hidden md:block absolute bottom-[22%] right-[11%] w-24 h-24 rounded-full glass-orb opacity-75 animate-bubble-reverse" />
+        <div className="absolute bottom-14 left-[5%] sm:left-[10%] w-12 h-12 sm:w-16 sm:h-16 rounded-full glass-orb opacity-80 animate-bubble-slow" />
+      </div>
+
       <Header
         activePage={activePage}
         cartCount={totalCartItems}
@@ -533,7 +551,7 @@ export default function App() {
         onOpenCart={() => setIsCartOpen(true)}
       />
 
-      <main className="flex-1">
+      <main className="flex-1 relative z-10">
         {activePage === 'home' && (
           <HomeView
             products={products}

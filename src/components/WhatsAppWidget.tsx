@@ -64,9 +64,9 @@ export function WhatsAppWidget({
           role="dialog"
           aria-modal="false"
           aria-label="WhatsApp quick order and support"
-          className="w-[calc(100vw-2rem)] max-w-[340px] bg-white border border-[#E6E4DD] rounded-2xl shadow-xl overflow-hidden"
+          className="w-[calc(100vw-2rem)] max-w-[340px] glass-drawer rounded-3xl overflow-hidden"
         >
-          <div className="px-4 py-3.5 bg-zinc-900 text-white flex items-center justify-between gap-3">
+          <div className="px-4 py-3.5 bg-zinc-900/85 backdrop-blur-xl border-b border-white/15 text-white flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="font-display text-sm font-bold truncate">BEE4 on WhatsApp</p>
               <p className="text-xs text-zinc-300 tabular-nums truncate">{displayNumber}</p>
@@ -75,7 +75,7 @@ export function WhatsAppWidget({
               type="button"
               onClick={() => setIsOpen(false)}
               aria-label="Close WhatsApp panel"
-              className="p-1.5 rounded-lg text-zinc-300 hover:text-white hover:bg-zinc-800 transition-colors shrink-0"
+              className="p-1.5 rounded-xl text-zinc-300 hover:text-white hover:bg-white/10 transition-colors shrink-0"
             >
               <X className="w-4 h-4" />
             </button>
@@ -92,7 +92,7 @@ export function WhatsAppWidget({
                   href={bagWhatsAppUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold flex items-center justify-between gap-2 transition-colors"
+                  className="w-full px-3.5 py-2.5 rounded-2xl glass-btn-emerald text-white text-xs font-semibold flex items-center justify-between gap-2 transition-all"
                 >
                   <span className="truncate">
                     Send My Bag ({totals.itemCount} · {formatINR(totals.total)})
@@ -106,7 +106,7 @@ export function WhatsAppWidget({
                   href={productWhatsAppUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#F7F6F2] hover:bg-[#EFECE6] border border-[#E6E4DD] text-zinc-900 text-xs font-semibold flex items-center justify-between gap-2 transition-colors"
+                  className="w-full px-3.5 py-2.5 rounded-2xl glass-btn-secondary text-zinc-900 text-xs font-semibold flex items-center justify-between gap-2 transition-all"
                 >
                   <span className="truncate">Ask about {activeProduct.title}</span>
                   <ArrowUpRight className="w-4 h-4 text-zinc-500 shrink-0" />
@@ -117,14 +117,14 @@ export function WhatsAppWidget({
                 href={giftHelpUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-[#F7F6F2] hover:bg-[#EFECE6] border border-[#E6E4DD] text-zinc-900 text-xs font-semibold flex items-center justify-between gap-2 transition-colors"
+                className="w-full px-3.5 py-2.5 rounded-2xl glass-btn-secondary text-zinc-900 text-xs font-semibold flex items-center justify-between gap-2 transition-all"
               >
                 <span className="truncate">Get Gift Ideas Under ₹999</span>
                 <ArrowUpRight className="w-4 h-4 text-zinc-500 shrink-0" />
               </a>
             </div>
 
-            <div className="pt-2 border-t border-[#F0EFEA] space-y-2">
+            <div className="pt-2 border-t border-zinc-900/10 space-y-2">
               <label htmlFor="wa-custom-msg" className="block text-xs font-semibold text-zinc-700">
                 Or write a quick message
               </label>
@@ -135,20 +135,19 @@ export function WhatsAppWidget({
                   value={customMessage}
                   onChange={(e) => setCustomMessage(e.target.value)}
                   placeholder="Hi, is COD available for..."
-                  className="flex-1 min-w-0 px-3 py-2 text-xs bg-white border border-[#E6E4DD] rounded-lg focus:border-emerald-700 focus:outline-none"
+                  className="flex-1 min-w-0 px-3 py-2 text-xs glass-input rounded-xl focus:outline-none"
                 />
                 <a
                   href={customWhatsAppUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label="Send message on WhatsApp"
-                  className="p-2 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white transition-colors shrink-0"
+                  className="p-2 rounded-xl glass-btn-emerald text-white transition-all shrink-0"
                 >
                   <Send className="w-4 h-4" />
                 </a>
               </div>
             </div>
-
           </div>
         </div>
       )}
@@ -158,7 +157,7 @@ export function WhatsAppWidget({
         onClick={() => setIsOpen((prev) => !prev)}
         aria-label={isOpen ? 'Close WhatsApp quick order' : 'Chat or order on WhatsApp'}
         aria-expanded={isOpen}
-        className="h-11 px-4 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white shadow-lg inline-flex items-center gap-2 text-sm font-semibold transition-colors whitespace-nowrap shrink-0"
+        className="h-11 px-4 rounded-full glass-btn-emerald text-white inline-flex items-center gap-2 text-sm font-semibold transition-all hover:scale-[1.03] whitespace-nowrap shrink-0"
       >
         <MessageCircle className="w-4 h-4 shrink-0" />
         <span>WhatsApp</span>

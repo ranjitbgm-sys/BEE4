@@ -59,7 +59,7 @@ export function ShopView({
 
   return (
     <section className="max-w-[1200px] mx-auto px-4 sm:px-6 pt-8 pb-12">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-6 border-b border-[#E6E4DD]">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-6 border-b border-white/75">
         <div>
           <p className="text-xs font-semibold tracking-wide text-amber-700">
             Catalog
@@ -85,7 +85,7 @@ export function ShopView({
               value={search}
               onChange={(e) => onChangeSearch(e.target.value)}
               placeholder="Search bottles, totes, 3D toys..."
-              className="w-full sm:w-64 pl-10 pr-8 py-2.5 text-sm bg-white border border-[#E6E4DD] rounded-lg focus:border-amber-600 focus:outline-none"
+              className="w-full sm:w-64 pl-10 pr-8 py-2.5 text-sm glass-input rounded-xl focus:outline-none"
             />
             {search.length > 0 && (
               <button
@@ -107,7 +107,7 @@ export function ShopView({
               id="shop-sort"
               value={sortBy}
               onChange={(e) => onChangeSortBy(e.target.value as SortOption)}
-              className="w-full sm:w-auto px-3.5 py-2.5 text-sm bg-white border border-[#E6E4DD] rounded-lg text-zinc-800 font-medium focus:border-amber-600 focus:outline-none"
+              className="w-full sm:w-auto px-3.5 py-2.5 text-sm glass-input rounded-xl text-zinc-800 font-medium focus:outline-none"
             >
               <option value="featured">Sort: Featured</option>
               <option value="price-asc">Price: Low to High</option>
@@ -127,10 +127,10 @@ export function ShopView({
                 key={cat}
                 type="button"
                 onClick={() => onChangeCategory(cat)}
-                className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 border ${
+                className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
                   active
-                    ? 'bg-zinc-900 text-white border-zinc-900'
-                    : 'bg-[#F7F6F2] text-zinc-700 border-[#E6E4DD] hover:text-zinc-900 hover:bg-[#EFECE6]'
+                    ? 'glass-btn-ink text-white'
+                    : 'glass-btn-secondary text-zinc-700 hover:text-zinc-900'
                 }`}
               >
                 {cat}
@@ -150,7 +150,7 @@ export function ShopView({
                 id="shop-occasion"
                 value={occasion}
                 onChange={(e) => onChangeOccasion(e.target.value as GiftOccasion)}
-                className="px-3 py-1.5 text-xs bg-white border border-[#E6E4DD] rounded-lg font-medium text-zinc-800"
+                className="px-3 py-1.5 text-xs glass-input rounded-xl font-medium text-zinc-800 focus:outline-none"
               >
                 {OCCASIONS.map((occ) => (
                   <option key={occ} value={occ}>
@@ -170,7 +170,7 @@ export function ShopView({
                 onChange={(e) =>
                   onChangeMaxPrice(e.target.value === 'all' ? null : Number(e.target.value))
                 }
-                className="px-3 py-1.5 text-xs bg-white border border-[#E6E4DD] rounded-lg font-medium text-zinc-800"
+                className="px-3 py-1.5 text-xs glass-input rounded-xl font-medium text-zinc-800 focus:outline-none"
               >
                 <option value="all">All Prices (₹199–₹999)</option>
                 <option value="399">Under ₹399</option>
@@ -194,7 +194,7 @@ export function ShopView({
 
       {/* Product Grid or Empty State */}
       {filtered.length === 0 ? (
-        <div className="mt-6 py-16 px-6 text-center bg-[#F7F6F2] border border-[#E6E4DD] rounded-2xl">
+        <div className="mt-6 py-16 px-6 text-center glass-surface rounded-3xl">
           <h2 className="font-display text-lg font-bold text-zinc-900">No matching products found</h2>
           <p className="mt-1.5 text-sm text-zinc-600 max-w-md mx-auto">
             Try clearing your search or choosing a wider price range to explore all 15 BEE4 items.
@@ -202,7 +202,7 @@ export function ShopView({
           <button
             type="button"
             onClick={onResetFilters}
-            className="mt-5 px-5 py-2.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold transition-colors"
+            className="mt-5 px-5 py-2.5 rounded-xl glass-btn-amber text-white text-sm font-semibold transition-all"
           >
             Reset Filters
           </button>

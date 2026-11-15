@@ -34,14 +34,14 @@ export function AboutView({ onNavigate }: AboutViewProps) {
             <button
               type="button"
               onClick={() => onNavigate('shop')}
-              className="px-6 py-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold transition-colors"
+              className="px-6 py-3 rounded-xl glass-btn-amber text-white text-sm font-semibold transition-all"
             >
               Browse the Catalog
             </button>
             <button
               type="button"
               onClick={() => onNavigate('gifts')}
-              className="px-5 py-3 rounded-lg border border-[#E6E4DD] bg-white hover:bg-[#F7F6F2] text-zinc-900 text-sm font-semibold transition-colors"
+              className="px-5 py-3 rounded-xl glass-btn-secondary text-zinc-900 text-sm font-semibold transition-all"
             >
               Explore Gift Ideas
             </button>
@@ -49,32 +49,34 @@ export function AboutView({ onNavigate }: AboutViewProps) {
         </div>
 
         <div className="lg:col-span-6">
-          <div className="aspect-[16/10] rounded-2xl overflow-hidden bg-[#F7F6F2] border border-[#E6E4DD]">
-            <ProductImage
-              src={HERO_IMAGE}
-              alt="BEE4 studio curation flat-lay"
-              className="w-full h-full object-cover"
-            />
+          <div className="p-2.5 rounded-3xl glass-surface">
+            <div className="aspect-[16/10] rounded-2xl overflow-hidden bg-white/40 border border-white/60">
+              <ProductImage
+                src={HERO_IMAGE}
+                alt="BEE4 studio curation flat-lay"
+                className="w-full h-full object-cover"
+              />
+            </div>
           </div>
         </div>
       </div>
 
       <div className="mt-14 grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="p-6 rounded-2xl bg-[#F7F6F2] border border-[#E6E4DD]">
+        <div className="p-6 rounded-3xl glass-surface">
           <h2 className="font-display text-lg font-bold text-zinc-900">Honest Everyday Pricing</h2>
           <p className="mt-2 text-sm text-zinc-600 leading-relaxed">
             Transparent ₹199–₹999 pricing with free pan-India shipping above ₹499 and zero hidden
             handling fees.
           </p>
         </div>
-        <div className="p-6 rounded-2xl bg-[#F7F6F2] border border-[#E6E4DD]">
+        <div className="p-6 rounded-3xl glass-surface">
           <h2 className="font-display text-lg font-bold text-zinc-900">Curated Quality Checks</h2>
           <p className="mt-2 text-sm text-zinc-600 leading-relaxed">
             Every bottle seal, handbag stitch, 3D print finish, and terracotta piece is inspected
             in Bengaluru before dispatch.
           </p>
         </div>
-        <div className="p-6 rounded-2xl bg-[#F7F6F2] border border-[#E6E4DD]">
+        <div className="p-6 rounded-3xl glass-surface">
           <h2 className="font-display text-lg font-bold text-zinc-900">Gift-Ready Packaging</h2>
           <p className="mt-2 text-sm text-zinc-600 leading-relaxed">
             Plastic-minimal cushioning with optional kraft gift wrap and handwritten note cards for
@@ -143,8 +145,10 @@ export function ContactView({
           </div>
 
           <div className="space-y-4 pt-2">
-            <div className="p-4 rounded-xl bg-[#F7F6F2] border border-[#E6E4DD] flex items-start gap-3">
-              <MessageCircle className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
+            <div className="p-4 rounded-2xl glass-subtle flex items-start gap-3">
+              <div className="w-9 h-9 rounded-full glass-orb flex items-center justify-center shrink-0">
+                <MessageCircle className="w-4 h-4 text-emerald-700" />
+              </div>
               <div>
                 <p className="text-sm font-semibold text-zinc-900">WhatsApp Concierge</p>
                 <p className="text-xs text-zinc-600 tabular-nums mt-0.5">
@@ -164,16 +168,20 @@ export function ContactView({
               </div>
             </div>
 
-            <div className="p-4 rounded-xl bg-[#F7F6F2] border border-[#E6E4DD] flex items-start gap-3">
-              <Mail className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+            <div className="p-4 rounded-2xl glass-subtle flex items-start gap-3">
+              <div className="w-9 h-9 rounded-full glass-orb flex items-center justify-center shrink-0">
+                <Mail className="w-4 h-4 text-amber-700" />
+              </div>
               <div>
                 <p className="text-sm font-semibold text-zinc-900">Email Support</p>
                 <p className="text-xs text-zinc-600 mt-0.5">{supportEmail}</p>
               </div>
             </div>
 
-            <div className="p-4 rounded-xl bg-[#F7F6F2] border border-[#E6E4DD] flex items-start gap-3">
-              <MapPin className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+            <div className="p-4 rounded-2xl glass-subtle flex items-start gap-3">
+              <div className="w-9 h-9 rounded-full glass-orb flex items-center justify-center shrink-0">
+                <MapPin className="w-4 h-4 text-amber-700" />
+              </div>
               <div>
                 <p className="text-sm font-semibold text-zinc-900">Dispatch Studio</p>
                 <p className="text-xs text-zinc-600 mt-0.5">
@@ -184,7 +192,7 @@ export function ContactView({
           </div>
         </div>
 
-        <div className="lg:col-span-7 bg-white border border-[#E6E4DD] rounded-2xl p-6 sm:p-8">
+        <div className="lg:col-span-7 glass-surface rounded-3xl p-6 sm:p-8">
           {sent ? (
             <div className="py-10 text-center space-y-3">
               <CheckCircle2 className="w-10 h-10 text-emerald-700 mx-auto" />
@@ -201,7 +209,7 @@ export function ContactView({
                   setContact('');
                   setMessage('');
                 }}
-                className="mt-4 px-5 py-2.5 rounded-lg bg-[#F7F6F2] hover:bg-[#EFECE6] text-zinc-900 text-sm font-semibold"
+                className="mt-4 px-5 py-2.5 rounded-xl glass-btn-secondary text-zinc-900 text-sm font-semibold"
               >
                 Send Another Inquiry
               </button>
@@ -211,7 +219,7 @@ export function ContactView({
               <h2 className="font-display text-xl font-bold text-zinc-900">Send Us a Note</h2>
 
               {error && (
-                <p className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700">
+                <p className="p-3 rounded-xl bg-red-50/90 backdrop-blur-md border border-red-200 text-xs text-red-700">
                   {error}
                 </p>
               )}
@@ -227,7 +235,7 @@ export function ContactView({
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="e.g. Kabir Mehta"
-                    className="w-full px-3.5 py-2.5 text-sm border border-[#E6E4DD] rounded-lg focus:border-amber-600 focus:outline-none"
+                    className="w-full px-3.5 py-2.5 text-sm glass-input rounded-xl focus:outline-none"
                   />
                 </div>
 
@@ -241,7 +249,7 @@ export function ContactView({
                     value={contact}
                     onChange={(e) => setContact(e.target.value)}
                     placeholder="+91 98... or email"
-                    className="w-full px-3.5 py-2.5 text-sm border border-[#E6E4DD] rounded-lg focus:border-amber-600 focus:outline-none"
+                    className="w-full px-3.5 py-2.5 text-sm glass-input rounded-xl focus:outline-none"
                   />
                 </div>
               </div>
@@ -254,7 +262,7 @@ export function ContactView({
                   id="contact-topic"
                   value={topic}
                   onChange={(e) => setTopic(e.target.value)}
-                  className="w-full px-3.5 py-2.5 text-sm border border-[#E6E4DD] rounded-lg bg-white focus:border-amber-600 focus:outline-none"
+                  className="w-full px-3.5 py-2.5 text-sm glass-input rounded-xl focus:outline-none"
                 >
                   <option value="Order Support">Order Support &amp; Tracking</option>
                   <option value="Bulk / Festival Gifting">Bulk / Birthday / Festival Gifting</option>
@@ -272,13 +280,13 @@ export function ContactView({
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   placeholder="Tell us what you're looking for..."
-                  className="w-full px-3.5 py-2.5 text-sm border border-[#E6E4DD] rounded-lg focus:border-amber-600 focus:outline-none"
+                  className="w-full px-3.5 py-2.5 text-sm glass-input rounded-xl focus:outline-none"
                 />
               </div>
 
               <button
                 type="submit"
-                className="px-6 py-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold transition-colors"
+                className="px-6 py-3 rounded-xl glass-btn-amber text-white text-sm font-semibold transition-all"
               >
                 Send Message
               </button>

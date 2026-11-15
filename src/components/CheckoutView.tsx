@@ -168,9 +168,11 @@ export function CheckoutView({
 
     return (
       <section className="max-w-[780px] mx-auto px-4 sm:px-6 py-12">
-        <div className="bg-white border border-[#E6E4DD] rounded-2xl p-6 sm:p-10">
+        <div className="glass-surface rounded-3xl p-6 sm:p-10">
           <div className="flex items-center gap-3 text-emerald-700">
-            <CheckCircle2 className="w-7 h-7 shrink-0" />
+            <div className="w-10 h-10 rounded-full glass-orb flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-5 h-5 shrink-0" />
+            </div>
             <span className="text-xs font-semibold tracking-wide">
               Order {confirmedOrder.orderNumber} Confirmed — Preparing Shipment
             </span>
@@ -188,7 +190,7 @@ export function CheckoutView({
             .
           </p>
 
-          <div className="mt-8 border-t border-b border-[#E6E4DD] py-6 space-y-4">
+          <div className="mt-8 border-t border-b border-zinc-900/10 py-6 space-y-4">
             <h2 className="text-xs font-semibold tracking-wide text-zinc-500">
               Order Receipt
             </h2>
@@ -208,7 +210,7 @@ export function CheckoutView({
               ))}
             </ul>
 
-            <div className="pt-4 border-t border-[#F0EFEA] space-y-1.5 text-sm">
+            <div className="pt-4 border-t border-zinc-900/8 space-y-1.5 text-sm">
               <div className="flex justify-between text-zinc-600">
                 <span>Subtotal</span>
                 <span className="tabular-nums">{formatINR(confirmedOrder.subtotal)}</span>
@@ -233,14 +235,14 @@ export function CheckoutView({
                   <span className="tabular-nums">{formatINR(confirmedOrder.giftWrapFee)}</span>
                 </div>
               )}
-              <div className="flex justify-between text-base font-bold text-zinc-900 pt-2 border-t border-[#E6E4DD]">
+              <div className="flex justify-between text-base font-bold text-zinc-900 pt-2 border-t border-zinc-900/10">
                 <span>Total · {paymentLabel}</span>
                 <span className="tabular-nums">{formatINR(confirmedOrder.total)}</span>
               </div>
             </div>
 
             {confirmedOrder.giftMessage && (
-              <div className="p-3.5 rounded-xl bg-[#F7F6F2] text-xs text-zinc-700">
+              <div className="p-3.5 rounded-2xl glass-subtle text-xs text-zinc-700">
                 <span className="font-semibold text-zinc-900">Gift Note: </span>
                 {confirmedOrder.giftMessage}
               </div>
@@ -257,7 +259,7 @@ export function CheckoutView({
                 });
                 setDownloadedFilename(filename);
               }}
-              className="px-5 py-3 rounded-lg bg-zinc-900 hover:bg-amber-700 text-white text-sm font-semibold inline-flex items-center gap-2 transition-colors"
+              className="px-5 py-3 rounded-xl glass-btn-ink text-white text-sm font-semibold inline-flex items-center gap-2 transition-all"
             >
               <Download className="w-4 h-4" />
               <span>Download Invoice</span>
@@ -265,7 +267,7 @@ export function CheckoutView({
             <button
               type="button"
               onClick={onBackToShop}
-              className="px-6 py-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold transition-colors"
+              className="px-6 py-3 rounded-xl glass-btn-amber text-white text-sm font-semibold transition-all"
             >
               Continue Shopping
             </button>
@@ -273,7 +275,7 @@ export function CheckoutView({
               <button
                 type="button"
                 onClick={onNavigateToAccount}
-                className="px-5 py-3 rounded-lg border border-[#E6E4DD] bg-white hover:bg-[#F7F6F2] text-zinc-900 text-sm font-semibold transition-colors"
+                className="px-5 py-3 rounded-xl glass-btn-secondary text-zinc-900 text-sm font-semibold transition-all"
               >
                 Track in My Account
               </button>
@@ -282,7 +284,7 @@ export function CheckoutView({
               href={whatsAppConfirmUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="px-5 py-3 rounded-lg border border-[#E6E4DD] bg-white hover:bg-[#F7F6F2] text-zinc-800 text-sm font-semibold inline-flex items-center gap-2 transition-colors"
+              className="px-5 py-3 rounded-xl glass-btn-secondary text-zinc-800 text-sm font-semibold inline-flex items-center gap-2 transition-all"
             >
               <MessageCircle className="w-4 h-4 text-emerald-700" />
               <span>Track / Confirm via WhatsApp</span>
@@ -301,7 +303,7 @@ export function CheckoutView({
   if (items.length === 0) {
     return (
       <section className="max-w-[720px] mx-auto px-4 sm:px-6 py-16 text-center">
-        <div className="bg-[#F7F6F2] border border-[#E6E4DD] rounded-2xl p-10">
+        <div className="glass-surface rounded-3xl p-10">
           <h1 className="font-display text-2xl font-bold text-zinc-900">Your bag is empty</h1>
           <p className="mt-2 text-sm text-zinc-600">
             Add at least one item to your bag before heading to checkout.
@@ -309,7 +311,7 @@ export function CheckoutView({
           <button
             type="button"
             onClick={onBackToShop}
-            className="mt-6 px-6 py-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold"
+            className="mt-6 px-6 py-3 rounded-xl glass-btn-amber text-white text-sm font-semibold transition-all"
           >
             Browse BEE4 Products
           </button>
@@ -334,7 +336,7 @@ export function CheckoutView({
       <form onSubmit={handleSubmit} noValidate className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Left: Shipping, Gift Wrap & Payment */}
         <div className="lg:col-span-7 space-y-6">
-          <div className="bg-white border border-[#E6E4DD] rounded-2xl p-6 space-y-4">
+          <div className="glass-surface rounded-3xl p-6 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="font-display text-lg font-bold text-zinc-900">1. Delivery Details</h2>
               {currentCustomer ? (
@@ -355,7 +357,7 @@ export function CheckoutView({
             </div>
 
             {currentCustomer && currentCustomer.addresses.length > 0 && (
-              <div className="p-3.5 rounded-xl bg-[#F7F6F2] border border-[#E6E4DD] space-y-2">
+              <div className="p-3.5 rounded-2xl glass-subtle space-y-2">
                 <p className="text-xs font-semibold text-zinc-700 flex items-center gap-1.5">
                   <MapPin className="w-3.5 h-3.5 text-amber-700" />
                   <span>Quick-fill from saved addresses:</span>
@@ -368,10 +370,10 @@ export function CheckoutView({
                         key={addr.id}
                         type="button"
                         onClick={() => handleSelectSavedAddress(addr)}
-                        className={`p-2.5 rounded-lg border text-left text-xs transition-colors ${
+                        className={`p-2.5 rounded-xl border text-left text-xs transition-all ${
                           active
-                            ? 'border-amber-600 bg-white text-zinc-900'
-                            : 'border-[#E6E4DD] bg-white/70 text-zinc-700 hover:bg-white'
+                            ? 'border-amber-600 bg-white/95 text-zinc-900 shadow-sm'
+                            : 'border-white/75 bg-white/55 text-zinc-700 hover:bg-white/85'
                         }`}
                       >
                         <p className="font-bold text-zinc-900">
@@ -399,7 +401,7 @@ export function CheckoutView({
                     if (errors.fullName) setErrors({ ...errors, fullName: undefined });
                   }}
                   placeholder="e.g. Riya Patel"
-                  className="w-full px-3.5 py-2.5 text-sm border border-[#E6E4DD] rounded-lg focus:border-amber-600 focus:outline-none"
+                  className="w-full px-3.5 py-2.5 text-sm glass-input rounded-xl focus:outline-none"
                 />
                 {errors.fullName && <p className="mt-1 text-xs text-red-600">{errors.fullName}</p>}
               </div>
@@ -417,7 +419,7 @@ export function CheckoutView({
                     if (errors.phone) setErrors({ ...errors, phone: undefined });
                   }}
                   placeholder="9876543210"
-                  className="w-full px-3.5 py-2.5 text-sm border border-[#E6E4DD] rounded-lg tabular-nums focus:border-amber-600 focus:outline-none"
+                  className="w-full px-3.5 py-2.5 text-sm glass-input rounded-xl tabular-nums focus:outline-none"
                 />
                 {errors.phone && <p className="mt-1 text-xs text-red-600">{errors.phone}</p>}
               </div>
@@ -436,7 +438,7 @@ export function CheckoutView({
                   if (errors.email) setErrors({ ...errors, email: undefined });
                 }}
                 placeholder="riya@example.com"
-                className="w-full px-3.5 py-2.5 text-sm border border-[#E6E4DD] rounded-lg focus:border-amber-600 focus:outline-none"
+                className="w-full px-3.5 py-2.5 text-sm glass-input rounded-xl focus:outline-none"
               />
               {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email}</p>}
             </div>
@@ -454,7 +456,7 @@ export function CheckoutView({
                   if (errors.address) setErrors({ ...errors, address: undefined });
                 }}
                 placeholder="Flat 402, Indiranagar 12th Main"
-                className="w-full px-3.5 py-2.5 text-sm border border-[#E6E4DD] rounded-lg focus:border-amber-600 focus:outline-none"
+                className="w-full px-3.5 py-2.5 text-sm glass-input rounded-xl focus:outline-none"
               />
               {errors.address && <p className="mt-1 text-xs text-red-600">{errors.address}</p>}
             </div>
@@ -473,7 +475,7 @@ export function CheckoutView({
                     if (errors.city) setErrors({ ...errors, city: undefined });
                   }}
                   placeholder="Bengaluru"
-                  className="w-full px-3.5 py-2.5 text-sm border border-[#E6E4DD] rounded-lg focus:border-amber-600 focus:outline-none"
+                  className="w-full px-3.5 py-2.5 text-sm glass-input rounded-xl focus:outline-none"
                 />
                 {errors.city && <p className="mt-1 text-xs text-red-600">{errors.city}</p>}
               </div>
@@ -486,7 +488,7 @@ export function CheckoutView({
                   id="checkout-state"
                   value={form.state}
                   onChange={(e) => setForm({ ...form, state: e.target.value })}
-                  className="w-full px-3 py-2.5 text-sm border border-[#E6E4DD] rounded-lg bg-white focus:border-amber-600 focus:outline-none"
+                  className="w-full px-3 py-2.5 text-sm glass-input rounded-xl focus:outline-none"
                 >
                   {INDIAN_STATES.map((st) => (
                     <option key={st} value={st}>
@@ -512,7 +514,7 @@ export function CheckoutView({
                     if (errors.pinCode) setErrors({ ...errors, pinCode: undefined });
                   }}
                   placeholder="560038"
-                  className="w-full px-3.5 py-2.5 text-sm border border-[#E6E4DD] rounded-lg tabular-nums focus:border-amber-600 focus:outline-none"
+                  className="w-full px-3.5 py-2.5 text-sm glass-input rounded-xl tabular-nums focus:outline-none"
                 />
                 {errors.pinCode && <p className="mt-1 text-xs text-red-600">{errors.pinCode}</p>}
               </div>
@@ -532,7 +534,7 @@ export function CheckoutView({
           </div>
 
           {/* Gift Wrap Option */}
-          <div className="bg-white border border-[#E6E4DD] rounded-2xl p-6 space-y-3">
+          <div className="glass-surface rounded-3xl p-6 space-y-3">
             <div className="flex items-start gap-3">
               <input
                 id="checkout-giftwrap"
@@ -558,14 +560,14 @@ export function CheckoutView({
                   value={form.giftMessage}
                   onChange={(e) => setForm({ ...form, giftMessage: e.target.value })}
                   placeholder="Happy Birthday! Hope you love these."
-                  className="w-full px-3.5 py-2 text-sm border border-[#E6E4DD] rounded-lg focus:border-amber-600 focus:outline-none"
+                  className="w-full px-3.5 py-2 text-sm glass-input rounded-xl focus:outline-none"
                 />
               </div>
             )}
           </div>
 
           {/* Payment Method */}
-          <div className="bg-white border border-[#E6E4DD] rounded-2xl p-6 space-y-4">
+          <div className="glass-surface rounded-3xl p-6 space-y-4">
             <h2 className="font-display text-lg font-bold text-zinc-900">2. Payment Method</h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" role="radiogroup" aria-label="Payment method">
               {(
@@ -583,10 +585,10 @@ export function CheckoutView({
                     role="radio"
                     aria-checked={active}
                     onClick={() => setForm({ ...form, paymentMethod: method.id })}
-                    className={`p-3.5 rounded-xl border text-left transition-colors ${
+                    className={`p-3.5 rounded-2xl border text-left transition-all ${
                       active
-                        ? 'border-amber-600 bg-amber-50/60'
-                        : 'border-[#E6E4DD] bg-white hover:bg-[#F7F6F2]'
+                        ? 'border-amber-600 bg-amber-50/70 backdrop-blur-md shadow-sm'
+                        : 'border-white/75 bg-white/55 hover:bg-white/85'
                     }`}
                   >
                     <p className="text-sm font-semibold text-zinc-900">{method.label}</p>
@@ -599,13 +601,13 @@ export function CheckoutView({
         </div>
 
         {/* Right: Order Summary */}
-        <div className="lg:col-span-5 bg-[#F7F6F2] border border-[#E6E4DD] rounded-2xl p-6 space-y-5 lg:sticky lg:top-28">
+        <div className="lg:col-span-5 glass-surface rounded-3xl p-6 space-y-5 lg:sticky lg:top-28">
           <h2 className="font-display text-lg font-bold text-zinc-900">Order Summary</h2>
 
-          <ul className="divide-y divide-[#E6E4DD]">
+          <ul className="divide-y divide-zinc-900/8">
             {items.map((item) => (
               <li key={`${item.productId}::${item.variant}`} className="py-3 flex items-center gap-3">
-                <div className="w-14 h-12 rounded-lg overflow-hidden bg-white border border-[#E6E4DD] shrink-0">
+                <div className="w-14 h-12 rounded-xl overflow-hidden bg-white/60 border border-white/75 shrink-0">
                   <ProductImage
                     src={item.image}
                     alt={item.title}
@@ -635,7 +637,7 @@ export function CheckoutView({
               value={form.promoCode}
               onChange={(e) => setForm({ ...form, promoCode: e.target.value })}
               placeholder={`Enter ${expectedPromoCode || WELCOME_PROMO_CODE}`}
-              className="w-full px-3.5 py-2 text-sm bg-white border border-[#E6E4DD] rounded-lg uppercase focus:border-amber-600 focus:outline-none"
+              className="w-full px-3.5 py-2 text-sm glass-input rounded-xl uppercase focus:outline-none"
             />
             {totals.promoApplied && (
               <p className="mt-1 text-xs font-semibold text-emerald-700">
@@ -644,7 +646,7 @@ export function CheckoutView({
             )}
           </div>
 
-          <div className="pt-4 border-t border-[#E6E4DD] space-y-2 text-sm">
+          <div className="pt-4 border-t border-zinc-900/10 space-y-2 text-sm">
             <div className="flex justify-between text-zinc-600">
               <span>Subtotal</span>
               <span className="tabular-nums font-medium text-zinc-900">
@@ -671,7 +673,7 @@ export function CheckoutView({
                 </span>
               </div>
             )}
-            <div className="flex justify-between text-lg font-bold text-zinc-900 pt-3 border-t border-[#E6E4DD]">
+            <div className="flex justify-between text-lg font-bold text-zinc-900 pt-3 border-t border-zinc-900/10">
               <span>Total Payable</span>
               <span className="tabular-nums">{formatINR(totals.total)}</span>
             </div>
@@ -679,7 +681,7 @@ export function CheckoutView({
 
           <button
             type="submit"
-            className="w-full py-3.5 px-6 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold transition-colors"
+            className="w-full py-3.5 px-6 rounded-xl glass-btn-amber text-white text-sm font-semibold transition-all"
           >
             Place Order · {formatINR(totals.total)}
           </button>

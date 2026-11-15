@@ -79,22 +79,24 @@ export function ProductDetailView({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
         {/* Sticky Gallery Left */}
         <div className="lg:col-span-7 lg:sticky lg:top-28 space-y-4">
-          <div className="aspect-[4/3] w-full rounded-2xl overflow-hidden bg-[#F7F6F2] border border-[#E6E4DD]">
-            <ProductImage
-              src={product.image}
-              alt={product.title}
-              className="w-full h-full object-cover"
-            />
+          <div className="p-2.5 rounded-3xl glass-surface">
+            <div className="aspect-[4/3] w-full rounded-2xl overflow-hidden bg-white/40 border border-white/60">
+              <ProductImage
+                src={product.image}
+                alt={product.title}
+                className="w-full h-full object-cover"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="p-4 rounded-xl bg-[#F7F6F2] border border-[#E6E4DD]">
+            <div className="p-4 rounded-2xl glass-subtle">
               <p className="text-xs font-semibold text-zinc-500">
                 Materials
               </p>
               <p className="mt-1 text-sm text-zinc-800">{product.materials}</p>
             </div>
-            <div className="p-4 rounded-xl bg-[#F7F6F2] border border-[#E6E4DD]">
+            <div className="p-4 rounded-2xl glass-subtle">
               <p className="text-xs font-semibold text-zinc-500">
                 Dimensions &amp; Size
               </p>
@@ -104,7 +106,7 @@ export function ProductDetailView({
         </div>
 
         {/* Sticky Purchase Module Right */}
-        <div className="lg:col-span-5 lg:sticky lg:top-28 bg-white border border-[#E6E4DD] rounded-2xl p-6 sm:p-8 space-y-6">
+        <div className="lg:col-span-5 lg:sticky lg:top-28 glass-surface rounded-3xl p-6 sm:p-8 space-y-6">
           <div>
             <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500 font-medium">
               <span>{product.category}</span>
@@ -153,10 +155,10 @@ export function ProductDetailView({
                     key={variant}
                     type="button"
                     onClick={() => setSelectedVariant(variant)}
-                    className={`px-3.5 py-2 rounded-lg text-xs font-semibold border transition-colors ${
+                    className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
                       active
-                        ? 'bg-zinc-900 text-white border-zinc-900'
-                        : 'bg-[#F7F6F2] text-zinc-800 border-[#E6E4DD] hover:border-zinc-400'
+                        ? 'glass-btn-ink text-white'
+                        : 'glass-btn-secondary text-zinc-800'
                     }`}
                   >
                     {variant}
@@ -167,12 +169,12 @@ export function ProductDetailView({
           </div>
 
           {/* Quantity + CTAs */}
-          <div className="space-y-3 pt-2 border-t border-[#F0EFEA]">
+          <div className="space-y-3 pt-2 border-t border-zinc-900/8">
             <div className="flex items-center gap-4">
               <span className="text-xs font-semibold text-zinc-600">
                 Quantity
               </span>
-              <div className="inline-flex items-center border border-[#E6E4DD] rounded-lg bg-[#F7F6F2]">
+              <div className="inline-flex items-center rounded-xl glass-subtle">
                 <button
                   type="button"
                   onClick={() => setQuantity((q) => Math.max(1, q - 1))}
@@ -200,7 +202,7 @@ export function ProductDetailView({
                 type="button"
                 disabled={!product.inStock}
                 onClick={() => onAddToCart(product, selectedVariant, quantity, true)}
-                className="w-full py-3 px-5 rounded-lg bg-amber-600 hover:bg-amber-700 disabled:bg-zinc-200 disabled:text-zinc-500 text-white text-sm font-semibold transition-colors"
+                className="w-full py-3 px-5 rounded-xl glass-btn-amber disabled:opacity-50 text-white text-sm font-semibold transition-all"
               >
                 {product.inStock ? 'Add to Bag' : 'Out of Stock'}
               </button>
@@ -209,7 +211,7 @@ export function ProductDetailView({
                 type="button"
                 disabled={!product.inStock}
                 onClick={() => onBuyNow(product, selectedVariant, quantity)}
-                className="w-full py-3 px-5 rounded-lg bg-zinc-900 hover:bg-zinc-800 disabled:bg-zinc-200 disabled:text-zinc-500 text-white text-sm font-semibold transition-colors"
+                className="w-full py-3 px-5 rounded-xl glass-btn-ink disabled:opacity-50 text-white text-sm font-semibold transition-all"
               >
                 Buy Now
               </button>
@@ -220,10 +222,10 @@ export function ProductDetailView({
                 type="button"
                 onClick={() => onToggleWishlist(product.id)}
                 aria-pressed={isWishlisted}
-                className={`w-full py-2.5 px-4 rounded-lg border text-xs font-semibold inline-flex items-center justify-center gap-2 transition-colors ${
+                className={`w-full py-2.5 px-4 rounded-xl text-xs font-semibold inline-flex items-center justify-center gap-2 transition-all ${
                   isWishlisted
-                    ? 'border-zinc-900 bg-zinc-900 text-amber-300'
-                    : 'border-[#E6E4DD] bg-white hover:bg-[#F7F6F2] text-zinc-800'
+                    ? 'glass-btn-ink text-amber-300'
+                    : 'glass-btn-secondary text-zinc-800'
                 }`}
               >
                 <Heart className={`w-4 h-4 ${isWishlisted ? 'fill-amber-300' : ''}`} />
@@ -234,7 +236,7 @@ export function ProductDetailView({
                 href={whatsAppUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full py-2.5 px-4 rounded-lg border border-[#E6E4DD] bg-white hover:bg-[#F7F6F2] text-zinc-800 text-xs font-semibold inline-flex items-center justify-center gap-2 transition-colors"
+                className="w-full py-2.5 px-4 rounded-xl glass-btn-secondary text-zinc-800 text-xs font-semibold inline-flex items-center justify-center gap-2 transition-all"
               >
                 <MessageCircle className="w-4 h-4 text-emerald-700" />
                 <span>Order on WhatsApp</span>
@@ -242,7 +244,7 @@ export function ProductDetailView({
             </div>
           </div>
 
-          <div className="pt-4 border-t border-[#F0EFEA] space-y-2 text-xs text-zinc-600">
+          <div className="pt-4 border-t border-zinc-900/8 space-y-2 text-xs text-zinc-600">
             <div className="flex items-center gap-2">
               <Truck className="w-4 h-4 text-amber-700 shrink-0" />
               <span>Dispatched within 48 hours · 3–5 day delivery across India</span>
@@ -261,7 +263,7 @@ export function ProductDetailView({
 
       {/* Related Products */}
       {relatedProducts.length > 0 && (
-        <div className="mt-16 pt-12 border-t border-[#E6E4DD]">
+        <div className="mt-16 pt-12 border-t border-white/75">
           <h2 className="font-display text-2xl font-bold text-zinc-900 mb-6">
             You May Also Like
           </h2>

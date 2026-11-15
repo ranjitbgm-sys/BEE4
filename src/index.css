@@ -10,7 +10,14 @@
     font-family: var(--font-sans);
     scroll-behavior: smooth;
     color: #18181b;
-    background-color: #ffffff;
+    background: linear-gradient(135deg, #f6efe4 0%, #e9f0fc 45%, #faf0e1 78%, #eaf5ef 100%);
+    background-attachment: fixed;
+    min-height: 100%;
+  }
+
+  body {
+    background: transparent;
+    min-height: 100vh;
   }
 
   h1,
@@ -33,6 +40,213 @@
   }
 }
 
+@layer components {
+  /* iOS 27 Liquid Glass Surface Utilities */
+  .glass-banner {
+    background: rgba(24, 24, 27, 0.82);
+    backdrop-filter: blur(22px) saturate(170%);
+    -webkit-backdrop-filter: blur(22px) saturate(170%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+  }
+
+  .glass-bar {
+    background: rgba(255, 255, 255, 0.62);
+    backdrop-filter: blur(26px) saturate(190%);
+    -webkit-backdrop-filter: blur(26px) saturate(190%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.85);
+    box-shadow:
+      0 8px 28px -8px rgba(24, 24, 27, 0.09),
+      inset 0 1px 0 rgba(255, 255, 255, 0.96);
+  }
+
+  .glass-surface {
+    background: rgba(255, 255, 255, 0.56);
+    backdrop-filter: blur(24px) saturate(185%);
+    -webkit-backdrop-filter: blur(24px) saturate(185%);
+    border: 1px solid rgba(255, 255, 255, 0.88);
+    box-shadow:
+      0 18px 40px -16px rgba(24, 24, 27, 0.11),
+      0 4px 12px -4px rgba(24, 24, 27, 0.05),
+      inset 0 1.5px 0 rgba(255, 255, 255, 0.98),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.45);
+  }
+
+  .glass-subtle {
+    background: rgba(255, 255, 255, 0.42);
+    backdrop-filter: blur(18px) saturate(170%);
+    -webkit-backdrop-filter: blur(18px) saturate(170%);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    box-shadow:
+      0 8px 24px -12px rgba(24, 24, 27, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.94);
+  }
+
+  .glass-drawer {
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(30px) saturate(195%);
+    -webkit-backdrop-filter: blur(30px) saturate(195%);
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    box-shadow:
+      -16px 0 48px -12px rgba(24, 24, 27, 0.18),
+      inset 0 1px 0 rgba(255, 255, 255, 0.98);
+  }
+
+  .glass-input {
+    background: rgba(255, 255, 255, 0.68);
+    backdrop-filter: blur(14px) saturate(155%);
+    -webkit-backdrop-filter: blur(14px) saturate(155%);
+    border: 1px solid rgba(24, 24, 27, 0.12);
+    box-shadow:
+      inset 0 1px 2px rgba(24, 24, 27, 0.04),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.85);
+    transition: background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+  }
+
+  .glass-input:focus {
+    background: rgba(255, 255, 255, 0.92);
+    border-color: #d97706;
+    box-shadow:
+      0 0 0 3px rgba(217, 119, 6, 0.15),
+      inset 0 1px 2px rgba(24, 24, 27, 0.02);
+  }
+
+  .glass-btn-secondary {
+    background-color: rgba(255, 255, 255, 0.66);
+    backdrop-filter: blur(16px) saturate(175%);
+    -webkit-backdrop-filter: blur(16px) saturate(175%);
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    box-shadow:
+      0 6px 18px -6px rgba(24, 24, 27, 0.1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.98);
+  }
+
+  .glass-btn-secondary:hover:not(:disabled) {
+    background-color: rgba(255, 255, 255, 0.92);
+  }
+
+  .glass-btn-amber {
+    background: linear-gradient(180deg, rgba(245, 158, 11, 0.95) 0%, rgba(217, 119, 6, 0.98) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.42);
+    box-shadow:
+      0 12px 26px -8px rgba(217, 119, 6, 0.48),
+      inset 0 1px 0 rgba(255, 255, 255, 0.48);
+  }
+
+  .glass-btn-amber:hover:not(:disabled) {
+    background: linear-gradient(180deg, rgba(217, 119, 6, 0.98) 0%, rgba(180, 83, 9, 1) 100%);
+  }
+
+  .glass-btn-ink {
+    background: linear-gradient(180deg, rgba(39, 39, 42, 0.9) 0%, rgba(24, 24, 27, 0.95) 100%);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    box-shadow:
+      0 10px 24px -8px rgba(24, 24, 27, 0.36),
+      inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  }
+
+  .glass-btn-ink:hover:not(:disabled) {
+    background: linear-gradient(180deg, rgba(217, 119, 6, 0.96) 0%, rgba(180, 83, 9, 0.98) 100%);
+  }
+
+  .glass-btn-emerald {
+    background: linear-gradient(180deg, rgba(16, 185, 129, 0.94) 0%, rgba(4, 120, 87, 0.98) 100%);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    box-shadow:
+      0 12px 28px -6px rgba(4, 120, 87, 0.44),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  }
+
+  .glass-btn-emerald:hover:not(:disabled) {
+    background: linear-gradient(180deg, rgba(5, 150, 105, 0.98) 0%, rgba(6, 95, 70, 1) 100%);
+  }
+
+  /* Soft iOS 27 Glass Bubble Orbs & Specular Rim */
+  .glass-orb {
+    background: radial-gradient(
+      circle at 28% 24%,
+      rgba(255, 255, 255, 0.94) 0%,
+      rgba(255, 255, 255, 0.46) 44%,
+      rgba(224, 242, 254, 0.28) 78%,
+      rgba(254, 243, 199, 0.32) 100%
+    );
+    backdrop-filter: blur(14px) saturate(175%);
+    -webkit-backdrop-filter: blur(14px) saturate(175%);
+    border: 1.5px solid rgba(255, 255, 255, 0.92);
+    box-shadow:
+      0 16px 36px -12px rgba(24, 24, 27, 0.14),
+      inset 0 3px 8px rgba(255, 255, 255, 1),
+      inset 0 -10px 20px rgba(147, 197, 253, 0.18);
+  }
+
+  .glass-bokeh-amber {
+    background: radial-gradient(
+      circle,
+      rgba(251, 191, 36, 0.42) 0%,
+      rgba(253, 230, 138, 0.22) 52%,
+      transparent 74%
+    );
+  }
+
+  .glass-bokeh-sky {
+    background: radial-gradient(
+      circle,
+      rgba(125, 211, 252, 0.44) 0%,
+      rgba(191, 219, 254, 0.22) 52%,
+      transparent 74%
+    );
+  }
+
+  .glass-bokeh-peach {
+    background: radial-gradient(
+      circle,
+      rgba(253, 186, 116, 0.38) 0%,
+      rgba(254, 215, 170, 0.2) 52%,
+      transparent 74%
+    );
+  }
+
+  .glass-bokeh-mint {
+    background: radial-gradient(
+      circle,
+      rgba(110, 231, 183, 0.36) 0%,
+      rgba(209, 250, 229, 0.2) 52%,
+      transparent 74%
+    );
+  }
+}
+
+@keyframes floatBubbleSlow {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(10px, -16px, 0) scale(1.03);
+  }
+}
+
+@keyframes floatBubbleReverse {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-12px, 14px, 0) scale(0.97);
+  }
+}
+
+.animate-bubble-slow {
+  animation: floatBubbleSlow 16s ease-in-out infinite;
+}
+
+.animate-bubble-reverse {
+  animation: floatBubbleReverse 20s ease-in-out infinite;
+}
+
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
@@ -53,3 +267,4 @@
     transition-duration: 0.01ms !important;
   }
 }
+

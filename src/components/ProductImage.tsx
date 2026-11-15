@@ -13,7 +13,7 @@ export function ProductImage({ src, alt, className = '' }: ProductImageProps) {
   if (!src || hasError) {
     return (
       <div
-        className={`flex flex-col items-center justify-center bg-[#F3F2EE] text-zinc-500 p-6 text-center ${className}`}
+        className={`flex flex-col items-center justify-center glass-subtle text-zinc-500 p-6 text-center ${className}`}
         role="img"
         aria-label={alt}
       >
