@@ -17,6 +17,8 @@ import {
   deleteProductReviewFromSupabase,
   ensureSupabaseCustomerProfile,
   onSupabaseAuthChange,
+  onSupabaseAuthEvent,
+  purgeTestDataInSupabase,
   saveCouponToSupabase,
   saveFilamentSpoolToSupabase,
   savePrintJobToSupabase,
@@ -30,6 +32,7 @@ import {
   submitProductReviewToSupabase,
   subscribeAdminAuditLogs,
   subscribeAllCustomerMessagesAdmin,
+  subscribeAllCustomersAdmin,
   subscribeAllInquiriesAdmin,
   subscribeAllOrdersAdmin,
   subscribeAllProductReviewsAdmin,
@@ -57,20 +60,9 @@ import {
 } from './services/supabaseStoreService';
 import {
   DEFAULT_STORE_SETTINGS,
-  INITIAL_ADMIN_LOGS,
   INITIAL_COUPONS,
-  INITIAL_CUSTOMERS,
-  INITIAL_CUSTOMER_MESSAGES,
-  INITIAL_DEMO_RETURN_ORDERS,
   INITIAL_FILAMENT_SPOOLS,
-  INITIAL_INQUIRIES,
-  INITIAL_INVENTORY_LOGS,
-  INITIAL_ORDERS,
-  INITIAL_PRINT_JOBS,
   INITIAL_PRODUCTS,
-  INITIAL_PRODUCT_REVIEWS,
-  INITIAL_RETURNS,
-  INITIAL_TESTIMONIALS,
   hydrateProductAdminFields,
 } from './data/catalog';
 import {
@@ -117,9 +109,9 @@ import { CustomerAccountView } from './components/CustomerAccountView';
 import { WhatsAppWidget } from './components/WhatsAppWidget';
 import { resolveExpectedAdminHash } from './utils/adminAuth';
 import { mapFulfillmentStageToOrderStatus } from './utils/adminLogic';
+import { clearAllLocalTestCaches, runProductionCleanMigration } from './utils/productionClean';
 import { applyRmaTransitionSync, RmaTransitionUpdates } from './utils/rmaLogic';
 import { applyDocumentSeoMetadata, resolvePageSeoMetadata } from './utils/seoMeta';
-import { hydrateCustomersWithStarterHashes } from './utils/storeLogic';
 
 const STORAGE_PRODUCTS_KEY = 'bee4_products_v3';
 const STORAGE_CART_KEY = 'bee4_cart_v1';
@@ -195,6 +187,14 @@ function loadStoredJson<T>(key: string, fallback: T): T {
 }
 
 export default function App() {
+  // Run one-time production clean migration synchronously before loading state from localStorage
+  useState(() => {
+    if (typeof window !== 'undefined') {
+      runProductionCleanMigration(window.localStorage);
+    }
+    return true;
+  });
+
   const [products, setProducts] = useState<Product[]>(() => {
     const stored = loadStoredJson<Product[]>(STORAGE_PRODUCTS_KEY, INITIAL_PRODUCTS);
     if (!Array.isArray(stored) || stored.length === 0) {
@@ -222,59 +222,45 @@ export default function App() {
   const [cart, setCart] = useState<CartItem[]>(() =>
     loadStoredJson<CartItem[]>(STORAGE_CART_KEY, [])
   );
-  const [orders, setOrders] = useState<OrderRecord[]>(() => {
-    const starterOrders: OrderRecord[] = [...INITIAL_ORDERS, ...INITIAL_DEMO_RETURN_ORDERS];
-    const stored = loadStoredJson<OrderRecord[]>(STORAGE_ORDERS_KEY, starterOrders);
-    if (!Array.isArray(stored) || stored.length === 0) return starterOrders;
-    const existingSet = new Set(stored.map((o) => o.orderNumber));
-    const missingSeed = starterOrders.filter((o) => !existingSet.has(o.orderNumber));
-    return [...stored, ...missingSeed];
-  });
+  const [orders, setOrders] = useState<OrderRecord[]>(() =>
+    loadStoredJson<OrderRecord[]>(STORAGE_ORDERS_KEY, [])
+  );
   const [returns, setReturns] = useState<ReturnRequestRecord[]>(() =>
-    loadStoredJson<ReturnRequestRecord[]>(STORAGE_RETURNS_KEY, INITIAL_RETURNS)
+    loadStoredJson<ReturnRequestRecord[]>(STORAGE_RETURNS_KEY, [])
   );
   const [inventoryAdjustments, setInventoryAdjustments] = useState<InventoryAdjustmentRecord[]>(
-    () => loadStoredJson<InventoryAdjustmentRecord[]>(STORAGE_INVENTORY_LOGS_KEY, INITIAL_INVENTORY_LOGS)
+    () => loadStoredJson<InventoryAdjustmentRecord[]>(STORAGE_INVENTORY_LOGS_KEY, [])
   );
   const [inquiries, setInquiries] = useState<CustomerInquiry[]>(() =>
-    loadStoredJson<CustomerInquiry[]>(STORAGE_INQUIRIES_KEY, INITIAL_INQUIRIES)
+    loadStoredJson<CustomerInquiry[]>(STORAGE_INQUIRIES_KEY, [])
   );
   const [customerMessages, setCustomerMessages] = useState<CustomerMessageRecord[]>(() =>
-    loadStoredJson<CustomerMessageRecord[]>(
-      STORAGE_CUSTOMER_MESSAGES_KEY,
-      INITIAL_CUSTOMER_MESSAGES
-    )
+    loadStoredJson<CustomerMessageRecord[]>(STORAGE_CUSTOMER_MESSAGES_KEY, [])
   );
   const [productReviews, setProductReviews] = useState<ProductReviewRecord[]>(() =>
-    loadStoredJson<ProductReviewRecord[]>(
-      STORAGE_PRODUCT_REVIEWS_KEY,
-      INITIAL_PRODUCT_REVIEWS
-    )
+    loadStoredJson<ProductReviewRecord[]>(STORAGE_PRODUCT_REVIEWS_KEY, [])
   );
   const [settings, setSettings] = useState<StoreSettings>(() => ({
     ...DEFAULT_STORE_SETTINGS,
     ...loadStoredJson<StoreSettings>(STORAGE_SETTINGS_KEY, DEFAULT_STORE_SETTINGS),
   }));
   const [testimonials, setTestimonials] = useState<Testimonial[]>(() =>
-    loadStoredJson<Testimonial[]>(STORAGE_TESTIMONIALS_KEY, INITIAL_TESTIMONIALS)
+    loadStoredJson<Testimonial[]>(STORAGE_TESTIMONIALS_KEY, [])
   );
   const [customers, setCustomers] = useState<CustomerProfile[]>(() =>
-    hydrateCustomersWithStarterHashes(
-      loadStoredJson<CustomerProfile[]>(STORAGE_CUSTOMERS_KEY, INITIAL_CUSTOMERS),
-      INITIAL_CUSTOMERS
-    )
+    loadStoredJson<CustomerProfile[]>(STORAGE_CUSTOMERS_KEY, [])
   );
   const [coupons, setCoupons] = useState<CouponRecord[]>(() =>
     loadStoredJson<CouponRecord[]>(STORAGE_COUPONS_KEY, INITIAL_COUPONS)
   );
   const [printJobs, setPrintJobs] = useState<PrintJobRecord[]>(() =>
-    loadStoredJson<PrintJobRecord[]>(STORAGE_PRINT_JOBS_KEY, INITIAL_PRINT_JOBS)
+    loadStoredJson<PrintJobRecord[]>(STORAGE_PRINT_JOBS_KEY, [])
   );
   const [spools, setSpools] = useState<FilamentSpool[]>(() =>
     loadStoredJson<FilamentSpool[]>(STORAGE_SPOOLS_KEY, INITIAL_FILAMENT_SPOOLS)
   );
   const [auditLogs, setAuditLogs] = useState<AdminAuditLog[]>(() =>
-    loadStoredJson<AdminAuditLog[]>(STORAGE_AUDIT_LOGS_KEY, INITIAL_ADMIN_LOGS)
+    loadStoredJson<AdminAuditLog[]>(STORAGE_AUDIT_LOGS_KEY, [])
   );
   const [crmFlagsByPhone, setCrmFlagsByPhone] = useState<Record<string, CrmCustomerFlag>>(() =>
     loadStoredJson<Record<string, CrmCustomerFlag>>(STORAGE_CRM_FLAGS_KEY, {})
@@ -307,6 +293,8 @@ export default function App() {
   const [supabaseUser, setSupabaseUser] = useState<User | null>(null);
   const [supabaseAuthReady, setSupabaseAuthReady] = useState(false);
   const [supabaseCustomer, setSupabaseCustomer] = useState<CustomerProfile | null>(null);
+  const [authRecoveryMode, setAuthRecoveryMode] = useState(false);
+  const [authVerificationNotice, setAuthVerificationNotice] = useState('');
   const isSupabaseAdmin = isSupabaseAdminUser(supabaseUser);
   const guestWishlistRef = useRef<string[]>(guestWishlistIds);
   guestWishlistRef.current = guestWishlistIds;
@@ -321,6 +309,10 @@ export default function App() {
     if (typeof window !== 'undefined') {
       if (initialAdminRoute.isAdminPath) {
         return 'manager';
+      }
+      const cleanPath = window.location.pathname.replace(/\/+$/, '');
+      if (cleanPath === '/account') {
+        return 'account';
       }
       const params = new URLSearchParams(window.location.search);
       const productParam = params.get('product');
@@ -365,16 +357,43 @@ export default function App() {
     }
   }, [theme]);
 
-  // Track Supabase Authentication readiness
+  // Track Supabase Authentication readiness & live email verification / recovery callbacks
   useEffect(() => {
+    const hashParams =
+      typeof window !== 'undefined' ? new URLSearchParams(window.location.hash.replace(/^#/, '')) : null;
+    const searchParams =
+      typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+    const authType = hashParams?.get('type') || searchParams?.get('type') || '';
+    const hasEmailCallback =
+      authType === 'signup' ||
+      authType === 'email' ||
+      Boolean(searchParams?.get('code') && window.location.pathname.includes('account'));
+
     const unsubscribe = onSupabaseAuthChange((sbUser) => {
       setSupabaseUser(sbUser);
       setSupabaseAuthReady(true);
       if (!sbUser) {
         setSupabaseCustomer(null);
+      } else if (hasEmailCallback && sbUser.email_confirmed_at) {
+        setAuthVerificationNotice('Email Verified Successfully! Welcome to BEE4.');
+        setActivePage('account');
       }
     });
-    return () => unsubscribe();
+
+    const unsubEvents = onSupabaseAuthEvent((event, sbUser) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setAuthRecoveryMode(true);
+        setActivePage('account');
+      } else if (event === 'SIGNED_IN' && hasEmailCallback && sbUser?.email_confirmed_at) {
+        setAuthVerificationNotice('Email Verified Successfully! Welcome to BEE4.');
+        setActivePage('account');
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      unsubEvents();
+    };
   }, []);
 
   // Public Supabase Postgres & Realtime listeners for catalog, store settings, testimonials & coupons
@@ -390,11 +409,7 @@ export default function App() {
       setTestimonials(cloudTestimonials);
     });
     const unsubPublicReviews = subscribePublicPublishedReviews((cloudPublishedReviews) => {
-      setProductReviews((prev) => {
-        const cloudIds = new Set(cloudPublishedReviews.map((r) => r.id));
-        const nonPublishedOrLocal = prev.filter((r) => !cloudIds.has(r.id) && r.status !== 'Published');
-        return [...cloudPublishedReviews, ...nonPublishedOrLocal];
-      });
+      setProductReviews(cloudPublishedReviews);
     });
     const unsubCoupons = subscribeCoupons((cloudCoupons) => {
       setCoupons(cloudCoupons);
@@ -408,7 +423,7 @@ export default function App() {
     };
   }, []);
 
-  // Authenticated Supabase user profile + orders sync
+  // Authenticated Supabase user profile + live personal orders & returns sync
   useEffect(() => {
     if (!supabaseAuthReady || !supabaseUser || !supabaseDiagnostics.isConfigured) return;
 
@@ -426,19 +441,11 @@ export default function App() {
       });
 
     const unsubUserOrders = subscribeUserOrders(supabaseUser.id, (cloudOrders) => {
-      setOrders((prev) => {
-        const cloudIds = new Set(cloudOrders.map((o) => o.orderNumber));
-        const localRemaining = prev.filter((o) => !cloudIds.has(o.orderNumber));
-        return [...cloudOrders, ...localRemaining];
-      });
+      setOrders(cloudOrders);
     });
 
     const unsubUserReturns = subscribeUserReturns(supabaseUser.id, (cloudReturns) => {
-      setReturns((prev) => {
-        const cloudIds = new Set(cloudReturns.map((r) => r.id));
-        const localRemaining = prev.filter((r) => !cloudIds.has(r.id));
-        return [...cloudReturns, ...localRemaining];
-      });
+      setReturns(cloudReturns);
     });
 
     return () => {
@@ -448,58 +455,38 @@ export default function App() {
     };
   }, [supabaseAuthReady, supabaseUser]);
 
-  // Verified Admin Supabase Realtime sync (orders, returns, inquiries, 3D print queue, spools, audit logs)
+  // Verified Admin Supabase Realtime sync (orders, returns, customers, messages, reviews, spools, audit logs)
   useEffect(() => {
     if (!supabaseAuthReady || !supabaseUser || !isSupabaseAdmin || !supabaseDiagnostics.isConfigured) {
       return;
     }
 
     const unsubAdminOrders = subscribeAllOrdersAdmin((cloudOrders) => {
-      setOrders((prev) => {
-        const cloudIds = new Set(cloudOrders.map((o) => o.orderNumber));
-        const localOnly = prev.filter((o) => !cloudIds.has(o.orderNumber));
-        return [...cloudOrders, ...localOnly];
-      });
+      setOrders(cloudOrders);
     });
 
     const unsubAdminReturns = subscribeAllReturnsAdmin((cloudReturns) => {
-      setReturns((prev) => {
-        const cloudIds = new Set(cloudReturns.map((r) => r.id));
-        const localOnly = prev.filter((r) => !cloudIds.has(r.id));
-        return [...cloudReturns, ...localOnly];
-      });
+      setReturns(cloudReturns);
+    });
+
+    const unsubAdminCustomers = subscribeAllCustomersAdmin((cloudCustomers) => {
+      setCustomers(cloudCustomers);
     });
 
     const unsubInventoryAdjustments = subscribeInventoryAdjustmentsAdmin((cloudAdjustments) => {
-      setInventoryAdjustments((prev) => {
-        const cloudIds = new Set(cloudAdjustments.map((a) => a.id));
-        const localOnly = prev.filter((a) => !cloudIds.has(a.id));
-        return [...cloudAdjustments, ...localOnly].slice(0, 80);
-      });
+      setInventoryAdjustments(cloudAdjustments);
     });
 
     const unsubAdminInquiries = subscribeAllInquiriesAdmin((cloudInquiries) => {
-      setInquiries((prev) => {
-        const cloudIds = new Set(cloudInquiries.map((i) => i.id));
-        const localOnly = prev.filter((i) => !cloudIds.has(i.id));
-        return [...cloudInquiries, ...localOnly];
-      });
+      setInquiries(cloudInquiries);
     });
 
     const unsubAdminCustomerMessages = subscribeAllCustomerMessagesAdmin((cloudMsgs) => {
-      setCustomerMessages((prev) => {
-        const cloudIds = new Set(cloudMsgs.map((m) => m.id));
-        const localOnly = prev.filter((m) => !cloudIds.has(m.id));
-        return [...cloudMsgs, ...localOnly];
-      });
+      setCustomerMessages(cloudMsgs);
     });
 
     const unsubAdminReviews = subscribeAllProductReviewsAdmin((cloudReviews) => {
-      setProductReviews((prev) => {
-        const cloudIds = new Set(cloudReviews.map((r) => r.id));
-        const localOnly = prev.filter((r) => !cloudIds.has(r.id));
-        return [...cloudReviews, ...localOnly];
-      });
+      setProductReviews(cloudReviews);
     });
 
     const unsubPrintJobs = subscribePrintJobsAdmin((cloudJobs) => {
@@ -517,6 +504,7 @@ export default function App() {
     return () => {
       unsubAdminOrders();
       unsubAdminReturns();
+      unsubAdminCustomers();
       unsubInventoryAdjustments();
       unsubAdminInquiries();
       unsubAdminCustomerMessages();
@@ -1448,13 +1436,30 @@ export default function App() {
     );
   };
 
-  const localCustomer =
-    customers.find((c) => c.id === currentCustomerId && Boolean(c.passwordHash)) ?? null;
-  const currentCustomer = supabaseUser ? supabaseCustomer : localCustomer;
+  const currentCustomer = supabaseUser ? supabaseCustomer : null;
   const activeWishlistIds = currentCustomer ? currentCustomer.wishlistIds : guestWishlistIds;
 
   const handleGoogleSignIn = async () => {
-    await signInWithGoogleSupabase(activePage === 'manager' ? '/admin' : '/?page=account');
+    await signInWithGoogleSupabase(activePage === 'manager' ? '/admin' : '/account');
+  };
+
+  const handleSyncAuthenticatedUser = async (
+    sbUser: User,
+    hints?: { fullName?: string; phone?: string }
+  ) => {
+    setSupabaseUser(sbUser);
+    const { profile } = await ensureSupabaseCustomerProfile(
+      sbUser,
+      guestWishlistRef.current,
+      hints
+    );
+    setSupabaseCustomer(profile);
+    if (guestWishlistRef.current.length > 0) {
+      setGuestWishlistIds([]);
+    }
+    if (sbUser.email_confirmed_at) {
+      setAuthVerificationNotice('Email Verified Successfully! Welcome to BEE4.');
+    }
   };
 
   const handleSyncCatalogToCloud = async () => {
@@ -1479,29 +1484,31 @@ export default function App() {
     );
   };
 
-  const handleCustomerSignUp = (newCustomer: CustomerProfile) => {
-    setCustomers((prev) => [newCustomer, ...prev]);
-    setCurrentCustomerId(newCustomer.id);
-    setGuestWishlistIds([]);
-  };
-
-  const handleCustomerSignIn = (customerId: string) => {
-    if (guestWishlistIds.length > 0) {
-      setCustomers((prev) =>
-        prev.map((cust) => {
-          if (cust.id !== customerId) return cust;
-          const merged = Array.from(new Set([...cust.wishlistIds, ...guestWishlistIds]));
-          return { ...cust, wishlistIds: merged };
-        })
-      );
-      setGuestWishlistIds([]);
+  const handlePurgeTestData = async () => {
+    if (typeof window !== 'undefined') {
+      clearAllLocalTestCaches(window.localStorage);
     }
-    setCurrentCustomerId(customerId);
+    const supaRes = await purgeTestDataInSupabase();
+    setOrders([]);
+    setReturns([]);
+    setInventoryAdjustments([]);
+    setInquiries([]);
+    setCustomerMessages([]);
+    setProductReviews([]);
+    setTestimonials([]);
+    setCustomers([]);
+    setPrintJobs([]);
+    setAuditLogs([]);
+    setCrmFlagsByPhone({});
+    setCoupons(INITIAL_COUPONS);
+    return supaRes;
   };
 
   const handleCustomerSignOut = () => {
     setCurrentCustomerId(null);
     setSupabaseCustomer(null);
+    setAuthRecoveryMode(false);
+    setAuthVerificationNotice('');
     if (supabaseUser) {
       void signOutFromSupabase().catch((err) => console.error(err));
     }
@@ -1780,7 +1787,6 @@ export default function App() {
         {activePage === 'account' && (
           <CustomerAccountView
             currentCustomer={currentCustomer}
-            customers={customers}
             orders={orders}
             returns={returns}
             products={publicProducts}
@@ -1788,9 +1794,12 @@ export default function App() {
             whatsappNumber={settings.whatsappNumber}
             supportEmail={settings.supportEmail}
             cloudUserEmail={supabaseUser?.email ?? null}
+            authRecoveryMode={authRecoveryMode}
+            authVerificationNotice={authVerificationNotice}
+            onClearAuthVerificationNotice={() => setAuthVerificationNotice('')}
+            onClearAuthRecoveryMode={() => setAuthRecoveryMode(false)}
             onGoogleSignIn={handleGoogleSignIn}
-            onSignIn={handleCustomerSignIn}
-            onSignUp={handleCustomerSignUp}
+            onSyncAuthenticatedUser={handleSyncAuthenticatedUser}
             onSignOut={handleCustomerSignOut}
             onUpdateCustomer={handleUpdateCustomer}
             onToggleWishlist={handleToggleWishlist}
@@ -1872,6 +1881,7 @@ export default function App() {
               onSaveProductReview={handleSaveProductReview}
               onDeleteProductReview={handleDeleteProductReview}
               onChangeAdminPasswordHash={handleChangeAdminPasswordHash}
+              onPurgeTestData={handlePurgeTestData}
               onLockAdmin={handleLockAdmin}
               onBackToStore={() => navigateTo('home')}
             />

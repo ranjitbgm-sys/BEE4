@@ -114,7 +114,7 @@ export function HomeView({
               ) : (
                 <>
                   Small-batch 3D-printed Japanese, Korean &amp; Chinese puzzles starting at{' '}
-                  <span className="font-semibold text-zinc-900 dark:text-white">₹99</span>.
+                  <span className="font-semibold text-zinc-900 dark:text-white">₹349</span>.
                 </>
               )}
             </p>

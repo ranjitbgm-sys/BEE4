@@ -93,6 +93,7 @@ interface AdminPanelViewProps {
   onSaveProductReview?: (review: ProductReviewRecord, isNew?: boolean) => void;
   onDeleteProductReview?: (id: string) => void;
   onChangeAdminPasswordHash: (nextHash: string) => void;
+  onPurgeTestData?: () => Promise<{ clearedTables: string[]; errors: string[] }>;
   onLockAdmin: () => void;
   onBackToStore: () => void;
 }
@@ -141,6 +142,7 @@ export function AdminPanelView({
   onSaveProductReview,
   onDeleteProductReview,
   onChangeAdminPasswordHash,
+  onPurgeTestData,
   onLockAdmin,
   onBackToStore,
 }: AdminPanelViewProps) {
@@ -426,11 +428,12 @@ export function AdminPanelView({
               notify('Studio owner passphrase updated.');
             }}
             onToggleInquiryStatus={onToggleInquiryStatus}
+            onPurgeTestData={onPurgeTestData}
             onSyncCatalogToCloud={
               onSyncCatalogToCloud
                 ? async () => {
                     await onSyncCatalogToCloud();
-                    notify('Synchronized seed catalog, coupons & settings to Supabase Postgres.');
+                    notify('Synchronized catalog, coupons & settings to Supabase Postgres.');
                   }
                 : undefined
             }

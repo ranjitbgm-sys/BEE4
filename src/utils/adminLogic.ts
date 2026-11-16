@@ -619,6 +619,7 @@ export interface CrmCustomerSummary {
   fullName: string;
   phone: string;
   email: string;
+  emailVerified?: boolean;
   city: string;
   state: string;
   totalOrders: number;
@@ -642,6 +643,7 @@ export function buildCustomerCrmList(input: {
       fullName: string;
       phone: string;
       email: string;
+      emailVerified?: boolean;
       city: string;
       state: string;
       totalOrders: number;
@@ -663,6 +665,7 @@ export function buildCustomerCrmList(input: {
       fullName: cust.fullName,
       phone: cust.phone,
       email: cust.email,
+      emailVerified: cust.emailVerified,
       city: defAddr?.city || 'India',
       state: defAddr?.state || 'India',
       totalOrders: 0,
@@ -745,6 +748,7 @@ export function buildCustomerCrmList(input: {
         fullName: entry.fullName,
         phone: entry.phone,
         email: entry.email,
+        emailVerified: entry.emailVerified,
         city: entry.city,
         state: entry.state,
         totalOrders: entry.totalOrders,

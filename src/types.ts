@@ -459,6 +459,8 @@ export interface CustomerProfile {
   fullName: string;
   phone: string;
   email: string;
+  emailVerified?: boolean;
+  emailConfirmedAt?: string;
   passwordHash?: string;
   preferredPayment: PaymentMethod;
   celebrationMonth?: string;

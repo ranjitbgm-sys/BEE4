@@ -250,6 +250,11 @@ export function AdminInventoryTab({
                 </select>
               </div>
             ))}
+            {printJobs.length === 0 && (
+              <div className="glass-subtle rounded-2xl p-6 text-center text-xs text-zinc-500 dark:text-zinc-400">
+                0 active print batches queued. Queue a custom batch above as live orders arrive.
+              </div>
+            )}
           </div>
         </div>
 

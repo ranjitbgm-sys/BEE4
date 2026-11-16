@@ -484,6 +484,13 @@ export function AdminReturnsTab({
             </div>
           );
         })}
+        {filteredReturns.length === 0 && (
+          <div className="glass-surface rounded-3xl p-8 text-center text-xs text-zinc-500 dark:text-zinc-400">
+            {returns.length === 0
+              ? '0 return or replacement requests yet. Submitted 7-day RMAs appear here.'
+              : 'No return requests match your current search or filter.'}
+          </div>
+        )}
       </div>
 
       {/* Slide-Over Return Inspection & Action Drawer */}

@@ -14,13 +14,15 @@ import {
   validateAndApplyCoupon,
 } from './adminLogic';
 import {
-  INITIAL_COUPONS,
-  INITIAL_CUSTOMERS,
   INITIAL_FILAMENT_SPOOLS,
-  INITIAL_ORDERS,
   INITIAL_PRODUCTS,
   hydrateProductAdminFields,
 } from '../data/catalog';
+import {
+  TEST_COUPONS,
+  TEST_CUSTOMERS,
+  TEST_ORDERS,
+} from './testFixtures';
 
 test('XSS sanitization strips script tags, inline handlers, and javascript URIs', () => {
   const dirty = '<script>alert(1)</script><img src=x onerror="evil()">Hello <b>BEE4</b>';
@@ -59,7 +61,7 @@ test('Coupon validation enforces percentage, prepaid-only, min order value, and 
     code: 'smartkid15',
     subtotal: 1000,
     paymentMethod: 'upi',
-    coupons: INITIAL_COUPONS,
+    coupons: TEST_COUPONS,
     nowIso: '2026-11-16T00:00:00Z',
   });
   assert.equal(resValid.valid, true);
@@ -69,7 +71,7 @@ test('Coupon validation enforces percentage, prepaid-only, min order value, and 
     code: 'PREPAID50',
     subtotal: 800,
     paymentMethod: 'cod',
-    coupons: INITIAL_COUPONS,
+    coupons: TEST_COUPONS,
     nowIso: '2026-11-16T00:00:00Z',
   });
   assert.equal(resPrepaidBlockedOnCod.valid, false);
@@ -79,7 +81,7 @@ test('Coupon validation enforces percentage, prepaid-only, min order value, and 
     code: 'PREPAID50',
     subtotal: 400,
     paymentMethod: 'upi',
-    coupons: INITIAL_COUPONS,
+    coupons: TEST_COUPONS,
     nowIso: '2026-11-16T00:00:00Z',
   });
   assert.equal(resMovBlocked.valid, false);
@@ -100,7 +102,7 @@ test('Product margin calculator computes discount %, net profit ₹, and margin 
 test('Executive dashboard KPIs aggregate revenue, prepaid split, dispatch queue, and low stock items', () => {
   const hydratedProducts = INITIAL_PRODUCTS.map((p, idx) => hydrateProductAdminFields(p, idx));
   const summary = buildExecutiveDashboardSummary({
-    orders: INITIAL_ORDERS,
+    orders: TEST_ORDERS,
     products: hydratedProducts,
     period: 'all',
   });
@@ -120,7 +122,7 @@ test('Filament spool estimator computes printable toys remaining accurately', ()
 });
 
 test('WhatsApp templates, printable GST invoice, and A5 label generate valid outputs', () => {
-  const biharOrder = INITIAL_ORDERS[0];
+  const biharOrder = TEST_ORDERS[0];
   const wa = buildAdminWhatsAppTemplate(biharOrder, 'dispatch');
   assert.equal(wa.url.startsWith('https://wa.me/919431223344?text='), true);
 
@@ -128,15 +130,15 @@ test('WhatsApp templates, printable GST invoice, and A5 label generate valid out
   assert.equal(invoiceHtml.includes('INTRA-STATE CGST + SGST'), true);
   assert.equal(invoiceHtml.includes('Banka, Bihar, India 813103'), true);
 
-  const codLabelHtml = buildShippingLabelHtml(INITIAL_ORDERS[2]);
+  const codLabelHtml = buildShippingLabelHtml(TEST_ORDERS[2]);
   assert.equal(codLabelHtml.includes('CASH ON DELIVERY'), true);
   assert.equal(codLabelHtml.includes('KEEP BELOW 55°C'), true);
 });
 
 test('CRM customer list and CSV export aggregate LTV and escape values properly', () => {
   const crm = buildCustomerCrmList({
-    orders: INITIAL_ORDERS,
-    customers: INITIAL_CUSTOMERS,
+    orders: TEST_ORDERS,
+    customers: TEST_CUSTOMERS,
   });
   assert.equal(crm.length >= 3, true);
   const csv = exportCustomersToCsv(crm);

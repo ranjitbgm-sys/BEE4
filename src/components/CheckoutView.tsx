@@ -129,6 +129,28 @@ export function CheckoutView({
   const [copiedSms, setCopiedSms] = useState<boolean>(false);
 
   useEffect(() => {
+    if (!currentCustomer) return;
+    const custDefault =
+      currentCustomer.addresses.find((a) => a.isDefault) ?? currentCustomer.addresses[0] ?? null;
+    if (custDefault && !selectedAddressId) {
+      setSelectedAddressId(custDefault.id);
+    }
+    if (currentCustomer.addresses.length === 0) {
+      setSaveAddressToAccount(true);
+    }
+    setForm((prev) => ({
+      ...prev,
+      fullName: prev.fullName || custDefault?.fullName || currentCustomer.fullName || '',
+      phone: prev.phone || custDefault?.phone || currentCustomer.phone || '',
+      email: prev.email || currentCustomer.email || '',
+      address: prev.address || custDefault?.address || '',
+      city: prev.city || custDefault?.city || '',
+      state: custDefault?.state && !prev.address ? custDefault.state : prev.state,
+      pinCode: prev.pinCode || custDefault?.pinCode || '',
+    }));
+  }, [currentCustomer, selectedAddressId]);
+
+  useEffect(() => {
     if (confirmedOrder) {
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior });
     }

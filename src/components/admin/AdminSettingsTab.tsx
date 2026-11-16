@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Settings,
   ShieldCheck,
+  Trash2,
 } from 'lucide-react';
 import type {
   AdminAuditLog,
@@ -31,6 +32,7 @@ interface AdminSettingsTabProps {
   onToggleInquiryStatus: (id: string) => void;
   onOpenMessagesReviews?: () => void;
   onSyncCatalogToCloud?: () => Promise<void>;
+  onPurgeTestData?: () => Promise<{ clearedTables: string[]; errors: string[] }>;
 }
 
 const ALL_PRIMARY_CATS: PrimaryStoreCategory[] = [
@@ -42,7 +44,8 @@ const ALL_PRIMARY_CATS: PrimaryStoreCategory[] = [
 
 const ENV_TEMPLATE_SNIPPET = `VITE_SUPABASE_URL="https://your-project-ref.supabase.co"
 VITE_SUPABASE_ANON_KEY="your-supabase-anon-public-key"
-VITE_ADMIN_EMAIL="ranjitbgm@gmail.com"`;
+VITE_ADMIN_EMAIL="ranjitbgm@gmail.com"
+VITE_ADMIN_ALLOWED_EMAILS="ranjitbgm@gmail.com,bee4official@gmail.com"`;
 
 export function AdminSettingsTab({
   settings,
@@ -54,6 +57,7 @@ export function AdminSettingsTab({
   onToggleInquiryStatus,
   onOpenMessagesReviews,
   onSyncCatalogToCloud,
+  onPurgeTestData,
 }: AdminSettingsTabProps) {
   const [settingsTab, setSettingsTab] = useState<'cms' | 'supabase-sql'>('cms');
   const [waDraft, setWaDraft] = useState(() => settings.whatsappNumber.replace(/^91/, ''));
@@ -102,6 +106,9 @@ export function AdminSettingsTab({
   const [copiedEnv, setCopiedEnv] = useState(false);
   const [copiedSql, setCopiedSql] = useState(false);
   const [syncingSql, setSyncingSql] = useState(false);
+  const [confirmPurgeStep, setConfirmPurgeStep] = useState(false);
+  const [purgingData, setPurgingData] = useState(false);
+  const [purgeStatus, setPurgeStatus] = useState('');
   const supabaseSetupSql = buildSupabaseSetupSql(supabaseDiagnostics.adminEmail);
 
   const toggleCategoryVisibility = (cat: PrimaryStoreCategory) => {
@@ -178,6 +185,29 @@ export function AdminSettingsTab({
       window.setTimeout(() => setCopiedSql(false), 2000);
     } catch {
       // Ignore clipboard failure
+    }
+  };
+
+  const handleExecutePurge = async () => {
+    if (!onPurgeTestData) return;
+    setPurgingData(true);
+    setPurgeStatus('');
+    try {
+      const result = await onPurgeTestData();
+      setConfirmPurgeStep(false);
+      if (result.errors.length > 0) {
+        setPurgeStatus(
+          `Local caches cleared. Supabase warnings: ${result.errors.slice(0, 2).join('; ')}`
+        );
+      } else {
+        setPurgeStatus(
+          result.clearedTables.length > 0
+            ? `Purged local test caches & cleared ${result.clearedTables.length} Supabase tables cleanly. 16 products & SMARTKID15 preserved.`
+            : 'Cleared all local test caches cleanly. 16 products & SMARTKID15 preserved.'
+        );
+      }
+    } finally {
+      setPurgingData(false);
     }
   };
 
@@ -615,6 +645,11 @@ export function AdminSettingsTab({
                 </p>
               </div>
             ))}
+            {auditLogs.length === 0 && (
+              <p className="py-6 text-xs text-zinc-500 dark:text-zinc-400">
+                0 audit actions logged yet. Admin changes are recorded here in real time.
+              </p>
+            )}
           </div>
         </div>
 
@@ -675,8 +710,8 @@ export function AdminSettingsTab({
               Active backend mode:{' '}
               <strong>
                 {supabaseDiagnostics.isConfigured
-                  ? 'Supabase Free Plan (VITE_SUPABASE_URL + ANON KEY)'
-                  : 'LocalStorage Fallback Mode (16 Seeded SKUs + SMARTKID15)'}
+                  ? 'Live Supabase Production (Clean Zero-Dummy Mode)'
+                  : 'Local Clean Fallback (16 Real SKUs + SMARTKID15)'}
               </strong>
             </p>
             <pre className="p-3 rounded-2xl glass-subtle text-[10px] font-mono overflow-x-auto text-zinc-700 dark:text-zinc-300">
@@ -685,6 +720,65 @@ export function AdminSettingsTab({
           </div>
         </div>
       </div>
+
+      {/* Secure Reset & Purge Test Data Tool */}
+      {onPurgeTestData && (
+        <div className="glass-surface rounded-3xl p-5 space-y-3 border border-red-500/20">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="font-display text-sm font-bold text-zinc-900 dark:text-white inline-flex items-center gap-2">
+                <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
+                <span>Reset &amp; Purge Test Data</span>
+              </h3>
+              <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-300">
+                Wipes any leftover orders, RMAs, customer notes, reviews, logs, and test customer rows locally &amp; in Supabase while preserving all 16 BEE4 products and <code className="font-mono font-semibold">SMARTKID15</code>.
+              </p>
+            </div>
+
+            {!confirmPurgeStep ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmPurgeStep(true);
+                  setPurgeStatus('');
+                }}
+                className="px-4 py-2 rounded-xl glass-btn-secondary text-red-600 dark:text-red-400 text-xs font-semibold inline-flex items-center gap-1.5 self-start sm:self-auto whitespace-nowrap"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Clear Local Test Cache &amp; Purge Dummy Database Records</span>
+              </button>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  disabled={purgingData}
+                  onClick={() => void handleExecutePurge()}
+                  className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-semibold disabled:opacity-60"
+                >
+                  {purgingData ? 'Purging Records...' : 'Confirm Permanent Purge'}
+                </button>
+                <button
+                  type="button"
+                  disabled={purgingData}
+                  onClick={() => setConfirmPurgeStep(false)}
+                  className="px-3.5 py-2 rounded-xl glass-btn-secondary text-xs font-semibold"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
+
+          {purgeStatus && (
+            <div
+              role="status"
+              className="p-3 rounded-xl bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-500/25 text-xs font-medium text-emerald-800 dark:text-emerald-200"
+            >
+              {purgeStatus}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Customer Inquiries Quick Inbox */}
       <div className="glass-surface rounded-3xl p-5 space-y-3">
@@ -730,6 +824,11 @@ export function AdminSettingsTab({
               <p className="text-zinc-700 dark:text-zinc-300">{inq.message}</p>
             </div>
           ))}
+          {inquiries.length === 0 && (
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 py-2">
+              0 STEM or bulk school inquiries yet.
+            </p>
+          )}
         </div>
       </div>
         </>

@@ -328,6 +328,20 @@ export function AdminOrdersTab({
                   </tr>
                 );
               })}
+              {filteredOrders.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="py-12 px-6 text-center text-zinc-500 dark:text-zinc-400">
+                    <p className="font-display text-sm font-bold text-zinc-800 dark:text-zinc-200">
+                      {orders.length === 0
+                        ? '0 Live Orders Yet — Waiting for your first checkout on bee4.in'
+                        : 'No orders match your current search or stage filters.'}
+                    </p>
+                    <p className="mt-1 text-xs">
+                      Real customer orders placed on bee4.in appear here automatically in real time.
+                    </p>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -388,6 +402,15 @@ export function AdminOrdersTab({
             </div>
           );
         })}
+        {filteredOrders.length === 0 && (
+          <div className="glass-surface rounded-3xl p-8 text-center text-xs text-zinc-500 dark:text-zinc-400">
+            <p className="font-display text-sm font-bold text-zinc-800 dark:text-zinc-200">
+              {orders.length === 0
+                ? '0 Live Orders Yet — Waiting for your first checkout on bee4.in'
+                : 'No orders match your current filters.'}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Order Detail & Logistics Drawer */}

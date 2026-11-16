@@ -543,7 +543,9 @@ export function AdminMessagesReviewsTab({
           {/* Messages Table (Desktop) & Cards (Mobile) */}
           {filteredMessages.length === 0 ? (
             <div className="glass-surface rounded-3xl p-10 text-center text-sm text-zinc-600 dark:text-zinc-300">
-              No customer messages match your current filters.
+              {messages.length === 0
+                ? '0 customer notes received yet. Live submissions from "Send Us a Note" on bee4.in appear here.'
+                : 'No customer messages match your current filters.'}
             </div>
           ) : (
             <>
@@ -840,7 +842,9 @@ export function AdminMessagesReviewsTab({
           {/* Reviews Grid */}
           {filteredReviews.length === 0 ? (
             <div className="glass-surface rounded-3xl p-10 text-center text-sm text-zinc-600 dark:text-zinc-300">
-              No reviews match your current filters.
+              {reviews.length === 0
+                ? '0 product reviews submitted yet. Real customer reviews on bee4.in will appear here for moderation.'
+                : 'No reviews match your current filters.'}
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

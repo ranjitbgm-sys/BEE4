@@ -2,14 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   INITIAL_COUPONS,
-  INITIAL_CUSTOMERS,
-  INITIAL_DEMO_RETURN_ORDERS,
   INITIAL_FILAMENT_SPOOLS,
-  INITIAL_ORDERS,
   INITIAL_PRODUCTS,
-  INITIAL_RETURNS,
   hydrateProductAdminFields,
 } from '../data/catalog';
+import {
+  TEST_CUSTOMERS,
+  TEST_DEMO_RETURN_ORDERS,
+  TEST_ORDERS,
+  TEST_RETURNS,
+} from './testFixtures';
 import { buildCustomerCrmList, buildExecutiveDashboardSummary } from './adminLogic';
 import {
   applyRmaTransitionSync,
@@ -24,14 +26,14 @@ import {
 
 test('7-day return eligibility permits recent Delivered order without prior RMA and rejects others', () => {
   const nowMs = Date.parse('2026-11-16T12:00:00.000Z');
-  const codDeliveredOrder = INITIAL_DEMO_RETURN_ORDERS[0]; // BEE4-2044 delivered Nov 14
-  const eligibleCheck = isOrderEligibleForReturn(codDeliveredOrder, INITIAL_RETURNS, nowMs);
+  const codDeliveredOrder = TEST_DEMO_RETURN_ORDERS[0]; // BEE4-2044 delivered Nov 14
+  const eligibleCheck = isOrderEligibleForReturn(codDeliveredOrder, TEST_RETURNS, nowMs);
   assert.equal(eligibleCheck.eligible, true);
   assert.equal((eligibleCheck.daysRemaining ?? 0) >= 4, true);
 
   // Already has RMA-1041
-  const existingOrder = INITIAL_DEMO_RETURN_ORDERS[1]; // BEE4-2038
-  const alreadyHasRma = isOrderEligibleForReturn(existingOrder, INITIAL_RETURNS, nowMs);
+  const existingOrder = TEST_DEMO_RETURN_ORDERS[1]; // BEE4-2038
+  const alreadyHasRma = isOrderEligibleForReturn(existingOrder, TEST_RETURNS, nowMs);
   assert.equal(alreadyHasRma.eligible, false);
   assert.equal(alreadyHasRma.existingRma?.rmaNumber, 'RMA-1041');
 
@@ -45,12 +47,12 @@ test('7-day return eligibility permits recent Delivered order without prior RMA 
   assert.match(expiredCheck.reason ?? '', /7-day/i);
 
   // Non-delivered order
-  const shippedOrder = INITIAL_ORDERS[2]; // Shipped
+  const shippedOrder = TEST_ORDERS[2]; // Shipped
   assert.equal(isOrderEligibleForReturn(shippedOrder, [], nowMs).eligible, false);
 });
 
 test('Guest lookup matches normalized Order ID and 10-digit Indian phone', () => {
-  const allOrders = [...INITIAL_ORDERS, ...INITIAL_DEMO_RETURN_ORDERS];
+  const allOrders = [...TEST_ORDERS, ...TEST_DEMO_RETURN_ORDERS];
   const found = lookupGuestOrderByOrderAndPhone(allOrders, ' bee4-2044 ', '+91 98305-56677');
   assert.equal(found.order?.orderNumber, 'BEE4-2044');
 
@@ -108,7 +110,7 @@ test('Store credit coupon calculates +10% bonus and customer progress maps workf
 
 test('applyRmaTransitionSync guarantees idempotent restock and separates Damaged Scrap PLA from sellable stock', () => {
   const products = INITIAL_PRODUCTS.map((p, i) => hydrateProductAdminFields(p, i));
-  const pendingRma = INITIAL_RETURNS[0]; // RMA-1041 for bee4-binary-marble-computer (stock = 4)
+  const pendingRma = TEST_RETURNS[0]; // RMA-1041 for bee4-binary-marble-computer (stock = 4)
   const targetProdBefore = products.find((p) => p.id === 'bee4-binary-marble-computer');
   const startStock = targetProdBefore?.stockQuantity ?? 0;
 
@@ -120,7 +122,7 @@ test('applyRmaTransitionSync guarantees idempotent restock and separates Damaged
       autoRestockEnabled: true,
     },
     products,
-    orders: INITIAL_DEMO_RETURN_ORDERS,
+    orders: TEST_DEMO_RETURN_ORDERS,
     spools: INITIAL_FILAMENT_SPOOLS,
     coupons: INITIAL_COUPONS,
     nowIso: '2026-11-16T10:00:00.000Z',
@@ -162,7 +164,7 @@ test('applyRmaTransitionSync guarantees idempotent restock and separates Damaged
       autoRestockEnabled: false,
     },
     products,
-    orders: INITIAL_DEMO_RETURN_ORDERS,
+    orders: TEST_DEMO_RETURN_ORDERS,
     spools: INITIAL_FILAMENT_SPOOLS,
     coupons: INITIAL_COUPONS,
   });
@@ -174,7 +176,7 @@ test('applyRmaTransitionSync guarantees idempotent restock and separates Damaged
 test('applyRmaTransitionSync queues priority 3D print job + deducts Eco-PLA spool and issues +10% store credit coupon', () => {
   const products = INITIAL_PRODUCTS.map((p, i) => hydrateProductAdminFields(p, i));
   const pendingRma = {
-    ...INITIAL_RETURNS[0],
+    ...TEST_RETURNS[0],
     resolutionType: 'Free Instant Replacement' as const,
   };
   const totalSpoolBefore = INITIAL_FILAMENT_SPOOLS.reduce((s, sp) => s + sp.remainingGrams, 0);
@@ -188,7 +190,7 @@ test('applyRmaTransitionSync queues priority 3D print job + deducts Eco-PLA spoo
       reverseAwb: 'DRP12345',
     },
     products,
-    orders: INITIAL_DEMO_RETURN_ORDERS,
+    orders: TEST_DEMO_RETURN_ORDERS,
     spools: INITIAL_FILAMENT_SPOOLS,
     coupons: INITIAL_COUPONS,
     forceQueuePrint: true,
@@ -202,7 +204,7 @@ test('applyRmaTransitionSync queues priority 3D print job + deducts Eco-PLA spoo
 
   // Store credit coupon (+10%)
   const creditRes = applyRmaTransitionSync({
-    prevReturn: INITIAL_RETURNS[0],
+    prevReturn: TEST_RETURNS[0],
     nextUpdates: {
       status: 'Refund Completed',
       autoRestockEnabled: false,
@@ -210,7 +212,7 @@ test('applyRmaTransitionSync queues priority 3D print job + deducts Eco-PLA spoo
       refundMode: 'Store Credit Coupon',
     },
     products,
-    orders: INITIAL_DEMO_RETURN_ORDERS,
+    orders: TEST_DEMO_RETURN_ORDERS,
     spools: INITIAL_FILAMENT_SPOOLS,
     coupons: INITIAL_COUPONS,
   });
@@ -222,18 +224,18 @@ test('applyRmaTransitionSync queues priority 3D print job + deducts Eco-PLA spoo
 });
 
 test('Return KPIs, Dashboard Refund Deduction, CRM >= 2 High-Risk RTO auto-tag, and WhatsApp templates', () => {
-  const kpis = calculateReturnKpis(INITIAL_RETURNS);
+  const kpis = calculateReturnKpis(TEST_RETURNS);
   assert.equal(kpis.pendingCount, 1); // RMA-1041
   assert.equal(kpis.activePickupsCount, 1); // RMA-1042
   assert.equal(kpis.totalRefundedValue, 499); // RMA-1043
   assert.equal(kpis.savedRevenueRatioPercent, 33); // 1 of 3 active/resolved saved via replacement
 
-  const allOrders = [...INITIAL_ORDERS, ...INITIAL_DEMO_RETURN_ORDERS];
+  const allOrders = [...TEST_ORDERS, ...TEST_DEMO_RETURN_ORDERS];
   const products = INITIAL_PRODUCTS.map((p, i) => hydrateProductAdminFields(p, i));
   const summary = buildExecutiveDashboardSummary({
     orders: allOrders,
     products,
-    returns: INITIAL_RETURNS,
+    returns: TEST_RETURNS,
     period: 'all',
   });
   assert.equal(summary.refundsIssued, 499);
@@ -241,16 +243,16 @@ test('Return KPIs, Dashboard Refund Deduction, CRM >= 2 High-Risk RTO auto-tag, 
 
   // Customer with >= 2 returns auto-flagged High-Risk RTO
   const twoReturnsSameCust = [
-    INITIAL_RETURNS[0],
+    TEST_RETURNS[0],
     {
-      ...INITIAL_RETURNS[0],
+      ...TEST_RETURNS[0],
       id: 'rma-extra',
       rmaNumber: 'RMA-1099',
     },
   ];
   const crm = buildCustomerCrmList({
     orders: allOrders,
-    customers: INITIAL_CUSTOMERS,
+    customers: TEST_CUSTOMERS,
     returns: twoReturnsSameCust,
   });
   const kavita = crm.find((c) => c.phone === '9701223344');
@@ -258,8 +260,8 @@ test('Return KPIs, Dashboard Refund Deduction, CRM >= 2 High-Risk RTO auto-tag, 
   assert.equal(kavita?.flag, 'High-Risk RTO');
 
   // WhatsApp notification URLs
-  const waApproved = buildRmaWhatsAppTemplate(INITIAL_RETURNS[1], 'approved_pickup');
+  const waApproved = buildRmaWhatsAppTemplate(TEST_RETURNS[1], 'approved_pickup');
   assert.match(waApproved.url, /^https:\/\/wa\.me\/919822334455\?text=/);
-  const waRefunded = buildRmaWhatsAppTemplate(INITIAL_RETURNS[2], 'refund_processed');
+  const waRefunded = buildRmaWhatsAppTemplate(TEST_RETURNS[2], 'refund_processed');
   assert.match(decodeURIComponent(waRefunded.url), /UTR491820394812/);
 });

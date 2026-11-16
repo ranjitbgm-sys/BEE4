@@ -9,9 +9,10 @@ import {
   SUPABASE_PRODUCT_BUCKET,
 } from '../lib/supabase';
 
-test('getAllowedAdminEmails always includes ranjitbgm@gmail.com', () => {
+test('getAllowedAdminEmails always includes ranjitbgm@gmail.com and bee4official@gmail.com', () => {
   const emails = getAllowedAdminEmails();
   assert.ok(emails.includes('ranjitbgm@gmail.com'));
+  assert.ok(emails.includes('bee4official@gmail.com'));
 });
 
 test('getSupabaseEnvDiagnostics safely falls back to local-fallback when env vars are unset', () => {
@@ -56,15 +57,18 @@ test('isSupabaseAdminUser authorizes allowlisted email or is_admin metadata flag
   assert.equal(isSupabaseAdminUser(normalCustomer), false);
 });
 
-test('buildSupabaseSetupSql generates required tables, product-images bucket, RLS, and realtime sync', () => {
+test('buildSupabaseSetupSql generates required tables, customers CRM, product-images bucket, RLS, and realtime sync', () => {
   const sql = buildSupabaseSetupSql('ranjitbgm@gmail.com');
   assert.equal(SUPABASE_PRODUCT_BUCKET, 'product-images');
   assert.match(sql, /create table if not exists public\.products/i);
   assert.match(sql, /create table if not exists public\.orders/i);
   assert.match(sql, /create table if not exists public\.coupons/i);
   assert.match(sql, /create table if not exists public\.store_settings/i);
+  assert.match(sql, /create table if not exists public\.customers/i);
+  assert.match(sql, /email_verified/i);
   assert.match(sql, /'product-images'/);
   assert.match(sql, /enable row level security/i);
   assert.match(sql, /alter publication supabase_realtime add table public\.products/i);
+  assert.match(sql, /alter publication supabase_realtime add table public\.customers/i);
   assert.match(sql, /ranjitbgm@gmail\.com/);
 });

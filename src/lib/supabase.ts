@@ -24,10 +24,10 @@ export function getAllowedAdminEmails(): string[] {
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
 
-  if (parsed.length === 0) {
-    parsed.push('ranjitbgm@gmail.com');
-  } else if (!parsed.includes('ranjitbgm@gmail.com')) {
-    parsed.push('ranjitbgm@gmail.com');
+  for (const requiredEmail of ['ranjitbgm@gmail.com', 'bee4official@gmail.com']) {
+    if (!parsed.includes(requiredEmail)) {
+      parsed.push(requiredEmail);
+    }
   }
 
   return Array.from(new Set(parsed));
@@ -90,10 +90,12 @@ export function buildSupabaseSetupSql(adminEmail?: string): string {
 -- Run this script once in: Supabase Dashboard -> SQL Editor -> New Query
 -- ============================================================================
 
--- 1. Profiles & Admin Flag Table
+-- 1. Profiles, Customers CRM & Admin Flag Tables
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text,
+  email_verified boolean not null default false,
+  email_confirmed_at timestamptz,
   full_name text not null default 'BEE4 Customer',
   phone text not null default '',
   preferred_payment text not null default 'upi',
@@ -104,6 +106,29 @@ create table if not exists public.profiles (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.profiles add column if not exists email_verified boolean not null default false;
+alter table public.profiles add column if not exists email_confirmed_at timestamptz;
+
+create table if not exists public.customers (
+  id text primary key,
+  user_id uuid references auth.users(id) on delete set null,
+  full_name text not null default 'BEE4 Customer',
+  phone text not null default '',
+  email text not null default '',
+  email_verified boolean not null default false,
+  email_confirmed_at timestamptz,
+  preferred_payment text not null default 'upi',
+  celebration_month text,
+  crm_flag text not null default 'Standard',
+  addresses jsonb not null default '[]'::jsonb,
+  wishlist_ids jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.customers add column if not exists email_verified boolean not null default false;
+alter table public.customers add column if not exists email_confirmed_at timestamptz;
 
 create or replace function public.is_bee4_admin()
 returns boolean
@@ -193,7 +218,7 @@ create table if not exists public.orders (
   updated_at timestamptz not null default now()
 );
 
--- 4. Coupons Table (SMARTKID15, BEE4WELCOME, PREPAID50)
+-- 4. Coupons Table (SMARTKID15)
 create table if not exists public.coupons (
   id text primary key,
   code text not null unique,
@@ -378,6 +403,7 @@ create table if not exists public.product_reviews (
 
 -- 7. Enable Row Level Security (RLS)
 alter table public.profiles enable row level security;
+alter table public.customers enable row level security;
 alter table public.products enable row level security;
 alter table public.orders enable row level security;
 alter table public.coupons enable row level security;
@@ -425,6 +451,10 @@ drop policy if exists "Anyone insert testimonial" on public.testimonials;
 create policy "Anyone insert testimonial" on public.testimonials
   for insert with check (true);
 
+drop policy if exists "Admins delete testimonials" on public.testimonials;
+create policy "Admins delete testimonials" on public.testimonials
+  for delete using (public.is_bee4_admin());
+
 -- Orders Policies (Guests & Customers can place orders; Customers read own; Admins manage all)
 drop policy if exists "Customers insert orders" on public.orders;
 create policy "Customers insert orders" on public.orders
@@ -438,11 +468,32 @@ drop policy if exists "Admins update orders" on public.orders;
 create policy "Admins update orders" on public.orders
   for update using (public.is_bee4_admin()) with check (public.is_bee4_admin());
 
--- Profiles & Admin-Only Tables
+drop policy if exists "Admins delete orders" on public.orders;
+create policy "Admins delete orders" on public.orders
+  for delete using (public.is_bee4_admin());
+
+-- Profiles, Customers CRM & Admin-Only Tables
 drop policy if exists "Users manage own profile" on public.profiles;
 create policy "Users manage own profile" on public.profiles
   for all using (auth.uid() = id or public.is_bee4_admin())
   with check (auth.uid() = id or public.is_bee4_admin());
+
+drop policy if exists "Users sync own customer CRM record" on public.customers;
+create policy "Users sync own customer CRM record" on public.customers
+  for insert with check (auth.uid() = user_id or auth.uid()::text = id or public.is_bee4_admin());
+
+drop policy if exists "Users update own customer CRM record" on public.customers;
+create policy "Users update own customer CRM record" on public.customers
+  for update using (auth.uid() = user_id or auth.uid()::text = id or public.is_bee4_admin())
+  with check (auth.uid() = user_id or auth.uid()::text = id or public.is_bee4_admin());
+
+drop policy if exists "Admins and owners read customers" on public.customers;
+create policy "Admins and owners read customers" on public.customers
+  for select using (auth.uid() = user_id or auth.uid()::text = id or public.is_bee4_admin());
+
+drop policy if exists "Admins delete customers" on public.customers;
+create policy "Admins delete customers" on public.customers
+  for delete using (public.is_bee4_admin());
 
 drop policy if exists "Admins manage print_jobs" on public.print_jobs;
 create policy "Admins manage print_jobs" on public.print_jobs
@@ -468,6 +519,10 @@ drop policy if exists "Admins update inquiries" on public.inquiries;
 create policy "Admins update inquiries" on public.inquiries
   for update using (public.is_bee4_admin()) with check (public.is_bee4_admin());
 
+drop policy if exists "Admins delete inquiries" on public.inquiries;
+create policy "Admins delete inquiries" on public.inquiries
+  for delete using (public.is_bee4_admin());
+
 -- Returns (RMA) & Inventory Adjustment Policies
 drop policy if exists "Customers insert returns" on public.returns;
 create policy "Customers insert returns" on public.returns
@@ -480,6 +535,10 @@ create policy "Customers read own returns or admins read all" on public.returns
 drop policy if exists "Admins manage returns" on public.returns;
 create policy "Admins manage returns" on public.returns
   for update using (public.is_bee4_admin()) with check (public.is_bee4_admin());
+
+drop policy if exists "Admins delete returns" on public.returns;
+create policy "Admins delete returns" on public.returns
+  for delete using (public.is_bee4_admin());
 
 drop policy if exists "Admins manage inventory_adjustments" on public.inventory_adjustments;
 create policy "Admins manage inventory_adjustments" on public.inventory_adjustments
@@ -597,6 +656,12 @@ end $$;
 do $$
 begin
   alter publication supabase_realtime add table public.product_reviews;
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table public.customers;
 exception when duplicate_object then null;
 end $$;
 `;

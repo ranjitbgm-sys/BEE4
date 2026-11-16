@@ -10,6 +10,7 @@ import {
   validateCheckoutForm,
 } from './storeLogic';
 import { AGE_GROUP_META, HERO_IMAGE, INITIAL_COUPONS, INITIAL_PRODUCTS } from '../data/catalog';
+import { TEST_COUPONS } from './testFixtures';
 import { AgeGroup, GiftOccasion, Product, ProductCategory } from '../types';
 
 const SAMPLE_PRODUCTS: Product[] = INITIAL_PRODUCTS.slice(0, 8);
@@ -194,13 +195,16 @@ test('calculateCartTotals applies free shipping at ₹499+, gift wrap, and promo
       promoCode: 'PREPAID50',
       paymentMethod: 'cod',
       codHandlingFee: 29,
-      coupons: INITIAL_COUPONS,
+      coupons: TEST_COUPONS,
     }
   );
   assert.equal(codWithPrepaidCoupon.promoApplied, false);
   assert.ok(codWithPrepaidCoupon.promoReason);
   assert.equal(codWithPrepaidCoupon.codFee, 29);
   assert.equal(codWithPrepaidCoupon.total, 728);
+  assert.equal(INITIAL_COUPONS.length, 1);
+  assert.equal(INITIAL_COUPONS[0].code, 'SMARTKID15');
+  assert.equal(INITIAL_COUPONS[0].usedCount, 0);
 
   const upiWithSmartKid15 = calculateCartTotals(
     [

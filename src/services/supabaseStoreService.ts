@@ -11,6 +11,7 @@ import {
   AgeGroup,
   CartItem,
   CouponRecord,
+  CrmCustomerFlag,
   CustomerInquiry,
   CustomerMessageRecord,
   CustomerMessageStatus,
@@ -164,17 +165,200 @@ export function onSupabaseAuthChange(
   };
 }
 
+export function onSupabaseAuthEvent(
+  callback: (event: string, user: User | null) => void
+): () => void {
+  if (!supabase) {
+    return () => {};
+  }
+
+  const {
+    data: { subscription },
+  } = supabase.auth.onAuthStateChange((event, session) => {
+    callback(event, session?.user ?? null);
+  });
+
+  return () => {
+    subscription.unsubscribe();
+  };
+}
+
+function resolveSiteRedirectUrl(redirectPath = '/account'): string {
+  const origin =
+    typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin
+      : 'https://bee4.in';
+  const normalizedPath = redirectPath.startsWith('/') ? redirectPath : `/${redirectPath}`;
+  return `${origin}${normalizedPath}`;
+}
+
+export async function signUpCustomerSupabase(input: {
+  fullName: string;
+  email: string;
+  phone?: string;
+  password: string;
+}): Promise<{ user: User | null; requiresEmailVerification: boolean }> {
+  if (!supabase) {
+    throw new Error(
+      'Supabase Auth is not configured yet. Please check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.'
+    );
+  }
+  const cleanEmail = input.email.trim().toLowerCase();
+  const cleanPhone = (input.phone ?? '').replace(/\D/g, '').slice(-10);
+  const { data, error } = await supabase.auth.signUp({
+    email: cleanEmail,
+    password: input.password,
+    options: {
+      emailRedirectTo: resolveSiteRedirectUrl('/account'),
+      data: {
+        full_name: clampSingleLine(input.fullName, 100, 'BEE4 Customer'),
+        phone: cleanPhone,
+      },
+    },
+  });
+  if (error) throw error;
+  const user = data.user ?? data.session?.user ?? null;
+  const requiresEmailVerification = !data.session || !user?.email_confirmed_at;
+  return { user, requiresEmailVerification };
+}
+
+export async function verifyCustomerEmailOtpSupabase(
+  email: string,
+  token: string
+): Promise<User> {
+  if (!supabase) {
+    throw new Error('Supabase Auth is not configured.');
+  }
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanToken = token.trim();
+
+  const { data, error } = await supabase.auth.verifyOtp({
+    email: cleanEmail,
+    token: cleanToken,
+    type: 'signup',
+  });
+
+  if (!error && data.user) {
+    return data.user;
+  }
+
+  // Fallback for accounts using magic-link / email OTP token type
+  const fallback = await supabase.auth.verifyOtp({
+    email: cleanEmail,
+    token: cleanToken,
+    type: 'email',
+  });
+  if (fallback.error) throw fallback.error;
+  if (!fallback.data.user) {
+    throw error || new Error('Invalid or expired verification code.');
+  }
+  return fallback.data.user;
+}
+
+export async function resendCustomerVerificationEmailSupabase(email: string): Promise<void> {
+  if (!supabase) {
+    throw new Error('Supabase Auth is not configured.');
+  }
+  const { error } = await supabase.auth.resend({
+    type: 'signup',
+    email: email.trim().toLowerCase(),
+    options: {
+      emailRedirectTo: resolveSiteRedirectUrl('/account'),
+    },
+  });
+  if (error) throw error;
+}
+
+export async function sendCustomerEmailLoginOtpSupabase(email: string): Promise<void> {
+  if (!supabase) {
+    throw new Error('Supabase Auth is not configured.');
+  }
+  const { error } = await supabase.auth.signInWithOtp({
+    email: email.trim().toLowerCase(),
+    options: {
+      shouldCreateUser: false,
+      emailRedirectTo: resolveSiteRedirectUrl('/account'),
+    },
+  });
+  if (error) throw error;
+}
+
+export async function verifyCustomerEmailLoginOtpSupabase(
+  email: string,
+  token: string
+): Promise<User> {
+  if (!supabase) {
+    throw new Error('Supabase Auth is not configured.');
+  }
+  const { data, error } = await supabase.auth.verifyOtp({
+    email: email.trim().toLowerCase(),
+    token: token.trim(),
+    type: 'email',
+  });
+  if (error) throw error;
+  if (!data.user) {
+    throw new Error('Invalid or expired 6-digit login code.');
+  }
+  return data.user;
+}
+
+export async function signInCustomerWithEmailPasswordSupabase(
+  email: string,
+  password: string
+): Promise<User> {
+  if (!supabase) {
+    throw new Error('Supabase Auth is not configured.');
+  }
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: email.trim().toLowerCase(),
+    password,
+  });
+  if (error) throw error;
+  if (!data.user) {
+    throw new Error('Sign-in did not return an active user session.');
+  }
+  return data.user;
+}
+
+export async function sendCustomerPasswordResetEmailSupabase(email: string): Promise<void> {
+  if (!supabase) {
+    throw new Error('Supabase Auth is not configured.');
+  }
+  const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+    redirectTo: resolveSiteRedirectUrl('/account'),
+  });
+  if (error) throw error;
+}
+
+export async function updateSupabaseUserPassword(newPassword: string): Promise<User> {
+  if (!supabase) {
+    throw new Error('Supabase Auth is not configured.');
+  }
+  const { data, error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) throw error;
+  if (!data.user) {
+    throw new Error('Password update failed to return user profile.');
+  }
+  return data.user;
+}
+
+export async function refreshSupabaseSessionUser(): Promise<User | null> {
+  if (!supabase) return null;
+  const { data, error } = await supabase.auth.getUser();
+  if (error) return null;
+  return data.user ?? null;
+}
+
 export async function signInWithGoogleSupabase(redirectPath = '/admin'): Promise<void> {
   if (!supabase) {
     throw new Error(
       'Supabase environment variables (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY) are not configured.'
     );
   }
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const { error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: `${origin}${redirectPath}`,
+      redirectTo: resolveSiteRedirectUrl(redirectPath),
     },
   });
   if (error) throw error;
@@ -1088,7 +1272,7 @@ export function subscribeAllOrdersAdmin(onData: (orders: OrderRecord[]) => void)
         .from('orders')
         .select('*')
         .order('created_at', { ascending: false });
-      if (error || !data || data.length === 0) return;
+      if (error || !data) return;
       onData(data.map((r) => fromOrderRow(r as Record<string, unknown>)));
     } catch {
       // Fallback safely
@@ -1213,8 +1397,8 @@ export function subscribePrintJobsAdmin(onData: (jobs: PrintJobRecord[]) => void
   if (!client) return () => {};
   const load = async () => {
     try {
-      const { data } = await client.from('print_jobs').select('*');
-      if (!data || data.length === 0) return;
+      const { data, error } = await client.from('print_jobs').select('*');
+      if (error || !data) return;
       onData(
         data.map((d) => ({
           id: String(d.id),
@@ -1234,7 +1418,15 @@ export function subscribePrintJobsAdmin(onData: (jobs: PrintJobRecord[]) => void
     }
   };
   void load();
-  return () => {};
+  const channel = client
+    .channel('bee4-admin-print-jobs')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'print_jobs' }, () => {
+      void load();
+    })
+    .subscribe();
+  return () => {
+    void client.removeChannel(channel);
+  };
 }
 
 export async function savePrintJobToSupabase(job: PrintJobRecord): Promise<void> {
@@ -1310,12 +1502,12 @@ export function subscribeAdminAuditLogs(onData: (logs: AdminAuditLog[]) => void)
   if (!client) return () => {};
   const load = async () => {
     try {
-      const { data } = await client
+      const { data, error } = await client
         .from('admin_logs')
         .select('*')
         .order('timestamp', { ascending: false })
         .limit(120);
-      if (!data || data.length === 0) return;
+      if (error || !data) return;
       onData(
         data.map((d) => ({
           id: String(d.id),
@@ -1332,7 +1524,15 @@ export function subscribeAdminAuditLogs(onData: (logs: AdminAuditLog[]) => void)
     }
   };
   void load();
-  return () => {};
+  const channel = client
+    .channel('bee4-admin-logs')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'admin_logs' }, () => {
+      void load();
+    })
+    .subscribe();
+  return () => {
+    void client.removeChannel(channel);
+  };
 }
 
 export async function writeAdminAuditLogToSupabase(
@@ -1358,11 +1558,11 @@ export function subscribePublicTestimonials(
   if (!client) return () => {};
   const load = async () => {
     try {
-      const { data } = await client
+      const { data, error } = await client
         .from('testimonials')
         .select('*')
         .order('created_at', { ascending: false });
-      if (!data || data.length === 0) return;
+      if (error || !data) return;
       onData(
         data.map((d) => ({
           id: String(d.id),
@@ -1384,7 +1584,15 @@ export function subscribePublicTestimonials(
     }
   };
   void load();
-  return () => {};
+  const channel = client
+    .channel('bee4-public-testimonials')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'testimonials' }, () => {
+      void load();
+    })
+    .subscribe();
+  return () => {
+    void client.removeChannel(channel);
+  };
 }
 
 export async function addTestimonialToSupabase(
@@ -1415,11 +1623,11 @@ export function subscribeAllInquiriesAdmin(
   if (!client) return () => {};
   const load = async () => {
     try {
-      const { data } = await client
+      const { data, error } = await client
         .from('inquiries')
         .select('*')
         .order('created_at', { ascending: false });
-      if (!data || data.length === 0) return;
+      if (error || !data) return;
       onData(
         data.map((d) => ({
           id: String(d.id),
@@ -1436,7 +1644,15 @@ export function subscribeAllInquiriesAdmin(
     }
   };
   void load();
-  return () => {};
+  const channel = client
+    .channel('bee4-admin-inquiries')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'inquiries' }, () => {
+      void load();
+    })
+    .subscribe();
+  return () => {
+    void client.removeChannel(channel);
+  };
 }
 
 export async function submitInquiryToSupabase(
@@ -1472,8 +1688,45 @@ export async function toggleInquiryStatusInSupabase(
 }
 
 // ============================================================================
-// Customer Profile Sync (Supabase profiles table)
+// Customer Profile & CRM Sync (Supabase profiles + customers tables)
 // ============================================================================
+
+async function syncCustomerRecordToSupabaseCustomersTable(
+  profile: CustomerProfile,
+  userId?: string | null
+): Promise<void> {
+  const client = supabase;
+  if (!client) return;
+  try {
+    const baseRow = {
+      id: sanitizeId(profile.id, 'cust'),
+      user_id: userId ?? profile.id,
+      full_name: clampSingleLine(profile.fullName, 100, 'BEE4 Customer'),
+      phone: clampSingleLine(profile.phone, 20),
+      email: clampSingleLine(profile.email, 160),
+      preferred_payment: profile.preferredPayment,
+      celebration_month: clampStr(profile.celebrationMonth, 40) || null,
+      crm_flag: profile.crmFlag ?? 'Standard',
+      addresses: profile.addresses.slice(0, 12),
+      wishlist_ids: profile.wishlistIds.slice(0, 50).map((id) => clampStr(id, 128)),
+      created_at: profile.createdAt || new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = await client.from('customers').upsert(
+      {
+        ...baseRow,
+        email_verified: Boolean(profile.emailVerified),
+        email_confirmed_at: profile.emailConfirmedAt ?? null,
+      },
+      { onConflict: 'id' }
+    );
+    if (error && isMissingSchemaError(error)) {
+      await client.from('customers').upsert(baseRow, { onConflict: 'id' });
+    }
+  } catch {
+    // Non-fatal fallback if customers table isn't provisioned yet
+  }
+}
 
 export async function ensureSupabaseCustomerProfile(
   sbUser: User,
@@ -1484,14 +1737,22 @@ export async function ensureSupabaseCustomerProfile(
     100,
     'BEE4 Shopper'
   );
+  const metaPhone =
+    typeof sbUser.user_metadata?.phone === 'string'
+      ? sbUser.user_metadata.phone.replace(/\D/g, '').slice(-10)
+      : '';
   const safeEmail = clampStr(sbUser.email, 160);
+  const emailVerified = Boolean(sbUser.email_confirmed_at);
+  const emailConfirmedAt = sbUser.email_confirmed_at ?? undefined;
   const boundedWishlist = guestWishlistIds.slice(0, 50).map((id) => clampStr(id, 128));
 
   const fallbackProfile: CustomerProfile = {
     id: sbUser.id,
     fullName: displayName,
-    phone: '',
+    phone: metaPhone,
     email: safeEmail,
+    emailVerified,
+    emailConfirmedAt,
     preferredPayment: 'upi',
     createdAt: sbUser.created_at || new Date().toISOString(),
     addresses: [],
@@ -1515,48 +1776,82 @@ export async function ensureSupabaseCustomerProfile(
         new Set([...existingWishlist, ...boundedWishlist])
       ).slice(0, 50);
 
-      if (mergedWishlist.length > existingWishlist.length) {
-        await supabase
+      const resolvedPhone = String(existing.phone || metaPhone || '');
+      const needsUpdate =
+        mergedWishlist.length > existingWishlist.length ||
+        Boolean(existing.email_verified) !== emailVerified ||
+        (!existing.phone && Boolean(metaPhone));
+
+      if (needsUpdate) {
+        const updatePayload = {
+          wishlist_ids: mergedWishlist,
+          phone: resolvedPhone,
+          email_verified: emailVerified,
+          email_confirmed_at: emailConfirmedAt ?? null,
+          updated_at: new Date().toISOString(),
+        };
+        const { error: updErr } = await supabase
           .from('profiles')
-          .update({ wishlist_ids: mergedWishlist, updated_at: new Date().toISOString() })
+          .update(updatePayload)
           .eq('id', sbUser.id);
+        if (updErr && isMissingSchemaError(updErr)) {
+          await supabase
+            .from('profiles')
+            .update({
+              wishlist_ids: mergedWishlist,
+              phone: resolvedPhone,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', sbUser.id);
+        }
       }
 
       const addresses = Array.isArray(existing.addresses)
         ? (existing.addresses as SavedAddress[])
         : [];
 
-      return {
-        profile: {
-          id: sbUser.id,
-          fullName: String(existing.full_name || displayName),
-          phone: String(existing.phone || ''),
-          email: String(existing.email || safeEmail),
-          preferredPayment: (existing.preferred_payment as PaymentMethod) || 'upi',
-          celebrationMonth:
-            typeof existing.celebration_month === 'string' && existing.celebration_month
-              ? existing.celebration_month
-              : undefined,
-          createdAt: String(existing.created_at || new Date().toISOString()),
-          addresses,
-          wishlistIds: mergedWishlist,
-        },
+      const hydratedProfile: CustomerProfile = {
+        id: sbUser.id,
+        fullName: String(existing.full_name || displayName),
+        phone: resolvedPhone,
+        email: String(existing.email || safeEmail),
+        emailVerified,
+        emailConfirmedAt,
+        preferredPayment: (existing.preferred_payment as PaymentMethod) || 'upi',
+        celebrationMonth:
+          typeof existing.celebration_month === 'string' && existing.celebration_month
+            ? existing.celebration_month
+            : undefined,
+        createdAt: String(existing.created_at || new Date().toISOString()),
+        addresses,
+        wishlistIds: mergedWishlist,
       };
+      void syncCustomerRecordToSupabaseCustomersTable(hydratedProfile, sbUser.id);
+      return { profile: hydratedProfile };
     }
 
-    await supabase.from('profiles').upsert(
+    const baseInsert = {
+      id: sbUser.id,
+      email: safeEmail,
+      full_name: displayName,
+      phone: metaPhone,
+      preferred_payment: 'upi',
+      wishlist_ids: boundedWishlist,
+      addresses: [],
+      updated_at: new Date().toISOString(),
+    };
+    const { error: upsertErr } = await supabase.from('profiles').upsert(
       {
-        id: sbUser.id,
-        email: safeEmail,
-        full_name: displayName,
-        phone: '',
-        preferred_payment: 'upi',
-        wishlist_ids: boundedWishlist,
-        addresses: [],
-        updated_at: new Date().toISOString(),
+        ...baseInsert,
+        email_verified: emailVerified,
+        email_confirmed_at: emailConfirmedAt ?? null,
       },
       { onConflict: 'id' }
     );
+    if (upsertErr && isMissingSchemaError(upsertErr)) {
+      await supabase.from('profiles').upsert(baseInsert, { onConflict: 'id' });
+    }
+    void syncCustomerRecordToSupabaseCustomersTable(fallbackProfile, sbUser.id);
   } catch {
     // Non-fatal fallback
   }
@@ -1566,19 +1861,95 @@ export async function ensureSupabaseCustomerProfile(
 
 export async function updateSupabaseCustomerProfile(profile: CustomerProfile): Promise<void> {
   if (!supabase) return;
-  await supabase
+  const baseUpdate = {
+    full_name: clampStr(profile.fullName, 100, 'BEE4 Customer'),
+    phone: clampStr(profile.phone, 20),
+    email: clampStr(profile.email, 160),
+    preferred_payment: profile.preferredPayment,
+    celebration_month: clampStr(profile.celebrationMonth, 40) || null,
+    wishlist_ids: profile.wishlistIds.slice(0, 50).map((id) => clampStr(id, 128)),
+    addresses: profile.addresses.slice(0, 12),
+    updated_at: new Date().toISOString(),
+  };
+  const { error } = await supabase
     .from('profiles')
     .update({
-      full_name: clampStr(profile.fullName, 100, 'BEE4 Customer'),
-      phone: clampStr(profile.phone, 20),
-      email: clampStr(profile.email, 160),
-      preferred_payment: profile.preferredPayment,
-      celebration_month: clampStr(profile.celebrationMonth, 40) || null,
-      wishlist_ids: profile.wishlistIds.slice(0, 50).map((id) => clampStr(id, 128)),
-      addresses: profile.addresses.slice(0, 12),
-      updated_at: new Date().toISOString(),
+      ...baseUpdate,
+      email_verified: Boolean(profile.emailVerified),
+      email_confirmed_at: profile.emailConfirmedAt ?? null,
     })
     .eq('id', profile.id);
+  if (error && isMissingSchemaError(error)) {
+    await supabase.from('profiles').update(baseUpdate).eq('id', profile.id);
+  }
+  await syncCustomerRecordToSupabaseCustomersTable(profile, profile.id);
+}
+
+export function subscribeAllCustomersAdmin(
+  onData: (customers: CustomerProfile[]) => void
+): () => void {
+  const client = supabase;
+  if (!client) return () => {};
+
+  const mapRow = (d: Record<string, unknown>): CustomerProfile => ({
+    id: String(d.id ?? ''),
+    fullName: String(d.full_name ?? d.fullName ?? 'BEE4 Customer'),
+    phone: String(d.phone ?? ''),
+    email: String(d.email ?? ''),
+    emailVerified: Boolean(d.email_verified ?? d.emailVerified ?? d.email_confirmed_at),
+    emailConfirmedAt:
+      typeof (d.email_confirmed_at ?? d.emailConfirmedAt) === 'string'
+        ? String(d.email_confirmed_at ?? d.emailConfirmedAt)
+        : undefined,
+    preferredPayment: ((d.preferred_payment ?? d.preferredPayment) as PaymentMethod) || 'upi',
+    celebrationMonth:
+      typeof (d.celebration_month ?? d.celebrationMonth) === 'string' &&
+      (d.celebration_month ?? d.celebrationMonth)
+        ? String(d.celebration_month ?? d.celebrationMonth)
+        : undefined,
+    crmFlag: ((d.crm_flag ?? d.crmFlag) as CrmCustomerFlag) || 'Standard',
+    createdAt: String(d.created_at ?? d.createdAt ?? new Date().toISOString()),
+    addresses: Array.isArray(d.addresses) ? (d.addresses as SavedAddress[]) : [],
+    wishlistIds: Array.isArray(d.wishlist_ids) ? d.wishlist_ids.map(String) : [],
+  });
+
+  const load = async () => {
+    try {
+      const { data, error } = await client
+        .from('customers')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (!error && data) {
+        onData(data.map((r) => mapRow(r as Record<string, unknown>)));
+        return;
+      }
+      // Fallback to profiles if customers table hasn't been created yet
+      if (error && isMissingSchemaError(error)) {
+        const prof = await client
+          .from('profiles')
+          .select('*')
+          .order('created_at', { ascending: false });
+        if (!prof.error && prof.data) {
+          onData(prof.data.map((r) => mapRow(r as Record<string, unknown>)));
+        }
+      }
+    } catch {
+      // Optional table fallback
+    }
+  };
+
+  void load();
+
+  const channel = client
+    .channel('bee4-admin-customers')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'customers' }, () => {
+      void load();
+    })
+    .subscribe();
+
+  return () => {
+    void client.removeChannel(channel);
+  };
 }
 
 // ============================================================================
@@ -1692,7 +2063,7 @@ export function subscribeAllReturnsAdmin(
         .from('returns')
         .select('*')
         .order('created_at', { ascending: false });
-      if (error || !data || data.length === 0) return;
+      if (error || !data) return;
       onData(data.map((r) => fromReturnRow(r as Record<string, unknown>)));
     } catch {
       // Optional table fallback
@@ -1829,12 +2200,12 @@ export function subscribeInventoryAdjustmentsAdmin(
   if (!client) return () => {};
   const load = async () => {
     try {
-      const { data } = await client
+      const { data, error } = await client
         .from('inventory_adjustments')
         .select('*')
         .order('timestamp', { ascending: false })
         .limit(80);
-      if (!data || data.length === 0) return;
+      if (error || !data) return;
       onData(
         data.map((d) => ({
           id: String(d.id),
@@ -1854,7 +2225,19 @@ export function subscribeInventoryAdjustmentsAdmin(
     }
   };
   void load();
-  return () => {};
+  const channel = client
+    .channel('bee4-admin-inventory-adjustments')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'inventory_adjustments' },
+      () => {
+        void load();
+      }
+    )
+    .subscribe();
+  return () => {
+    void client.removeChannel(channel);
+  };
 }
 
 export async function writeInventoryAdjustmentToSupabase(
@@ -1938,7 +2321,7 @@ export function subscribeAllCustomerMessagesAdmin(
         .from('customer_messages')
         .select('*')
         .order('created_at', { ascending: false });
-      if (error || !data || data.length === 0) return;
+      if (error || !data) return;
       onData(data.map((r) => fromCustomerMessageRow(r as Record<string, unknown>)));
     } catch {
       // Optional table fallback
@@ -2106,7 +2489,7 @@ export function subscribePublicPublishedReviews(
         .select('*')
         .eq('status', 'Published')
         .order('created_at', { ascending: false });
-      if (error || !data || data.length === 0) return;
+      if (error || !data) return;
       onData(data.map((r) => fromProductReviewRow(r as Record<string, unknown>)));
     } catch {
       // Optional table fallback
@@ -2143,7 +2526,7 @@ export function subscribeAllProductReviewsAdmin(
         .from('product_reviews')
         .select('*')
         .order('created_at', { ascending: false });
-      if (error || !data || data.length === 0) return;
+      if (error || !data) return;
       onData(data.map((r) => fromProductReviewRow(r as Record<string, unknown>)));
     } catch {
       // Optional table fallback
@@ -2259,4 +2642,52 @@ export async function seedSupabaseDataAsAdmin(input: {
       (input.productReviews ?? []).map((rev) => submitProductReviewToSupabase(rev, null))
     ),
   ]);
+}
+
+/**
+ * Purges transactional & user/test records across live Supabase tables while
+ * safely preserving the 16 live products, SMARTKID15 coupon, store_settings,
+ * and Banka Lab filament spools.
+ */
+export async function purgeTestDataInSupabase(): Promise<{
+  clearedTables: string[];
+  errors: string[];
+}> {
+  const client = supabase;
+  if (!client) {
+    return { clearedTables: [], errors: [] };
+  }
+
+  const targets: { table: string; pk: string }[] = [
+    { table: 'orders', pk: 'order_number' },
+    { table: 'returns', pk: 'id' },
+    { table: 'customer_messages', pk: 'id' },
+    { table: 'product_reviews', pk: 'id' },
+    { table: 'inquiries', pk: 'id' },
+    { table: 'testimonials', pk: 'id' },
+    { table: 'print_jobs', pk: 'id' },
+    { table: 'inventory_adjustments', pk: 'id' },
+    { table: 'admin_logs', pk: 'id' },
+    { table: 'customers', pk: 'id' },
+  ];
+
+  const clearedTables: string[] = [];
+  const errors: string[] = [];
+
+  await Promise.all(
+    targets.map(async ({ table, pk }) => {
+      try {
+        const { error } = await client.from(table).delete().neq(pk, '__preserve_none__');
+        if (!error) {
+          clearedTables.push(table);
+        } else if (!isMissingSchemaError(error)) {
+          errors.push(`${table}: ${error.message}`);
+        }
+      } catch (err) {
+        errors.push(`${table}: ${err instanceof Error ? err.message : 'delete failed'}`);
+      }
+    })
+  );
+
+  return { clearedTables, errors };
 }

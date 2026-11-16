@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Download, Search, Users } from 'lucide-react';
+import { BadgeCheck, Download, Search, ShieldAlert, Users } from 'lucide-react';
 import type { CrmCustomerFlag } from '../../types';
 import { CrmCustomerSummary, exportCustomersToCsv } from '../../utils/adminLogic';
 import { formatINR } from '../../utils/storeLogic';
@@ -116,8 +116,22 @@ export function AdminCustomersTab({
                 return (
                   <tr key={cust.id} className="hover:bg-white/40 dark:hover:bg-white/5">
                     <td className="py-3 px-4">
-                      <p className="font-bold text-zinc-900 dark:text-white">{cust.fullName}</p>
-                      <p className="text-[11px] text-zinc-500 dark:text-zinc-400 tabular-nums">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <p className="font-bold text-zinc-900 dark:text-white">{cust.fullName}</p>
+                        {cust.emailVerified === true && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold">
+                            <BadgeCheck className="w-3 h-3" />
+                            <span>Verified Email</span>
+                          </span>
+                        )}
+                        {cust.emailVerified === false && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 text-[10px] font-bold">
+                            <ShieldAlert className="w-3 h-3" />
+                            <span>Unverified</span>
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-zinc-500 dark:text-zinc-400 tabular-nums mt-0.5">
                         {cust.phone || 'No phone'} · {cust.email || 'No email'}
                       </p>
                     </td>
@@ -162,6 +176,20 @@ export function AdminCustomersTab({
                   </tr>
                 );
               })}
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-12 px-6 text-center text-zinc-500 dark:text-zinc-400">
+                    <p className="font-display text-sm font-bold text-zinc-800 dark:text-zinc-200">
+                      {crmCustomers.length === 0
+                        ? '0 Registered or Checkout Customers Yet'
+                        : 'No customers match your current filters.'}
+                    </p>
+                    <p className="mt-1 text-xs">
+                      Verified sign-ups and live checkout customers sync automatically from Supabase.
+                    </p>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

@@ -53,9 +53,14 @@ export function AdminDashboardTab({
     [spools]
   );
 
-  const chartSeries = summary.dailySeries.length > 0
+  const hasLiveOrders = orders.length > 0 && summary.dailySeries.length > 0;
+  const chartSeries = hasLiveOrders
     ? summary.dailySeries
-    : [{ dateLabel: 'No Orders', revenue: 0, orders: 0 }];
+    : [
+        { dateLabel: 'Day 1', revenue: 0, orders: 0 },
+        { dateLabel: 'Day 2', revenue: 0, orders: 0 },
+        { dateLabel: 'Today', revenue: 0, orders: 0 },
+      ];
 
   const maxRev = Math.max(...chartSeries.map((d) => d.revenue), 100);
   const svgWidth = 640;
@@ -126,6 +131,27 @@ export function AdminDashboardTab({
           ))}
         </div>
       </div>
+
+      {orders.length === 0 && (
+        <div className="glass-surface rounded-3xl p-4 sm:p-5 border border-emerald-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-2xl glass-orb flex items-center justify-center shrink-0">
+              <ShoppingBag className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <div>
+              <p className="font-display text-sm font-bold text-zinc-900 dark:text-white">
+                ₹0 Total Revenue • Waiting for your first live order on bee4.in
+              </p>
+              <p className="text-xs text-zinc-600 dark:text-zinc-300 mt-0.5">
+                Live production mode is clean. Real customer checkouts, verified accounts, and returns sync automatically from Supabase.
+              </p>
+            </div>
+          </div>
+          <span className="px-3 py-1 rounded-full bg-emerald-500/12 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold self-start sm:self-auto whitespace-nowrap">
+            100% Live Data
+          </span>
+        </div>
+      )}
 
       {/* 4 Primary KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -406,7 +432,9 @@ export function AdminDashboardTab({
             ))}
             {summary.immediateDispatchOrders.length === 0 && (
               <p className="p-5 text-xs text-zinc-500 dark:text-zinc-400">
-                All paid & verified orders have been dispatched.
+                {orders.length === 0
+                  ? '0 live orders yet. Immediate dispatch queue activates once your first checkout completes.'
+                  : 'All paid & verified orders have been dispatched.'}
               </p>
             )}
           </div>
