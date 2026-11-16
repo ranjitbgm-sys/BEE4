@@ -1,7 +1,15 @@
 import { useState } from 'react';
 import { ArrowRight, Brain, ShieldCheck, Sparkles, Truck } from 'lucide-react';
 import { AGE_GROUP_META, HERO_IMAGE } from '../data/catalog';
-import { AgeGroup, GiftOccasion, Product, ProductCategory, StorePage, Testimonial } from '../types';
+import {
+  AgeGroup,
+  GiftOccasion,
+  Product,
+  ProductCategory,
+  ProductReviewRecord,
+  StorePage,
+  Testimonial,
+} from '../types';
 import { filterAndSortProducts, groupProductsByAge } from '../utils/storeLogic';
 import { DualFilterBar } from './DualFilterBar';
 import { ProductCard } from './ProductCard';
@@ -11,6 +19,7 @@ import { Testimonials } from './Testimonials';
 interface HomeViewProps {
   products: Product[];
   testimonials: Testimonial[];
+  reviews?: ProductReviewRecord[];
   wishlistIds: string[];
   heroHeadline?: string;
   heroSubheadline?: string;
@@ -23,6 +32,7 @@ interface HomeViewProps {
   onToggleWishlist: (productId: string) => void;
   onBrowseOccasion: (occasion: GiftOccasion) => void;
   onAddTestimonial: (testimonial: Testimonial) => void;
+  onSubmitReview?: (review: ProductReviewRecord) => void;
 }
 
 const OCCASION_TABS: { value: Exclude<GiftOccasion, GiftOccasion.ALL>; label: string }[] = [
@@ -35,6 +45,7 @@ const OCCASION_TABS: { value: Exclude<GiftOccasion, GiftOccasion.ALL>; label: st
 export function HomeView({
   products,
   testimonials,
+  reviews = [],
   wishlistIds,
   heroHeadline,
   heroSubheadline,
@@ -47,6 +58,7 @@ export function HomeView({
   onToggleWishlist,
   onBrowseOccasion,
   onAddTestimonial,
+  onSubmitReview,
 }: HomeViewProps) {
   const [selectedCategory, setSelectedCategory] = useState<ProductCategory>(ProductCategory.ALL);
   const [selectedAgeGroup, setSelectedAgeGroup] = useState<AgeGroup>(AgeGroup.ALL);
@@ -270,6 +282,7 @@ export function HomeView({
                       <ProductCard
                         key={product.id}
                         product={product}
+                        reviews={reviews}
                         isWishlisted={wishlistIds.includes(product.id)}
                         onSelectProduct={onSelectProduct}
                         onQuickView={onQuickView}
@@ -288,6 +301,7 @@ export function HomeView({
               <ProductCard
                 key={product.id}
                 product={product}
+                reviews={reviews}
                 isWishlisted={wishlistIds.includes(product.id)}
                 onSelectProduct={onSelectProduct}
                 onQuickView={onQuickView}
@@ -349,6 +363,7 @@ export function HomeView({
               <ProductCard
                 key={product.id}
                 product={product}
+                reviews={reviews}
                 isWishlisted={wishlistIds.includes(product.id)}
                 onSelectProduct={onSelectProduct}
                 onQuickView={onQuickView}
@@ -446,8 +461,10 @@ export function HomeView({
       {/* 5. Parent Reviews & Feedback Form */}
       <Testimonials
         testimonials={testimonials}
+        reviews={reviews}
         products={products}
         onAddTestimonial={onAddTestimonial}
+        onSubmitReview={onSubmitReview}
       />
     </div>
   );

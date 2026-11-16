@@ -1,11 +1,18 @@
 import { useState } from 'react';
 import { Gift, Sparkles } from 'lucide-react';
-import { AgeGroup, GiftOccasion, Product, ProductCategory } from '../types';
+import {
+  AgeGroup,
+  GiftOccasion,
+  Product,
+  ProductCategory,
+  ProductReviewRecord,
+} from '../types';
 import { filterAndSortProducts } from '../utils/storeLogic';
 import { ProductCard } from './ProductCard';
 
 interface GiftIdeasViewProps {
   products: Product[];
+  reviews?: ProductReviewRecord[];
   wishlistIds: string[];
   initialOccasion?: GiftOccasion;
   giftWrapFee?: number;
@@ -27,6 +34,7 @@ const OCCASION_CARDS: { occasion: GiftOccasion; label: string; subtitle: string 
 
 export function GiftIdeasView({
   products,
+  reviews = [],
   wishlistIds,
   initialOccasion = GiftOccasion.ALL,
   giftWrapFee = 49,
@@ -179,6 +187,7 @@ export function GiftIdeasView({
             <ProductCard
               key={product.id}
               product={product}
+              reviews={reviews}
               isWishlisted={wishlistIds.includes(product.id)}
               onSelectProduct={onSelectProduct}
               onQuickView={onQuickView}

@@ -43,6 +43,7 @@ export type AdminModuleRoute =
   | 'dashboard'
   | 'orders'
   | 'returns'
+  | 'messages-reviews'
   | 'products'
   | 'inventory'
   | 'discounts'
@@ -203,6 +204,48 @@ export interface CustomerInquiry {
   status: 'New' | 'Resolved';
 }
 
+export type CustomerMessageTopic =
+  | 'Order Status Inquiry'
+  | 'Custom 3D Print / Gift Request'
+  | 'Bulk / School Order'
+  | 'Product Feedback'
+  | 'General Note';
+
+export type CustomerMessageStatus = 'Unread' | 'Read' | 'Replied / Resolved' | 'Archived';
+
+export interface CustomerMessageRecord {
+  id: string;
+  customerName: string;
+  phone: string;
+  email?: string;
+  topic: CustomerMessageTopic | string;
+  message: string;
+  status: CustomerMessageStatus;
+  adminNote?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ProductReviewStatus = 'Published' | 'Pending' | 'Hidden';
+
+export interface ProductReviewRecord {
+  id: string;
+  productId: string;
+  productName: string;
+  customerName: string;
+  customerContact?: string;
+  cityOrRole?: string;
+  rating: 1 | 2 | 3 | 4 | 5;
+  comment: string;
+  photoUrl?: string;
+  verifiedBuyer: boolean;
+  featuredOnHomepage: boolean;
+  status: ProductReviewStatus;
+  adminReply?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface StoreSettings {
   whatsappNumber: string;
   supportEmail: string;
@@ -275,7 +318,17 @@ export interface AdminAuditLog {
   timestamp: string;
   adminEmail: string;
   action: string;
-  entityType: 'order' | 'rma' | 'product' | 'inventory' | 'coupon' | 'settings' | 'customer' | 'auth';
+  entityType:
+    | 'order'
+    | 'rma'
+    | 'message'
+    | 'review'
+    | 'product'
+    | 'inventory'
+    | 'coupon'
+    | 'settings'
+    | 'customer'
+    | 'auth';
   entityId: string;
   summary: string;
 }

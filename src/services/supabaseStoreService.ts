@@ -12,6 +12,8 @@ import {
   CartItem,
   CouponRecord,
   CustomerInquiry,
+  CustomerMessageRecord,
+  CustomerMessageStatus,
   CustomerProfile,
   FilamentSpool,
   FulfillmentStage,
@@ -27,6 +29,8 @@ import {
   Product,
   ProductAngle,
   ProductCategory,
+  ProductReviewRecord,
+  ProductReviewStatus,
   ProductVisibilityStatus,
   RefundMode,
   ReturnItemEntry,
@@ -612,6 +616,64 @@ export async function uploadReturnProofToSupabaseStorage(
   try {
     const safeRef = sanitizeId(orderOrRmaId, 'rma');
     const filePath = `returns/${safeRef}/${Date.now()}-${Math.random().toString(36).slice(2, 6)}.jpg`;
+    const blob = await fetch(compressedDataUrl).then((r) => r.blob());
+
+    const { error: uploadError } = await client.storage
+      .from(SUPABASE_PRODUCT_BUCKET)
+      .upload(filePath, blob, {
+        contentType: 'image/jpeg',
+        cacheControl: '3600',
+        upsert: true,
+      });
+
+    if (uploadError) {
+      return {
+        url: compressedDataUrl,
+        storageMode: 'local-fallback',
+        note: `Storage fallback (${uploadError.message}). Saved compressed photo locally.`,
+      };
+    }
+
+    const { data: publicData } = client.storage
+      .from(SUPABASE_PRODUCT_BUCKET)
+      .getPublicUrl(filePath);
+
+    if (publicData?.publicUrl) {
+      return {
+        url: publicData.publicUrl,
+        storageMode: 'supabase',
+      };
+    }
+
+    return {
+      url: compressedDataUrl,
+      storageMode: 'local-fallback',
+    };
+  } catch {
+    return {
+      url: compressedDataUrl,
+      storageMode: 'local-fallback',
+    };
+  }
+}
+
+export async function uploadReviewPhotoToSupabaseStorage(
+  file: File,
+  productOrReviewId: string
+): Promise<{ url: string; storageMode: 'supabase' | 'local-fallback'; note?: string }> {
+  const compressedDataUrl = await compressImageToDataUrl(file);
+  const client = supabase;
+  if (!client) {
+    return {
+      url: compressedDataUrl,
+      storageMode: 'local-fallback',
+      note: 'Saved compressed review photo locally.',
+    };
+  }
+
+  try {
+    const safeRef = sanitizeId(productOrReviewId, 'review');
+    const filePath = `reviews/${safeRef}/${Date.now()}-${Math.random().toString(36).slice(2, 6)}.jpg`;
     const blob = await fetch(compressedDataUrl).then((r) => r.blob());
 
     const { error: uploadError } = await client.storage
@@ -1817,6 +1879,350 @@ export async function writeInventoryAdjustmentToSupabase(
 }
 
 // ============================================================================
+// Customer Messages ('Send Us a Note') & Product Reviews Realtime CRUD Sync
+// ============================================================================
+
+function fromCustomerMessageRow(d: Record<string, unknown>): CustomerMessageRecord {
+  const rawStatus = String(d.status ?? 'Unread');
+  const status: CustomerMessageStatus =
+    rawStatus === 'Read' ||
+    rawStatus === 'Replied / Resolved' ||
+    rawStatus === 'Archived'
+      ? rawStatus
+      : 'Unread';
+
+  return {
+    id: String(d.id ?? ''),
+    customerName: String(d.customer_name ?? d.customerName ?? ''),
+    phone: String(d.phone ?? ''),
+    email: typeof d.email === 'string' ? d.email : '',
+    topic: String(d.topic ?? 'General Note'),
+    message: String(d.message ?? ''),
+    status,
+    adminNote: typeof (d.admin_note ?? d.adminNote) === 'string'
+      ? String(d.admin_note ?? d.adminNote)
+      : '',
+    createdAt: String(d.created_at ?? d.createdAt ?? new Date().toISOString()),
+    updatedAt: String(d.updated_at ?? d.updatedAt ?? new Date().toISOString()),
+  };
+}
+
+function toCustomerMessageRow(
+  msg: CustomerMessageRecord,
+  userId?: string | null
+): Record<string, unknown> {
+  return {
+    id: sanitizeId(msg.id, 'msg'),
+    user_id: userId || null,
+    customer_name: clampSingleLine(msg.customerName, 120, 'Customer'),
+    phone: clampSingleLine(msg.phone, 20, '9800000000'),
+    email: clampSingleLine(msg.email ?? '', 160),
+    topic: clampSingleLine(msg.topic, 100, 'General Note'),
+    message: clampStr(msg.message, 2000, 'Customer inquiry note'),
+    status: msg.status || 'Unread',
+    admin_note: sanitizeRichInput(msg.adminNote ?? '', 600),
+    created_at: msg.createdAt || new Date().toISOString(),
+    updated_at: msg.updatedAt || new Date().toISOString(),
+  };
+}
+
+export function subscribeAllCustomerMessagesAdmin(
+  onData: (messages: CustomerMessageRecord[]) => void
+): () => void {
+  const client = supabase;
+  if (!client) return () => {};
+
+  const load = async () => {
+    try {
+      const { data, error } = await client
+        .from('customer_messages')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error || !data || data.length === 0) return;
+      onData(data.map((r) => fromCustomerMessageRow(r as Record<string, unknown>)));
+    } catch {
+      // Optional table fallback
+    }
+  };
+
+  void load();
+
+  const channel = client
+    .channel('bee4-admin-customer-messages')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'customer_messages' },
+      () => {
+        void load();
+      }
+    )
+    .subscribe();
+
+  return () => {
+    void client.removeChannel(channel);
+  };
+}
+
+export async function submitCustomerMessageToSupabase(
+  msg: CustomerMessageRecord,
+  userId?: string | null
+): Promise<void> {
+  const client = supabase;
+  if (!client) return;
+  try {
+    const { error } = await client
+      .from('customer_messages')
+      .upsert(toCustomerMessageRow(msg, userId), { onConflict: 'id' });
+    if (error && !isMissingSchemaError(error)) {
+      console.error('Supabase submitCustomerMessage error:', error.message);
+    }
+  } catch {
+    // Fallback safely to local storage
+  }
+}
+
+export async function updateCustomerMessageInSupabase(
+  msg: CustomerMessageRecord
+): Promise<void> {
+  const client = supabase;
+  if (!client) return;
+  try {
+    const row = toCustomerMessageRow(msg);
+    delete row.user_id;
+    const { error } = await client
+      .from('customer_messages')
+      .update(row)
+      .eq('id', sanitizeId(msg.id, 'msg'));
+    if (error && !isMissingSchemaError(error)) {
+      console.error('Supabase updateCustomerMessage error:', error.message);
+    }
+  } catch {
+    // Fallback safely
+  }
+}
+
+export async function deleteCustomerMessageFromSupabase(id: string): Promise<void> {
+  const client = supabase;
+  if (!client) return;
+  try {
+    const { error } = await client
+      .from('customer_messages')
+      .delete()
+      .eq('id', sanitizeId(id, 'msg'));
+    if (error && !isMissingSchemaError(error)) {
+      console.error('Supabase deleteCustomerMessage error:', error.message);
+    }
+  } catch {
+    // Fallback safely
+  }
+}
+
+export async function bulkDeleteCustomerMessagesFromSupabase(ids: string[]): Promise<void> {
+  const client = supabase;
+  if (!client || ids.length === 0) return;
+  try {
+    const cleanIds = ids.map((id) => sanitizeId(id, 'msg'));
+    const { error } = await client.from('customer_messages').delete().in('id', cleanIds);
+    if (error && !isMissingSchemaError(error)) {
+      console.error('Supabase bulkDeleteCustomerMessages error:', error.message);
+    }
+  } catch {
+    // Fallback safely
+  }
+}
+
+function fromProductReviewRow(d: Record<string, unknown>): ProductReviewRecord {
+  const rawStatus = String(d.status ?? 'Pending');
+  const status: ProductReviewStatus =
+    rawStatus === 'Published' || rawStatus === 'Hidden' ? rawStatus : 'Pending';
+  const clampedRating = Math.max(1, Math.min(5, Math.round(Number(d.rating ?? 5)))) as
+    | 1
+    | 2
+    | 3
+    | 4
+    | 5;
+
+  return {
+    id: String(d.id ?? ''),
+    productId: String(d.product_id ?? d.productId ?? ''),
+    productName: String(d.product_name ?? d.productName ?? ''),
+    customerName: String(d.customer_name ?? d.customerName ?? ''),
+    customerContact: typeof (d.customer_contact ?? d.customerContact) === 'string'
+      ? String(d.customer_contact ?? d.customerContact)
+      : '',
+    cityOrRole: typeof (d.city_or_role ?? d.cityOrRole) === 'string'
+      ? String(d.city_or_role ?? d.cityOrRole)
+      : '',
+    rating: clampedRating,
+    comment: String(d.comment ?? ''),
+    photoUrl: (d.photo_url ?? d.photoUrl)
+      ? normalizeAssetPath(String(d.photo_url ?? d.photoUrl))
+      : '',
+    verifiedBuyer: Boolean(d.verified_buyer ?? d.verifiedBuyer),
+    featuredOnHomepage: Boolean(d.featured_on_homepage ?? d.featuredOnHomepage),
+    status,
+    adminReply: typeof (d.admin_reply ?? d.adminReply) === 'string'
+      ? String(d.admin_reply ?? d.adminReply)
+      : '',
+    createdAt: String(d.created_at ?? d.createdAt ?? new Date().toISOString()),
+    updatedAt: String(d.updated_at ?? d.updatedAt ?? new Date().toISOString()),
+  };
+}
+
+function toProductReviewRow(
+  review: ProductReviewRecord,
+  userId?: string | null
+): Record<string, unknown> {
+  return {
+    id: sanitizeId(review.id, 'rev'),
+    user_id: userId || null,
+    product_id: clampSingleLine(review.productId, 128, 'bee4-product'),
+    product_name: clampSingleLine(review.productName, 180, 'BEE4 Brain Toy'),
+    customer_name: clampSingleLine(review.customerName, 100, 'BEE4 Parent'),
+    customer_contact: clampSingleLine(review.customerContact ?? '', 160),
+    city_or_role: clampSingleLine(review.cityOrRole ?? '', 100),
+    rating: Math.max(1, Math.min(5, Math.round(Number(review.rating) || 5))),
+    comment: clampStr(review.comment, 1200, 'Great toy.'),
+    photo_url: sanitizeSingleLine(review.photoUrl ?? '', 500),
+    verified_buyer: Boolean(review.verifiedBuyer),
+    featured_on_homepage: Boolean(review.featuredOnHomepage),
+    status: review.status || 'Pending',
+    admin_reply: sanitizeRichInput(review.adminReply ?? '', 600),
+    created_at: review.createdAt || new Date().toISOString(),
+    updated_at: review.updatedAt || new Date().toISOString(),
+  };
+}
+
+export function subscribePublicPublishedReviews(
+  onData: (reviews: ProductReviewRecord[]) => void
+): () => void {
+  const client = supabase;
+  if (!client) return () => {};
+
+  const load = async () => {
+    try {
+      const { data, error } = await client
+        .from('product_reviews')
+        .select('*')
+        .eq('status', 'Published')
+        .order('created_at', { ascending: false });
+      if (error || !data || data.length === 0) return;
+      onData(data.map((r) => fromProductReviewRow(r as Record<string, unknown>)));
+    } catch {
+      // Optional table fallback
+    }
+  };
+
+  void load();
+
+  const channel = client
+    .channel('bee4-public-product-reviews')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'product_reviews' },
+      () => {
+        void load();
+      }
+    )
+    .subscribe();
+
+  return () => {
+    void client.removeChannel(channel);
+  };
+}
+
+export function subscribeAllProductReviewsAdmin(
+  onData: (reviews: ProductReviewRecord[]) => void
+): () => void {
+  const client = supabase;
+  if (!client) return () => {};
+
+  const load = async () => {
+    try {
+      const { data, error } = await client
+        .from('product_reviews')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error || !data || data.length === 0) return;
+      onData(data.map((r) => fromProductReviewRow(r as Record<string, unknown>)));
+    } catch {
+      // Optional table fallback
+    }
+  };
+
+  void load();
+
+  const channel = client
+    .channel('bee4-admin-product-reviews')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'product_reviews' },
+      () => {
+        void load();
+      }
+    )
+    .subscribe();
+
+  return () => {
+    void client.removeChannel(channel);
+  };
+}
+
+export async function submitProductReviewToSupabase(
+  review: ProductReviewRecord,
+  userId?: string | null
+): Promise<void> {
+  const client = supabase;
+  if (!client) return;
+  try {
+    const { error } = await client
+      .from('product_reviews')
+      .upsert(toProductReviewRow(review, userId), { onConflict: 'id' });
+    if (error && !isMissingSchemaError(error)) {
+      console.error('Supabase submitProductReview error:', error.message);
+    }
+  } catch {
+    // Fallback safely to local storage
+  }
+}
+
+export async function updateProductReviewInSupabase(
+  review: ProductReviewRecord
+): Promise<void> {
+  const client = supabase;
+  if (!client) return;
+  try {
+    const row = toProductReviewRow(review);
+    delete row.user_id;
+    const { error } = await client
+      .from('product_reviews')
+      .update(row)
+      .eq('id', sanitizeId(review.id, 'rev'));
+    if (error && !isMissingSchemaError(error)) {
+      console.error('Supabase updateProductReview error:', error.message);
+    }
+  } catch {
+    // Fallback safely
+  }
+}
+
+export async function deleteProductReviewFromSupabase(id: string): Promise<void> {
+  const client = supabase;
+  if (!client) return;
+  try {
+    const { error } = await client
+      .from('product_reviews')
+      .delete()
+      .eq('id', sanitizeId(id, 'rev'));
+    if (error && !isMissingSchemaError(error)) {
+      console.error('Supabase deleteProductReview error:', error.message);
+    }
+  } catch {
+    // Fallback safely
+  }
+}
+
+// ============================================================================
 // One-Click Seed Helper for Supabase Admin
 // ============================================================================
 
@@ -1829,6 +2235,8 @@ export async function seedSupabaseDataAsAdmin(input: {
   spools: FilamentSpool[];
   testimonials: Testimonial[];
   returns?: ReturnRequestRecord[];
+  customerMessages?: CustomerMessageRecord[];
+  productReviews?: ProductReviewRecord[];
 }): Promise<void> {
   const client = supabase;
   if (!client) return;
@@ -1844,5 +2252,11 @@ export async function seedSupabaseDataAsAdmin(input: {
     Promise.all(input.spools.map((s) => saveFilamentSpoolToSupabase(s))),
     Promise.all(input.testimonials.map((t) => addTestimonialToSupabase(t, null))),
     Promise.all((input.returns ?? []).map((r) => createReturnRequestInSupabase(r, null))),
+    Promise.all(
+      (input.customerMessages ?? []).map((m) => submitCustomerMessageToSupabase(m, null))
+    ),
+    Promise.all(
+      (input.productReviews ?? []).map((rev) => submitProductReviewToSupabase(rev, null))
+    ),
   ]);
 }

@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   Lock,
   Menu,
+  MessageSquareText,
   Moon,
   PackageCheck,
   Plus,
@@ -29,6 +30,7 @@ interface AdminShellProps {
   theme: ThemeMode;
   pendingDispatchCount: number;
   pendingReturnsCount?: number;
+  messagesReviewsBadgeCount?: number;
   lowStockCount: number;
   totalOrdersCount: number;
   totalProductsCount: number;
@@ -56,6 +58,7 @@ const MODULE_META: Record<AdminModuleRoute, { title: string; group: string }> = 
   inventory: { title: 'Inventory & 3D Print Lab', group: 'Operations' },
   discounts: { title: 'Discounts & Gifting', group: 'Growth' },
   customers: { title: 'Customers & CRM', group: 'Growth' },
+  'messages-reviews': { title: 'Messages & Reviews', group: 'Growth' },
   settings: { title: 'Storefront CMS & Security', group: 'System' },
 };
 
@@ -64,6 +67,7 @@ export function AdminShell({
   theme,
   pendingDispatchCount,
   pendingReturnsCount = 0,
+  messagesReviewsBadgeCount = 0,
   lowStockCount,
   totalOrdersCount,
   totalProductsCount,
@@ -137,6 +141,13 @@ export function AdminShell({
         },
         { id: 'discounts', label: 'Discounts & Gifts', icon: Tag },
         { id: 'customers', label: 'Customers CRM', icon: Users },
+        {
+          id: 'messages-reviews',
+          label: 'Messages & Reviews',
+          icon: MessageSquareText,
+          badge: messagesReviewsBadgeCount > 0 ? messagesReviewsBadgeCount : undefined,
+          badgeTone: messagesReviewsBadgeCount > 0 ? 'amber' : 'neutral',
+        },
       ],
     },
     {

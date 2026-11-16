@@ -29,6 +29,7 @@ interface AdminSettingsTabProps {
   onUpdateSettings: (next: StoreSettings) => void;
   onChangeAdminPasswordHash: (nextHash: string) => void;
   onToggleInquiryStatus: (id: string) => void;
+  onOpenMessagesReviews?: () => void;
   onSyncCatalogToCloud?: () => Promise<void>;
 }
 
@@ -51,6 +52,7 @@ export function AdminSettingsTab({
   onUpdateSettings,
   onChangeAdminPasswordHash,
   onToggleInquiryStatus,
+  onOpenMessagesReviews,
   onSyncCatalogToCloud,
 }: AdminSettingsTabProps) {
   const [settingsTab, setSettingsTab] = useState<'cms' | 'supabase-sql'>('cms');
@@ -686,11 +688,22 @@ export function AdminSettingsTab({
 
       {/* Customer Inquiries Quick Inbox */}
       <div className="glass-surface rounded-3xl p-5 space-y-3">
-        <div className="flex items-center gap-2">
-          <Inbox className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-          <h3 className="font-display text-sm font-bold text-zinc-900 dark:text-white">
-            Customer &amp; School STEM Inquiries ({inquiries.length})
-          </h3>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Inbox className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+            <h3 className="font-display text-sm font-bold text-zinc-900 dark:text-white">
+              Customer &amp; School STEM Inquiries ({inquiries.length})
+            </h3>
+          </div>
+          {onOpenMessagesReviews && (
+            <button
+              type="button"
+              onClick={onOpenMessagesReviews}
+              className="px-3 py-1.5 rounded-xl glass-btn-amber text-white text-xs font-semibold"
+            >
+              Open Messages &amp; Reviews Hub →
+            </button>
+          )}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {inquiries.map((inq) => (

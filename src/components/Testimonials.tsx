@@ -1,68 +1,170 @@
-import { FormEvent, useState } from 'react';
-import { MessageSquarePlus, Star } from 'lucide-react';
-import { Product, Testimonial, TestimonialErrors } from '../types';
+import { ChangeEvent, FormEvent, useState } from 'react';
 import {
-  calculateTestimonialSummary,
-  validateTestimonialForm,
-} from '../utils/storeLogic';
+  BadgeCheck,
+  ImagePlus,
+  MessageSquarePlus,
+  Reply,
+  Star,
+  Upload,
+  X,
+} from 'lucide-react';
+import { uploadReviewPhotoToSupabaseStorage } from '../services/supabaseStoreService';
+import { Product, ProductReviewRecord, Testimonial } from '../types';
+import {
+  ProductReviewFormErrors,
+  getPublishedHomepageReviews,
+  validateProductReviewForm,
+} from '../utils/messagesReviewsLogic';
 
 interface TestimonialsProps {
   testimonials: Testimonial[];
+  reviews?: ProductReviewRecord[];
   products: Product[];
   onAddTestimonial: (testimonial: Testimonial) => void;
+  onSubmitReview?: (review: ProductReviewRecord) => void;
 }
 
 const RATING_LEVELS: (1 | 2 | 3 | 4 | 5)[] = [1, 2, 3, 4, 5];
 
 export function Testimonials({
   testimonials,
+  reviews,
   products,
   onAddTestimonial,
+  onSubmitReview,
 }: TestimonialsProps) {
-  const defaultProduct = products[0]?.title ?? 'BEE4 Brain-Training Toy';
+  const defaultProduct = products[0];
 
   const [customerName, setCustomerName] = useState('');
+  const [customerContact, setCustomerContact] = useState('');
   const [cityOrRole, setCityOrRole] = useState('');
-  const [productName, setProductName] = useState(defaultProduct);
+  const [selectedProductId, setSelectedProductId] = useState(defaultProduct?.id ?? '');
   const [rating, setRating] = useState<1 | 2 | 3 | 4 | 5>(5);
-  const [feedback, setFeedback] = useState('');
-  const [errors, setErrors] = useState<TestimonialErrors>({});
+  const [comment, setComment] = useState('');
+  const [photoUrl, setPhotoUrl] = useState('');
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [uploadStatusMsg, setUploadStatusMsg] = useState('');
+  const [errors, setErrors] = useState<ProductReviewFormErrors>({});
   const [submittedNotice, setSubmittedNotice] = useState(false);
+  const [lightboxPhoto, setLightboxPhoto] = useState<{ url: string; caption: string } | null>(null);
 
-  const summary = calculateTestimonialSummary(testimonials);
+  const publishedReviews: ProductReviewRecord[] = reviews
+    ? getPublishedHomepageReviews(reviews)
+    : testimonials.map((t) => ({
+        id: t.id,
+        productId: products.find((p) => p.title === t.productName)?.id ?? 'bee4-general',
+        productName: t.productName,
+        customerName: t.customerName,
+        cityOrRole: t.cityOrRole,
+        rating: t.rating,
+        comment: t.feedback,
+        verifiedBuyer: true,
+        featuredOnHomepage: true,
+        status: 'Published',
+        createdAt: t.createdAt,
+        updatedAt: t.createdAt,
+      }));
+
+  const count = publishedReviews.length;
+  const averageRating =
+    count > 0
+      ? Math.round((publishedReviews.reduce((s, r) => s + r.rating, 0) / count) * 10) / 10
+      : 0;
+
+  const activeProduct =
+    products.find((p) => p.id === selectedProductId) ?? products[0];
+
+  const handlePhotoUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingPhoto(true);
+    setUploadStatusMsg('');
+    try {
+      const uploaded = await uploadReviewPhotoToSupabaseStorage(
+        file,
+        activeProduct?.id || 'review'
+      );
+      setPhotoUrl(uploaded.url);
+      setUploadStatusMsg(uploaded.note || 'Photo attached');
+      if (errors.photoUrl) setErrors((prev) => ({ ...prev, photoUrl: undefined }));
+    } catch (err) {
+      setErrors((prev) => ({
+        ...prev,
+        photoUrl: err instanceof Error ? err.message : 'Photo upload failed.',
+      }));
+    } finally {
+      setUploadingPhoto(false);
+      e.target.value = '';
+    }
+  };
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
-    const validationErrors = validateTestimonialForm({
+    const productObj = activeProduct;
+    const targetProductId = productObj?.id ?? selectedProductId ?? 'bee4-general';
+    const targetProductName = productObj?.title ?? 'BEE4 Brain-Training Toy';
+
+    const validation = validateProductReviewForm({
       customerName,
-      cityOrRole,
-      productName,
+      customerContact,
+      productId: targetProductId,
+      productName: targetProductName,
       rating,
-      feedback,
+      comment,
+      photoUrl,
     });
 
-    if (Object.keys(validationErrors).length > 0) {
-      setErrors(validationErrors);
+    if (!validation.valid) {
+      setErrors(validation.errors);
       setSubmittedNotice(false);
       return;
     }
 
-    const newEntry: Testimonial = {
-      id: `test-${Date.now()}`,
-      customerName: customerName.trim(),
-      cityOrRole: cityOrRole.trim(),
-      productName: productName.trim() || defaultProduct,
-      rating,
-      feedback: feedback.trim(),
-      createdAt: new Date().toISOString(),
-    };
+    const now = new Date().toISOString();
+    const cleanName = customerName.trim();
+    const cleanComment = comment.trim();
+    const cleanCity = cityOrRole.trim();
+    const cleanPhoto = photoUrl.trim();
 
-    onAddTestimonial(newEntry);
+    if (onSubmitReview) {
+      const newReview: ProductReviewRecord = {
+        id: `rev-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        productId: targetProductId,
+        productName: targetProductName,
+        customerName: cleanName,
+        customerContact: customerContact.trim(),
+        cityOrRole: cleanCity || undefined,
+        rating,
+        comment: cleanComment,
+        photoUrl: cleanPhoto || undefined,
+        verifiedBuyer: false,
+        featuredOnHomepage: false,
+        status: 'Pending',
+        adminReply: '',
+        createdAt: now,
+        updatedAt: now,
+      };
+      onSubmitReview(newReview);
+    } else {
+      onAddTestimonial({
+        id: `test-${Date.now()}`,
+        customerName: cleanName,
+        cityOrRole: cleanCity || 'Verified Parent',
+        productName: targetProductName,
+        rating,
+        feedback: cleanComment,
+        createdAt: now,
+      });
+    }
+
     setCustomerName('');
+    setCustomerContact('');
     setCityOrRole('');
-    setProductName(defaultProduct);
+    setSelectedProductId(defaultProduct?.id ?? '');
     setRating(5);
-    setFeedback('');
+    setComment('');
+    setPhotoUrl('');
+    setUploadStatusMsg('');
     setErrors({});
     setSubmittedNotice(true);
   };
@@ -88,65 +190,111 @@ export function Testimonials({
         <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-2xl glass-subtle text-sm text-zinc-700 dark:text-zinc-200 tabular-nums">
           <Star className="w-4 h-4 fill-amber-500 text-amber-500 shrink-0" aria-hidden="true" />
           <span className="font-semibold text-zinc-900 dark:text-white">
-            {summary.averageRating.toFixed(1)} / 5
+            {averageRating.toFixed(1)} / 5
           </span>
           <span className="text-zinc-400" aria-hidden="true">
             ·
           </span>
           <span>
-            {summary.count} verified {summary.count === 1 ? 'review' : 'reviews'}
+            {count} published {count === 1 ? 'review' : 'reviews'}
           </span>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Customer Reviews List */}
+        {/* Published Customer Reviews List */}
         <div className="lg:col-span-7 space-y-4">
-          {testimonials.length === 0 ? (
+          {publishedReviews.length === 0 ? (
             <div className="p-8 rounded-3xl glass-surface text-sm text-zinc-600 dark:text-zinc-300">
-              No reviews yet. Be the first parent to share how your child responded to a screen-free
-              BEE4 toy.
+              No published reviews yet. Be the first parent to share how your child responded to a
+              screen-free BEE4 toy.
             </div>
           ) : (
-            testimonials.map((item) => (
+            publishedReviews.slice(0, 8).map((item) => (
               <article
                 key={item.id}
-                className="p-5 sm:p-6 rounded-2xl glass-surface transition-all duration-300"
+                className="p-5 sm:p-6 rounded-2xl glass-surface transition-all duration-300 space-y-3"
               >
-                <div className="flex items-center justify-between gap-4 mb-3">
-                  <div
-                    className="inline-flex items-center gap-1"
-                    aria-label={`${item.rating} out of 5 stars`}
-                  >
-                    {RATING_LEVELS.map((star) => (
-                      <Star
-                        key={star}
-                        className={`w-4 h-4 ${
-                          star <= item.rating
-                            ? 'fill-amber-500 text-amber-500'
-                            : 'text-zinc-300 dark:text-zinc-600'
-                        }`}
-                        aria-hidden="true"
-                      />
-                    ))}
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="inline-flex items-center gap-1"
+                      aria-label={`${item.rating} out of 5 stars`}
+                    >
+                      {RATING_LEVELS.map((star) => (
+                        <Star
+                          key={star}
+                          className={`w-4 h-4 ${
+                            star <= item.rating
+                              ? 'fill-amber-500 text-amber-500'
+                              : 'text-zinc-300 dark:text-zinc-600'
+                          }`}
+                          aria-hidden="true"
+                        />
+                      ))}
+                    </div>
+                    <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-300 tabular-nums">
+                      {item.rating}.0 / 5
+                    </span>
                   </div>
-                  <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 tabular-nums">
-                    {item.rating}.0 / 5
-                  </span>
+
+                  {item.verifiedBuyer && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/12 border border-emerald-500/25 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+                      <BadgeCheck className="w-3.5 h-3.5" />
+                      <span>Verified Buyer</span>
+                    </span>
+                  )}
                 </div>
 
-                <p className="text-sm sm:text-base text-zinc-800 dark:text-zinc-200 leading-relaxed">
-                  &ldquo;{item.feedback}&rdquo;
-                </p>
+                <div className="flex flex-col sm:flex-row gap-4 items-start">
+                  <p className="flex-1 text-sm sm:text-base text-zinc-800 dark:text-zinc-200 leading-relaxed">
+                    &ldquo;{item.comment}&rdquo;
+                  </p>
+                  {item.photoUrl && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setLightboxPhoto({
+                          url: item.photoUrl!,
+                          caption: `${item.customerName} — ${item.productName}`,
+                        })
+                      }
+                      aria-label={`Zoom review photo by ${item.customerName}`}
+                      className="w-20 h-20 rounded-xl overflow-hidden border border-white/60 dark:border-white/15 shrink-0 hover:scale-[1.03] transition-transform"
+                    >
+                      <img
+                        src={item.photoUrl}
+                        alt={`Customer photo by ${item.customerName}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </button>
+                  )}
+                </div>
 
-                <div className="mt-4 pt-3 border-t border-zinc-900/8 dark:border-white/10 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-600 dark:text-zinc-300">
+                {item.adminReply && item.adminReply.trim().length > 0 && (
+                  <div className="p-3.5 rounded-2xl glass-subtle border-l-2 border-amber-500 space-y-1">
+                    <p className="text-[11px] font-bold text-amber-700 dark:text-amber-300 inline-flex items-center gap-1.5">
+                      <Reply className="w-3.5 h-3.5" />
+                      <span>Official Reply from Team BEE4</span>
+                    </p>
+                    <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed">
+                      {item.adminReply}
+                    </p>
+                  </div>
+                )}
+
+                <div className="pt-3 border-t border-zinc-900/8 dark:border-white/10 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-600 dark:text-zinc-300">
                   <span className="font-semibold text-zinc-900 dark:text-white">
                     {item.customerName}
                   </span>
-                  <span className="text-zinc-400" aria-hidden="true">
-                    ·
-                  </span>
-                  <span>{item.cityOrRole}</span>
+                  {item.cityOrRole && (
+                    <>
+                      <span className="text-zinc-400" aria-hidden="true">
+                        ·
+                      </span>
+                      <span>{item.cityOrRole}</span>
+                    </>
+                  )}
                   <span className="text-zinc-400" aria-hidden="true">
                     ·
                   </span>
@@ -159,11 +307,11 @@ export function Testimonials({
           )}
         </div>
 
-        {/* Share Feedback Form */}
+        {/* Share Product Review Form */}
         <form
           onSubmit={handleSubmit}
           noValidate
-          className="lg:col-span-5 p-6 rounded-3xl glass-surface space-y-4"
+          className="lg:col-span-5 p-6 rounded-3xl glass-surface space-y-3.5"
         >
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-full glass-orb flex items-center justify-center shrink-0">
@@ -172,25 +320,26 @@ export function Testimonials({
                 aria-hidden="true"
               />
             </div>
-            <h3 className="font-display text-lg font-bold text-zinc-900 dark:text-white">
-              Share Parent Feedback
-            </h3>
+            <div>
+              <h3 className="font-display text-lg font-bold text-zinc-900 dark:text-white">
+                Share a Product Review
+              </h3>
+              <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                Attach a play photo and rate your BEE4 kit
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed">
-            Did our Japanese, Korean or Chinese 3D-printed kit cut down mobile screen time at home?
-            Tell fellow parents!
-          </p>
 
           {submittedNotice && (
             <div
               role="status"
               className="p-3 rounded-xl bg-emerald-50/85 dark:bg-emerald-950/70 backdrop-blur-md border border-emerald-200/80 dark:border-emerald-500/30 text-xs text-emerald-800 dark:text-emerald-200 font-medium"
             >
-              Thank you for sharing your review. It is now live in the parent showcase.
+              Dhanyavaad! Your review is pending Team BEE4 verification and will go live shortly.
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3">
             <div>
               <label
                 htmlFor="testimonial-name"
@@ -207,10 +356,37 @@ export function Testimonials({
                   if (errors.customerName) setErrors({ ...errors, customerName: undefined });
                 }}
                 placeholder="e.g. Kavya Menon"
-                className="w-full h-11 px-3 rounded-xl glass-input text-sm focus:outline-none"
+                className="w-full h-10 px-3 rounded-xl glass-input text-sm focus:outline-none"
               />
               {errors.customerName && (
-                <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.customerName}</p>
+                <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                  {errors.customerName}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label
+                htmlFor="testimonial-contact"
+                className="block text-xs font-medium text-zinc-700 dark:text-zinc-200 mb-1"
+              >
+                Phone or Email (Private verification) *
+              </label>
+              <input
+                id="testimonial-contact"
+                type="text"
+                value={customerContact}
+                onChange={(e) => {
+                  setCustomerContact(e.target.value);
+                  if (errors.customerContact) setErrors({ ...errors, customerContact: undefined });
+                }}
+                placeholder="10-digit WhatsApp or email"
+                className="w-full h-10 px-3 rounded-xl glass-input text-sm focus:outline-none"
+              />
+              {errors.customerContact && (
+                <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                  {errors.customerContact}
+                </p>
               )}
             </div>
 
@@ -219,22 +395,16 @@ export function Testimonials({
                 htmlFor="testimonial-city"
                 className="block text-xs font-medium text-zinc-700 dark:text-zinc-200 mb-1"
               >
-                Child&apos;s Age &amp; City *
+                City / Parent Note (Optional)
               </label>
               <input
                 id="testimonial-city"
                 type="text"
                 value={cityOrRole}
-                onChange={(e) => {
-                  setCityOrRole(e.target.value);
-                  if (errors.cityOrRole) setErrors({ ...errors, cityOrRole: undefined });
-                }}
+                onChange={(e) => setCityOrRole(e.target.value)}
                 placeholder="e.g. Mother of 8-yr-old · Pune"
-                className="w-full h-11 px-3 rounded-xl glass-input text-sm focus:outline-none"
+                className="w-full h-10 px-3 rounded-xl glass-input text-sm focus:outline-none"
               />
-              {errors.cityOrRole && (
-                <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.cityOrRole}</p>
-              )}
             </div>
           </div>
 
@@ -243,16 +413,16 @@ export function Testimonials({
               htmlFor="testimonial-product"
               className="block text-xs font-medium text-zinc-700 dark:text-zinc-200 mb-1"
             >
-              Toy Purchased
+              Select Product *
             </label>
             <select
               id="testimonial-product"
-              value={productName}
-              onChange={(e) => setProductName(e.target.value)}
-              className="w-full h-11 px-3 rounded-xl glass-input text-sm focus:outline-none"
+              value={activeProduct?.id ?? selectedProductId}
+              onChange={(e) => setSelectedProductId(e.target.value)}
+              className="w-full h-10 px-3 rounded-xl glass-input text-sm focus:outline-none"
             >
               {products.map((product) => (
-                <option key={product.id} value={product.title}>
+                <option key={product.id} value={product.id}>
                   {product.title}
                 </option>
               ))}
@@ -261,7 +431,7 @@ export function Testimonials({
 
           <div>
             <span className="block text-xs font-medium text-zinc-700 dark:text-zinc-200 mb-1.5">
-              Your Rating
+              Star Rating *
             </span>
             <div className="flex items-center gap-1.5" role="group" aria-label="Select star rating">
               {RATING_LEVELS.map((star) => {
@@ -273,7 +443,7 @@ export function Testimonials({
                     onClick={() => setRating(star)}
                     aria-label={`Rate ${star} out of 5 stars`}
                     aria-pressed={rating === star}
-                    className="w-11 h-11 rounded-xl glass-btn-secondary inline-flex items-center justify-center transition-all"
+                    className="w-10 h-10 rounded-xl glass-btn-secondary inline-flex items-center justify-center transition-all"
                   >
                     <Star
                       className={`w-5 h-5 ${
@@ -301,27 +471,105 @@ export function Testimonials({
             <textarea
               id="testimonial-feedback"
               rows={3}
-              value={feedback}
+              value={comment}
               onChange={(e) => {
-                setFeedback(e.target.value);
-                if (errors.feedback) setErrors({ ...errors, feedback: undefined });
+                setComment(e.target.value);
+                if (errors.comment) setErrors({ ...errors, comment: undefined });
               }}
-              placeholder="Share how your child liked the mechanism, build finish, or screen-free engagement..."
+              placeholder="Share how your child liked the mechanism, Bio-PLA finish, or screen-free focus..."
               className="w-full p-3 rounded-xl glass-input text-sm focus:outline-none"
             />
-            {errors.feedback && (
-              <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.feedback}</p>
+            {errors.comment && (
+              <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.comment}</p>
+            )}
+          </div>
+
+          {/* Optional Customer Photo Upload or URL */}
+          <div className="space-y-2">
+            <label
+              htmlFor="testimonial-photo-url"
+              className="block text-xs font-medium text-zinc-700 dark:text-zinc-200"
+            >
+              Customer Photo (Optional)
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                id="testimonial-photo-url"
+                type="url"
+                value={photoUrl}
+                onChange={(e) => {
+                  setPhotoUrl(e.target.value);
+                  if (errors.photoUrl) setErrors({ ...errors, photoUrl: undefined });
+                }}
+                placeholder="Paste image URL or upload →"
+                className="flex-1 h-10 px-3 rounded-xl glass-input text-xs focus:outline-none"
+              />
+              <label className="h-10 px-3 rounded-xl glass-btn-secondary text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer shrink-0">
+                <Upload className="w-3.5 h-3.5" />
+                <span>{uploadingPhoto ? 'Uploading...' : 'Upload'}</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  disabled={uploadingPhoto}
+                  onChange={handlePhotoUpload}
+                  className="sr-only"
+                />
+              </label>
+            </div>
+            {uploadStatusMsg && (
+              <p className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400 inline-flex items-center gap-1">
+                <ImagePlus className="w-3 h-3" />
+                <span>{uploadStatusMsg}</span>
+              </p>
+            )}
+            {errors.photoUrl && (
+              <p className="text-xs text-red-600 dark:text-red-400">{errors.photoUrl}</p>
             )}
           </div>
 
           <button
             type="submit"
-            className="w-full h-11 rounded-xl glass-btn-ink text-sm font-semibold transition-all"
+            disabled={uploadingPhoto}
+            className="w-full h-11 rounded-xl glass-btn-ink text-sm font-semibold transition-all disabled:opacity-60"
           >
-            Post Feedback
+            Submit Review
           </button>
         </form>
       </div>
+
+      {lightboxPhoto && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Customer review photo preview"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/75 backdrop-blur-md"
+          onClick={() => setLightboxPhoto(null)}
+        >
+          <div
+            className="relative max-w-xl w-full glass-drawer rounded-3xl p-4 space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-semibold text-zinc-900 dark:text-white truncate">
+                {lightboxPhoto.caption}
+              </p>
+              <button
+                type="button"
+                onClick={() => setLightboxPhoto(null)}
+                aria-label="Close photo preview"
+                className="p-1.5 rounded-xl glass-btn-secondary"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <img
+              src={lightboxPhoto.url}
+              alt={lightboxPhoto.caption}
+              className="w-full max-h-[70vh] object-contain rounded-2xl bg-black/10"
+            />
+          </div>
+        </div>
+      )}
     </section>
   );
 }

@@ -113,7 +113,7 @@ security definer
 set search_path = public
 as $$
   select (
-    lower(coalesce(auth.jwt() ->> 'email', '')) = '${safeAdmin}'
+    lower(coalesce(auth.jwt() ->> 'email', '')) in ('${safeAdmin}', 'bee4official@gmail.com')
     or coalesce((auth.jwt() -> 'user_metadata' ->> 'is_admin')::boolean, false) = true
     or coalesce((auth.jwt() -> 'app_metadata' ->> 'is_admin')::boolean, false) = true
     or exists (
@@ -343,6 +343,39 @@ create table if not exists public.inventory_adjustments (
   timestamp timestamptz not null default now()
 );
 
+create table if not exists public.customer_messages (
+  id text primary key,
+  user_id uuid references auth.users(id) on delete set null,
+  customer_name text not null,
+  phone text not null,
+  email text not null default '',
+  topic text not null default 'General Note',
+  message text not null,
+  status text not null default 'Unread',
+  admin_note text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.product_reviews (
+  id text primary key,
+  user_id uuid references auth.users(id) on delete set null,
+  product_id text not null,
+  product_name text not null,
+  customer_name text not null,
+  customer_contact text not null default '',
+  city_or_role text not null default '',
+  rating integer not null check (rating >= 1 and rating <= 5),
+  comment text not null,
+  photo_url text not null default '',
+  verified_buyer boolean not null default false,
+  featured_on_homepage boolean not null default false,
+  status text not null default 'Pending',
+  admin_reply text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 -- 7. Enable Row Level Security (RLS)
 alter table public.profiles enable row level security;
 alter table public.products enable row level security;
@@ -356,6 +389,8 @@ alter table public.inquiries enable row level security;
 alter table public.testimonials enable row level security;
 alter table public.returns enable row level security;
 alter table public.inventory_adjustments enable row level security;
+alter table public.customer_messages enable row level security;
+alter table public.product_reviews enable row level security;
 
 -- Public Read Policies (Storefront Catalog, Coupons, Settings, Testimonials)
 drop policy if exists "Public read active products" on public.products;
@@ -450,7 +485,46 @@ drop policy if exists "Admins manage inventory_adjustments" on public.inventory_
 create policy "Admins manage inventory_adjustments" on public.inventory_adjustments
   for all using (public.is_bee4_admin()) with check (public.is_bee4_admin());
 
--- 8. Public Supabase Storage Bucket for 3-Angle Product Images & Return Proof Photos (Free Plan Compatible)
+-- Customer Messages ('Send Us a Note') & Product Reviews Policies
+drop policy if exists "Anyone submit customer_message" on public.customer_messages;
+create policy "Anyone submit customer_message" on public.customer_messages
+  for insert with check (true);
+
+drop policy if exists "Admins manage customer_messages" on public.customer_messages;
+create policy "Admins manage customer_messages" on public.customer_messages
+  for all using (
+    public.is_bee4_admin()
+    or lower(coalesce(auth.jwt() ->> 'email', '')) = 'bee4official@gmail.com'
+  )
+  with check (
+    public.is_bee4_admin()
+    or lower(coalesce(auth.jwt() ->> 'email', '')) = 'bee4official@gmail.com'
+  );
+
+drop policy if exists "Public read published product_reviews" on public.product_reviews;
+create policy "Public read published product_reviews" on public.product_reviews
+  for select using (
+    status = 'Published'
+    or public.is_bee4_admin()
+    or lower(coalesce(auth.jwt() ->> 'email', '')) = 'bee4official@gmail.com'
+  );
+
+drop policy if exists "Anyone submit product_review" on public.product_reviews;
+create policy "Anyone submit product_review" on public.product_reviews
+  for insert with check (true);
+
+drop policy if exists "Admins manage product_reviews" on public.product_reviews;
+create policy "Admins manage product_reviews" on public.product_reviews
+  for all using (
+    public.is_bee4_admin()
+    or lower(coalesce(auth.jwt() ->> 'email', '')) = 'bee4official@gmail.com'
+  )
+  with check (
+    public.is_bee4_admin()
+    or lower(coalesce(auth.jwt() ->> 'email', '')) = 'bee4official@gmail.com'
+  );
+
+-- 8. Public Supabase Storage Bucket for 3-Angle Product Images, Return Proofs & Review Photos
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (
   'product-images',
@@ -469,7 +543,10 @@ drop policy if exists "Admins upload product-images" on storage.objects;
 create policy "Admins upload product-images" on storage.objects
   for insert with check (
     bucket_id = 'product-images'
-    and (public.is_bee4_admin() or (storage.foldername(name))[1] = 'returns')
+    and (
+      public.is_bee4_admin()
+      or (storage.foldername(name))[1] in ('returns', 'reviews')
+    )
   );
 
 drop policy if exists "Admins update product-images" on storage.objects;
@@ -508,6 +585,18 @@ end $$;
 do $$
 begin
   alter publication supabase_realtime add table public.store_settings;
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table public.customer_messages;
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table public.product_reviews;
 exception when duplicate_object then null;
 end $$;
 `;

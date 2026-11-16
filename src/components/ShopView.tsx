@@ -1,13 +1,21 @@
 import { useState } from 'react';
 import { ArrowDownUp, ArrowUpDown, Check, RotateCcw, Tag } from 'lucide-react';
 import { AGE_GROUP_META } from '../data/catalog';
-import { AgeGroup, GiftOccasion, Product, ProductCategory, SortOption } from '../types';
+import {
+  AgeGroup,
+  GiftOccasion,
+  Product,
+  ProductCategory,
+  ProductReviewRecord,
+  SortOption,
+} from '../types';
 import { filterAndSortProducts, groupProductsByAge } from '../utils/storeLogic';
 import { DualFilterBar } from './DualFilterBar';
 import { ProductCard } from './ProductCard';
 
 interface ShopViewProps {
   products: Product[];
+  reviews?: ProductReviewRecord[];
   wishlistIds: string[];
   category: ProductCategory;
   ageGroup: AgeGroup;
@@ -34,6 +42,7 @@ const OCCASIONS = Object.values(GiftOccasion);
 
 export function ShopView({
   products,
+  reviews = [],
   wishlistIds,
   category,
   ageGroup,
@@ -305,6 +314,7 @@ export function ShopView({
                     <ProductCard
                       key={product.id}
                       product={product}
+                      reviews={reviews}
                       isWishlisted={wishlistIds.includes(product.id)}
                       onSelectProduct={onSelectProduct}
                       onQuickView={onQuickView}
@@ -323,6 +333,7 @@ export function ShopView({
             <ProductCard
               key={product.id}
               product={product}
+              reviews={reviews}
               isWishlisted={wishlistIds.includes(product.id)}
               onSelectProduct={onSelectProduct}
               onQuickView={onQuickView}

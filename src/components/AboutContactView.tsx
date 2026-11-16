@@ -1,7 +1,16 @@
 import { FormEvent, useState } from 'react';
-import { CheckCircle2, Mail, MapPin, MessageCircle } from 'lucide-react';
+import { CheckCircle2, Mail, MapPin, MessageCircle, Send, Sparkles } from 'lucide-react';
 import { HERO_IMAGE } from '../data/catalog';
-import { StorePage } from '../types';
+import {
+  CustomerMessageRecord,
+  CustomerMessageTopic,
+  StorePage,
+} from '../types';
+import {
+  CUSTOMER_MESSAGE_TOPICS,
+  CustomerNoteFormErrors,
+  validateCustomerNoteForm,
+} from '../utils/messagesReviewsLogic';
 import { buildWhatsAppUrl, formatWhatsAppDisplay } from '../utils/storeLogic';
 import { ProductImage } from './ProductImage';
 
@@ -97,39 +106,77 @@ export function AboutView({ onNavigate }: AboutViewProps) {
 interface ContactViewProps {
   whatsappNumber: string;
   supportEmail: string;
-  onSubmitInquiry: (inquiry: {
+  onSubmitInquiry?: (inquiry: {
     name: string;
     contact: string;
     topic: string;
     message: string;
   }) => void;
+  onSubmitCustomerMessage?: (msg: CustomerMessageRecord) => void;
 }
 
 export function ContactView({
   whatsappNumber,
   supportEmail,
   onSubmitInquiry,
+  onSubmitCustomerMessage,
 }: ContactViewProps) {
-  const [name, setName] = useState('');
-  const [contact, setContact] = useState('');
-  const [topic, setTopic] = useState('Order Support');
+  const [customerName, setCustomerName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [topic, setTopic] = useState<CustomerMessageTopic>('Order Status Inquiry');
   const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
+  const [errors, setErrors] = useState<CustomerNoteFormErrors>({});
   const [sent, setSent] = useState(false);
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
-    if (name.trim().length < 2 || contact.trim().length < 5 || message.trim().length < 5) {
-      setError('Please fill in your name, phone or email, and a short message.');
+    const validation = validateCustomerNoteForm({
+      customerName,
+      phone,
+      email,
+      topic,
+      message,
+    });
+
+    if (!validation.valid) {
+      setErrors(validation.errors);
+      setSent(false);
       return;
     }
-    setError('');
-    onSubmitInquiry({
-      name: name.trim(),
-      contact: contact.trim(),
+
+    const now = new Date().toISOString();
+    const cleanName = customerName.trim();
+    const cleanEmail = email.trim();
+    const cleanMessage = message.trim();
+
+    const record: CustomerMessageRecord = {
+      id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      customerName: cleanName,
+      phone: validation.normalizedPhone,
+      email: cleanEmail || undefined,
       topic,
-      message: message.trim(),
+      message: cleanMessage,
+      status: 'Unread',
+      adminNote: '',
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    onSubmitCustomerMessage?.(record);
+    onSubmitInquiry?.({
+      name: cleanName,
+      contact: cleanEmail ? `${validation.normalizedPhone} · ${cleanEmail}` : validation.normalizedPhone,
+      topic,
+      message: cleanMessage,
     });
+
+    setCustomerName('');
+    setPhone('');
+    setEmail('');
+    setTopic('Order Status Inquiry');
+    setMessage('');
+    setErrors({});
     setSent(true);
   };
 
@@ -204,39 +251,42 @@ export function ContactView({
 
         <div className="lg:col-span-7 glass-surface rounded-3xl p-6 sm:p-8">
           {sent ? (
-            <div className="py-10 text-center space-y-3">
-              <CheckCircle2 className="w-10 h-10 text-emerald-700 dark:text-emerald-400 mx-auto" />
-              <h2 className="font-display text-2xl font-bold text-zinc-900 dark:text-white">
-                Message Received
+            <div
+              role="status"
+              className="py-10 px-4 text-center space-y-4 animate-[fadeIn_0.35s_ease-out]"
+            >
+              <div className="w-14 h-14 mx-auto rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shadow-lg">
+                <CheckCircle2 className="w-8 h-8 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full glass-subtle text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Saved directly to BEE4 Studio Inbox</span>
+              </div>
+              <h2 className="font-display text-2xl font-bold text-zinc-900 dark:text-white text-balance">
+                Note Delivered to Team BEE4
               </h2>
-              <p className="text-sm text-zinc-600 dark:text-zinc-300 max-w-md mx-auto">
-                Thanks {name}! Our team will get back to you at <strong>{contact}</strong> within 1
-                business day.
+              <p className="text-sm sm:text-base font-medium text-zinc-700 dark:text-zinc-200 max-w-md mx-auto leading-relaxed">
+                Dhanyavaad! Your note has reached Team BEE4. We&apos;ll reply on WhatsApp/Email
+                shortly.
               </p>
               <button
                 type="button"
-                onClick={() => {
-                  setSent(false);
-                  setName('');
-                  setContact('');
-                  setMessage('');
-                }}
-                className="mt-4 px-5 py-2.5 rounded-xl glass-btn-secondary text-zinc-900 dark:text-white text-sm font-semibold"
+                onClick={() => setSent(false)}
+                className="mt-2 px-5 py-2.5 rounded-xl glass-btn-secondary text-zinc-900 dark:text-white text-sm font-semibold transition-all"
               >
-                Send Another Inquiry
+                Send Another Note
               </button>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <h2 className="font-display text-xl font-bold text-zinc-900 dark:text-white">
-                Send Us a Note
-              </h2>
-
-              {error && (
-                <p className="p-3 rounded-xl bg-red-50/90 backdrop-blur-md border border-red-200 text-xs text-red-700">
-                  {error}
+            <form onSubmit={handleSubmit} noValidate className="space-y-4">
+              <div>
+                <h2 className="font-display text-xl font-bold text-zinc-900 dark:text-white">
+                  Send Us a Note
+                </h2>
+                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                  Reaches our Banka 3D-print studio team immediately for WhatsApp or Email follow-up.
                 </p>
-              )}
+              </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -244,53 +294,97 @@ export function ContactView({
                     htmlFor="contact-name"
                     className="block text-xs font-semibold text-zinc-700 dark:text-zinc-200 mb-1.5"
                   >
-                    Your Name *
+                    Customer Name *
                   </label>
                   <input
                     id="contact-name"
                     type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    required
+                    value={customerName}
+                    onChange={(e) => {
+                      setCustomerName(e.target.value);
+                      if (errors.customerName) setErrors({ ...errors, customerName: undefined });
+                    }}
                     placeholder="e.g. Kabir Mehta"
                     className="w-full px-3.5 py-2.5 text-sm glass-input rounded-xl focus:outline-none"
                   />
+                  {errors.customerName && (
+                    <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                      {errors.customerName}
+                    </p>
+                  )}
                 </div>
 
                 <div>
                   <label
-                    htmlFor="contact-info"
+                    htmlFor="contact-phone"
                     className="block text-xs font-semibold text-zinc-700 dark:text-zinc-200 mb-1.5"
                   >
-                    Phone or Email *
+                    Phone / WhatsApp Number (10 digits) *
                   </label>
                   <input
-                    id="contact-info"
-                    type="text"
-                    value={contact}
-                    onChange={(e) => setContact(e.target.value)}
-                    placeholder="+91 98... or email"
-                    className="w-full px-3.5 py-2.5 text-sm glass-input rounded-xl focus:outline-none"
+                    id="contact-phone"
+                    type="tel"
+                    inputMode="numeric"
+                    required
+                    value={phone}
+                    onChange={(e) => {
+                      setPhone(e.target.value);
+                      if (errors.phone) setErrors({ ...errors, phone: undefined });
+                    }}
+                    placeholder="e.g. 9876543210"
+                    className="w-full px-3.5 py-2.5 text-sm glass-input rounded-xl tabular-nums focus:outline-none"
                   />
+                  {errors.phone && (
+                    <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.phone}</p>
+                  )}
                 </div>
               </div>
 
-              <div>
-                <label
-                  htmlFor="contact-topic"
-                  className="block text-xs font-semibold text-zinc-700 dark:text-zinc-200 mb-1.5"
-                >
-                  Topic
-                </label>
-                <select
-                  id="contact-topic"
-                  value={topic}
-                  onChange={(e) => setTopic(e.target.value)}
-                  className="w-full px-3.5 py-2.5 text-sm glass-input rounded-xl focus:outline-none"
-                >
-                  <option value="Order Support">Order Support &amp; Tracking</option>
-                  <option value="Bulk / School STEM Kit">Bulk / School STEM &amp; Return Gifts</option>
-                  <option value="Age Recommendation">Child Age Recommendation</option>
-                </select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label
+                    htmlFor="contact-email"
+                    className="block text-xs font-semibold text-zinc-700 dark:text-zinc-200 mb-1.5"
+                  >
+                    Email Address (Optional)
+                  </label>
+                  <input
+                    id="contact-email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (errors.email) setErrors({ ...errors, email: undefined });
+                    }}
+                    placeholder="you@example.com"
+                    className="w-full px-3.5 py-2.5 text-sm glass-input rounded-xl focus:outline-none"
+                  />
+                  {errors.email && (
+                    <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.email}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="contact-topic"
+                    className="block text-xs font-semibold text-zinc-700 dark:text-zinc-200 mb-1.5"
+                  >
+                    Topic / Subject *
+                  </label>
+                  <select
+                    id="contact-topic"
+                    value={topic}
+                    onChange={(e) => setTopic(e.target.value as CustomerMessageTopic)}
+                    className="w-full px-3.5 py-2.5 text-sm glass-input rounded-xl focus:outline-none"
+                  >
+                    {CUSTOMER_MESSAGE_TOPICS.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div>
@@ -298,23 +392,31 @@ export function ContactView({
                   htmlFor="contact-message"
                   className="block text-xs font-semibold text-zinc-700 dark:text-zinc-200 mb-1.5"
                 >
-                  Message *
+                  Message / Note *
                 </label>
                 <textarea
                   id="contact-message"
                   rows={4}
+                  required
                   value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  placeholder="Share your child's age or school quantity inquiry..."
+                  onChange={(e) => {
+                    setMessage(e.target.value);
+                    if (errors.message) setErrors({ ...errors, message: undefined });
+                  }}
+                  placeholder="Share your child's age, custom 3D print gift idea, order ID, or school kit inquiry..."
                   className="w-full px-3.5 py-2.5 text-sm glass-input rounded-xl focus:outline-none"
                 />
+                {errors.message && (
+                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.message}</p>
+                )}
               </div>
 
               <button
                 type="submit"
-                className="px-6 py-3 rounded-xl glass-btn-amber text-white text-sm font-semibold transition-all"
+                className="px-6 py-3 rounded-xl glass-btn-amber text-white text-sm font-semibold inline-flex items-center gap-2 transition-all"
               >
-                Send Message
+                <Send className="w-4 h-4" />
+                <span>Send Note to Team BEE4</span>
               </button>
             </form>
           )}

@@ -1,7 +1,19 @@
 import { useEffect, useState } from 'react';
-import { ArrowUpRight, Check, Heart, MessageCircle, Minus, Plus, ShieldCheck, Truck, X } from 'lucide-react';
+import {
+  ArrowUpRight,
+  Check,
+  Heart,
+  MessageCircle,
+  Minus,
+  Plus,
+  ShieldCheck,
+  Star,
+  Truck,
+  X,
+} from 'lucide-react';
 import { AGE_GROUP_META } from '../data/catalog';
-import { Product } from '../types';
+import { Product, ProductReviewRecord } from '../types';
+import { computeProductRatingStats } from '../utils/messagesReviewsLogic';
 import {
   buildWhatsAppUrl,
   formatINR,
@@ -11,6 +23,7 @@ import { ProductImage } from './ProductImage';
 
 interface ProductQuickViewModalProps {
   product: Product | null;
+  reviews?: ProductReviewRecord[];
   isWishlisted: boolean;
   whatsappNumber: string;
   onClose: () => void;
@@ -22,6 +35,7 @@ interface ProductQuickViewModalProps {
 
 export function ProductQuickViewModal({
   product,
+  reviews = [],
   isWishlisted,
   whatsappNumber,
   onClose,
@@ -174,6 +188,21 @@ export function ProductQuickViewModal({
               <h2 className="font-display text-xl sm:text-2xl font-bold text-zinc-900 dark:text-white leading-tight">
                 {product.title}
               </h2>
+
+              {(() => {
+                const stats = computeProductRatingStats(reviews, product.id, product.title);
+                if (stats.reviewCount === 0) return null;
+                return (
+                  <div className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-700 dark:text-zinc-200 tabular-nums">
+                    <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+                    <span>{stats.averageRating.toFixed(1)} / 5</span>
+                    <span className="text-zinc-400">·</span>
+                    <span>
+                      {stats.reviewCount} {stats.reviewCount === 1 ? 'review' : 'reviews'}
+                    </span>
+                  </div>
+                );
+              })()}
 
               <div className="mt-2.5 flex items-baseline gap-2.5 tabular-nums">
                 <span className="font-display text-2xl font-bold text-zinc-900 dark:text-white">

@@ -5,6 +5,7 @@ import type {
   CouponRecord,
   CrmCustomerFlag,
   CustomerInquiry,
+  CustomerMessageRecord,
   CustomerProfile,
   FilamentSpool,
   FulfillmentStage,
@@ -12,6 +13,7 @@ import type {
   OrderRecord,
   PrintJobRecord,
   Product,
+  ProductReviewRecord,
   ReturnRequestRecord,
   StoreSettings,
   ThemeMode,
@@ -20,6 +22,7 @@ import {
   buildCustomerCrmList,
   buildExecutiveDashboardSummary,
 } from '../utils/adminLogic';
+import { calculateMessagesReviewsBadgeCount } from '../utils/messagesReviewsLogic';
 import type { RmaTransitionUpdates } from '../utils/rmaLogic';
 import { AdminShell } from './admin/AdminShell';
 import { AdminCommandPalette } from './admin/AdminCommandPalette';
@@ -30,6 +33,7 @@ import { AdminProductsTab } from './admin/AdminProductsTab';
 import { AdminInventoryTab } from './admin/AdminInventoryTab';
 import { AdminDiscountsTab } from './admin/AdminDiscountsTab';
 import { AdminCustomersTab } from './admin/AdminCustomersTab';
+import { AdminMessagesReviewsTab } from './admin/AdminMessagesReviewsTab';
 import { AdminSettingsTab } from './admin/AdminSettingsTab';
 
 interface AdminPanelViewProps {
@@ -40,6 +44,8 @@ interface AdminPanelViewProps {
   returns?: ReturnRequestRecord[];
   inventoryAdjustments?: InventoryAdjustmentRecord[];
   inquiries: CustomerInquiry[];
+  customerMessages?: CustomerMessageRecord[];
+  productReviews?: ProductReviewRecord[];
   customers: CustomerProfile[];
   coupons: CouponRecord[];
   printJobs: PrintJobRecord[];
@@ -81,6 +87,11 @@ interface AdminPanelViewProps {
   onSaveFilamentSpool: (spool: FilamentSpool) => void;
   onSetCustomerFlag: (phoneOrKey: string, flag: CrmCustomerFlag) => void;
   onToggleInquiryStatus: (id: string) => void;
+  onUpdateCustomerMessage?: (updated: CustomerMessageRecord) => void;
+  onDeleteCustomerMessage?: (id: string) => void;
+  onBulkDeleteCustomerMessages?: (ids: string[]) => void;
+  onSaveProductReview?: (review: ProductReviewRecord, isNew?: boolean) => void;
+  onDeleteProductReview?: (id: string) => void;
   onChangeAdminPasswordHash: (nextHash: string) => void;
   onLockAdmin: () => void;
   onBackToStore: () => void;
@@ -94,6 +105,8 @@ export function AdminPanelView({
   returns = [],
   inventoryAdjustments = [],
   inquiries,
+  customerMessages = [],
+  productReviews = [],
   customers,
   coupons,
   printJobs,
@@ -122,6 +135,11 @@ export function AdminPanelView({
   onSaveFilamentSpool,
   onSetCustomerFlag,
   onToggleInquiryStatus,
+  onUpdateCustomerMessage,
+  onDeleteCustomerMessage,
+  onBulkDeleteCustomerMessages,
+  onSaveProductReview,
+  onDeleteProductReview,
   onChangeAdminPasswordHash,
   onLockAdmin,
   onBackToStore,
@@ -156,6 +174,11 @@ export function AdminPanelView({
     [returns]
   );
 
+  const messagesReviewsBadgeCount = useMemo(
+    () => calculateMessagesReviewsBadgeCount(customerMessages, productReviews),
+    [customerMessages, productReviews]
+  );
+
   const crmCustomers = useMemo(
     () =>
       buildCustomerCrmList({
@@ -181,6 +204,7 @@ export function AdminPanelView({
         theme={theme}
         pendingDispatchCount={executiveSummary.immediateDispatchOrders.length}
         pendingReturnsCount={pendingReturnsCount}
+        messagesReviewsBadgeCount={messagesReviewsBadgeCount}
         lowStockCount={executiveSummary.lowStockProducts.length}
         totalOrdersCount={orders.length}
         totalProductsCount={products.length}
@@ -354,12 +378,45 @@ export function AdminPanelView({
           />
         )}
 
+        {activeModule === 'messages-reviews' && (
+          <AdminMessagesReviewsTab
+            messages={customerMessages}
+            reviews={productReviews}
+            products={products}
+            onUpdateMessage={(updated) => {
+              onUpdateCustomerMessage?.(updated);
+              notify(`Updated note from ${updated.customerName} (${updated.status}).`);
+            }}
+            onDeleteMessage={(id) => {
+              onDeleteCustomerMessage?.(id);
+              notify('Deleted customer message.');
+            }}
+            onBulkDeleteMessages={(ids) => {
+              onBulkDeleteCustomerMessages?.(ids);
+              notify(`Deleted ${ids.length} customer message(s).`);
+            }}
+            onSaveReview={(review, isNew) => {
+              onSaveProductReview?.(review, isNew);
+              notify(
+                isNew
+                  ? `Added review by ${review.customerName} (${review.status}).`
+                  : `Updated review for ${review.productName} (${review.status}).`
+              );
+            }}
+            onDeleteReview={(id) => {
+              onDeleteProductReview?.(id);
+              notify('Deleted product review and recalculated ratings.');
+            }}
+          />
+        )}
+
         {activeModule === 'settings' && (
           <AdminSettingsTab
             settings={settings}
             adminPasswordHash={adminPasswordHash}
             inquiries={inquiries}
             auditLogs={auditLogs}
+            onOpenMessagesReviews={() => onSelectModule('messages-reviews')}
             onUpdateSettings={(next) => {
               onUpdateSettings(next);
               notify('Published storefront CMS, payment, and fee changes live.');

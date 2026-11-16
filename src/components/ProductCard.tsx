@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import { Check, Heart, Plus } from 'lucide-react';
+import { Check, Heart, Plus, Star } from 'lucide-react';
 import { AGE_GROUP_META } from '../data/catalog';
-import { Product } from '../types';
+import { Product, ProductReviewRecord } from '../types';
+import { computeProductRatingStats } from '../utils/messagesReviewsLogic';
 import { formatINR } from '../utils/storeLogic';
 import { ProductImage } from './ProductImage';
 
 interface ProductCardProps {
   product: Product;
+  reviews?: ProductReviewRecord[];
   isWishlisted?: boolean;
   onSelectProduct: (productId: string) => void;
   onQuickView?: (product: Product) => void;
@@ -16,6 +18,7 @@ interface ProductCardProps {
 
 export function ProductCard({
   product,
+  reviews = [],
   isWishlisted = false,
   onSelectProduct,
   onQuickView,
@@ -27,6 +30,7 @@ export function ProductCard({
   const ageMeta = AGE_GROUP_META.find((m) => m.ageGroup === product.ageGroup);
   const coverAngle = product.gallery[0];
   const hasDiscount = Boolean(product.compareAtPrice && product.compareAtPrice > product.price);
+  const ratingStats = computeProductRatingStats(reviews, product.id, product.title);
 
   const handleQuickAdd = () => {
     if (!product.inStock) return;
@@ -52,6 +56,16 @@ export function ProductCard({
             className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.02]"
           />
         </button>
+
+        {ratingStats.reviewCount > 0 && (
+          <div className="absolute top-3 left-3 z-10 px-2 py-0.5 rounded-full bg-white/85 dark:bg-zinc-900/85 backdrop-blur-md border border-white/70 dark:border-white/15 inline-flex items-center gap-1 text-[11px] font-bold text-zinc-900 dark:text-white tabular-nums shadow-sm">
+            <Star className="w-3 h-3 fill-amber-500 text-amber-500" aria-hidden="true" />
+            <span>{ratingStats.averageRating.toFixed(1)}</span>
+            <span className="text-zinc-500 dark:text-zinc-400 font-medium">
+              ({ratingStats.reviewCount})
+            </span>
+          </div>
+        )}
 
         {onToggleWishlist && (
           <button

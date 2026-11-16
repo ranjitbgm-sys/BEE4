@@ -116,6 +116,11 @@ export function AdminCommandPalette({
     { id: 'inventory', label: 'Inventory & 3D Print Lab', hint: 'Stock, Print Queue & Spools' },
     { id: 'discounts', label: 'Discounts & Gifting', hint: 'Coupons & Gift Wrap fee' },
     { id: 'customers', label: 'Customers & CRM', hint: 'LTV, RTO flags & CSV export' },
+    {
+      id: 'messages-reviews',
+      label: 'Messages & Reviews',
+      hint: 'Customer notes, WhatsApp replies & review moderation',
+    },
     { id: 'settings', label: 'Storefront CMS & Security', hint: 'Hero copy, payments & audit logs' },
   ];
 

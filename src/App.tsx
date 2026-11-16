@@ -8,10 +8,13 @@ import type { User } from '@supabase/supabase-js';
 import { isSupabaseAdminUser, supabaseDiagnostics } from './lib/supabase';
 import {
   addTestimonialToSupabase,
+  bulkDeleteCustomerMessagesFromSupabase,
   createOrderInSupabase,
   createReturnRequestInSupabase,
   deleteCouponFromSupabase,
+  deleteCustomerMessageFromSupabase,
   deleteProductFromSupabase,
+  deleteProductReviewFromSupabase,
   ensureSupabaseCustomerProfile,
   onSupabaseAuthChange,
   saveCouponToSupabase,
@@ -22,24 +25,31 @@ import {
   seedSupabaseDataAsAdmin,
   signInWithGoogleSupabase,
   signOutFromSupabase,
+  submitCustomerMessageToSupabase,
   submitInquiryToSupabase,
+  submitProductReviewToSupabase,
   subscribeAdminAuditLogs,
+  subscribeAllCustomerMessagesAdmin,
   subscribeAllInquiriesAdmin,
   subscribeAllOrdersAdmin,
+  subscribeAllProductReviewsAdmin,
   subscribeAllReturnsAdmin,
   subscribeCoupons,
   subscribeFilamentSpoolsAdmin,
   subscribeInventoryAdjustmentsAdmin,
   subscribePrintJobsAdmin,
   subscribePublicProducts,
+  subscribePublicPublishedReviews,
   subscribePublicSettings,
   subscribePublicTestimonials,
   subscribeUserOrders,
   subscribeUserReturns,
   toggleInquiryStatusInSupabase,
+  updateCustomerMessageInSupabase,
   updateOrderLogisticsInSupabase,
   updateOrderRefundInSupabase,
   updateOrderStatusInSupabase,
+  updateProductReviewInSupabase,
   updateReturnRequestInSupabase,
   updateSupabaseCustomerProfile,
   writeAdminAuditLogToSupabase,
@@ -50,6 +60,7 @@ import {
   INITIAL_ADMIN_LOGS,
   INITIAL_COUPONS,
   INITIAL_CUSTOMERS,
+  INITIAL_CUSTOMER_MESSAGES,
   INITIAL_DEMO_RETURN_ORDERS,
   INITIAL_FILAMENT_SPOOLS,
   INITIAL_INQUIRIES,
@@ -57,6 +68,7 @@ import {
   INITIAL_ORDERS,
   INITIAL_PRINT_JOBS,
   INITIAL_PRODUCTS,
+  INITIAL_PRODUCT_REVIEWS,
   INITIAL_RETURNS,
   INITIAL_TESTIMONIALS,
   hydrateProductAdminFields,
@@ -69,6 +81,7 @@ import {
   CouponRecord,
   CrmCustomerFlag,
   CustomerInquiry,
+  CustomerMessageRecord,
   CustomerProfile,
   FilamentSpool,
   FulfillmentStage,
@@ -79,6 +92,7 @@ import {
   PrintJobRecord,
   Product,
   ProductCategory,
+  ProductReviewRecord,
   ReturnRequestRecord,
   SavedAddress,
   SortOption,
@@ -113,6 +127,8 @@ const STORAGE_ORDERS_KEY = 'bee4_orders_v3';
 const STORAGE_RETURNS_KEY = 'bee4_returns_v1';
 const STORAGE_INVENTORY_LOGS_KEY = 'bee4_inventory_logs_v1';
 const STORAGE_INQUIRIES_KEY = 'bee4_inquiries_v1';
+const STORAGE_CUSTOMER_MESSAGES_KEY = 'bee4_customer_messages_v1';
+const STORAGE_PRODUCT_REVIEWS_KEY = 'bee4_product_reviews_v1';
 const STORAGE_SETTINGS_KEY = 'bee4_settings_v3';
 const STORAGE_TESTIMONIALS_KEY = 'bee4_testimonials_v2';
 const STORAGE_CUSTOMERS_KEY = 'bee4_customers_v2';
@@ -137,6 +153,7 @@ const VALID_ADMIN_MODULES = new Set<AdminModuleRoute>([
   'inventory',
   'discounts',
   'customers',
+  'messages-reviews',
   'settings',
 ]);
 
@@ -221,6 +238,18 @@ export default function App() {
   );
   const [inquiries, setInquiries] = useState<CustomerInquiry[]>(() =>
     loadStoredJson<CustomerInquiry[]>(STORAGE_INQUIRIES_KEY, INITIAL_INQUIRIES)
+  );
+  const [customerMessages, setCustomerMessages] = useState<CustomerMessageRecord[]>(() =>
+    loadStoredJson<CustomerMessageRecord[]>(
+      STORAGE_CUSTOMER_MESSAGES_KEY,
+      INITIAL_CUSTOMER_MESSAGES
+    )
+  );
+  const [productReviews, setProductReviews] = useState<ProductReviewRecord[]>(() =>
+    loadStoredJson<ProductReviewRecord[]>(
+      STORAGE_PRODUCT_REVIEWS_KEY,
+      INITIAL_PRODUCT_REVIEWS
+    )
   );
   const [settings, setSettings] = useState<StoreSettings>(() => ({
     ...DEFAULT_STORE_SETTINGS,
@@ -360,6 +389,13 @@ export default function App() {
     const unsubTestimonials = subscribePublicTestimonials((cloudTestimonials) => {
       setTestimonials(cloudTestimonials);
     });
+    const unsubPublicReviews = subscribePublicPublishedReviews((cloudPublishedReviews) => {
+      setProductReviews((prev) => {
+        const cloudIds = new Set(cloudPublishedReviews.map((r) => r.id));
+        const nonPublishedOrLocal = prev.filter((r) => !cloudIds.has(r.id) && r.status !== 'Published');
+        return [...cloudPublishedReviews, ...nonPublishedOrLocal];
+      });
+    });
     const unsubCoupons = subscribeCoupons((cloudCoupons) => {
       setCoupons(cloudCoupons);
     });
@@ -367,6 +403,7 @@ export default function App() {
       unsubProducts();
       unsubSettings();
       unsubTestimonials();
+      unsubPublicReviews();
       unsubCoupons();
     };
   }, []);
@@ -449,6 +486,22 @@ export default function App() {
       });
     });
 
+    const unsubAdminCustomerMessages = subscribeAllCustomerMessagesAdmin((cloudMsgs) => {
+      setCustomerMessages((prev) => {
+        const cloudIds = new Set(cloudMsgs.map((m) => m.id));
+        const localOnly = prev.filter((m) => !cloudIds.has(m.id));
+        return [...cloudMsgs, ...localOnly];
+      });
+    });
+
+    const unsubAdminReviews = subscribeAllProductReviewsAdmin((cloudReviews) => {
+      setProductReviews((prev) => {
+        const cloudIds = new Set(cloudReviews.map((r) => r.id));
+        const localOnly = prev.filter((r) => !cloudIds.has(r.id));
+        return [...cloudReviews, ...localOnly];
+      });
+    });
+
     const unsubPrintJobs = subscribePrintJobsAdmin((cloudJobs) => {
       setPrintJobs(cloudJobs);
     });
@@ -466,6 +519,8 @@ export default function App() {
       unsubAdminReturns();
       unsubInventoryAdjustments();
       unsubAdminInquiries();
+      unsubAdminCustomerMessages();
+      unsubAdminReviews();
       unsubPrintJobs();
       unsubSpools();
       unsubLogs();
@@ -542,6 +597,25 @@ export default function App() {
       // Ignore storage errors
     }
   }, [inquiries]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        STORAGE_CUSTOMER_MESSAGES_KEY,
+        JSON.stringify(customerMessages)
+      );
+    } catch {
+      // Ignore storage errors
+    }
+  }, [customerMessages]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(STORAGE_PRODUCT_REVIEWS_KEY, JSON.stringify(productReviews));
+    } catch {
+      // Ignore storage errors
+    }
+  }, [productReviews]);
 
   useEffect(() => {
     try {
@@ -1278,6 +1352,102 @@ export default function App() {
     }
   };
 
+  const handleSubmitCustomerMessage = (msg: CustomerMessageRecord) => {
+    setCustomerMessages((prev) => [msg, ...prev]);
+    if (supabaseDiagnostics.isConfigured) {
+      void submitCustomerMessageToSupabase(msg, supabaseUser?.id ?? null).catch((err) =>
+        console.error(err)
+      );
+    }
+  };
+
+  const handleUpdateCustomerMessage = (updated: CustomerMessageRecord) => {
+    setCustomerMessages((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+    if (isSupabaseAdmin) {
+      void updateCustomerMessageInSupabase(updated).catch((err) => console.error(err));
+    }
+    recordAuditLog(
+      'MESSAGE_UPDATED',
+      'message',
+      updated.id,
+      `Updated note from ${updated.customerName} (${updated.topic}) -> ${updated.status}.`
+    );
+  };
+
+  const handleDeleteCustomerMessage = (id: string) => {
+    const target = customerMessages.find((m) => m.id === id);
+    setCustomerMessages((prev) => prev.filter((m) => m.id !== id));
+    if (isSupabaseAdmin) {
+      void deleteCustomerMessageFromSupabase(id).catch((err) => console.error(err));
+    }
+    recordAuditLog(
+      'MESSAGE_DELETED',
+      'message',
+      id,
+      `Deleted customer note from ${target?.customerName || id}.`
+    );
+  };
+
+  const handleBulkDeleteCustomerMessages = (ids: string[]) => {
+    const idSet = new Set(ids);
+    setCustomerMessages((prev) => prev.filter((m) => !idSet.has(m.id)));
+    if (isSupabaseAdmin) {
+      void bulkDeleteCustomerMessagesFromSupabase(ids).catch((err) => console.error(err));
+    }
+    recordAuditLog(
+      'MESSAGES_BULK_DELETED',
+      'message',
+      `bulk-${ids.length}`,
+      `Bulk deleted ${ids.length} customer message(s).`
+    );
+  };
+
+  const handleSubmitProductReview = (review: ProductReviewRecord) => {
+    setProductReviews((prev) => [review, ...prev]);
+    if (supabaseDiagnostics.isConfigured) {
+      void submitProductReviewToSupabase(review, supabaseUser?.id ?? null).catch((err) =>
+        console.error(err)
+      );
+    }
+  };
+
+  const handleSaveProductReview = (review: ProductReviewRecord, isNew?: boolean) => {
+    setProductReviews((prev) => {
+      const exists = prev.some((r) => r.id === review.id);
+      if (exists) {
+        return prev.map((r) => (r.id === review.id ? review : r));
+      }
+      return [review, ...prev];
+    });
+    if (isSupabaseAdmin) {
+      if (isNew) {
+        void submitProductReviewToSupabase(review, null).catch((err) => console.error(err));
+      } else {
+        void updateProductReviewInSupabase(review).catch((err) => console.error(err));
+      }
+    }
+    recordAuditLog(
+      isNew ? 'REVIEW_CREATED_ADMIN' : 'REVIEW_MODERATED',
+      'review',
+      review.id,
+      `${isNew ? 'Added' : 'Updated'} review by ${review.customerName} for "${review.productName}" (${review.rating}★, ${review.status}).`
+    );
+  };
+
+  const handleDeleteProductReview = (id: string) => {
+    const target = productReviews.find((r) => r.id === id);
+    setProductReviews((prev) => prev.filter((r) => r.id !== id));
+    if (isSupabaseAdmin) {
+      void deleteProductReviewFromSupabase(id).catch((err) => console.error(err));
+    }
+    recordAuditLog(
+      'REVIEW_DELETED',
+      'review',
+      id,
+      `Deleted review by ${target?.customerName || id} on "${target?.productName || 'product'}".`
+    );
+  };
+
   const localCustomer =
     customers.find((c) => c.id === currentCustomerId && Boolean(c.passwordHash)) ?? null;
   const currentCustomer = supabaseUser ? supabaseCustomer : localCustomer;
@@ -1298,12 +1468,14 @@ export default function App() {
       spools,
       testimonials,
       returns,
+      customerMessages,
+      productReviews,
     });
     recordAuditLog(
       'CLOUD_SYNC_COMPLETED',
       'settings',
       'supabase',
-      'Synchronized full BEE4 catalog, orders, returns, coupons, 3D print queue, and settings to Supabase Postgres.'
+      'Synchronized full BEE4 catalog, orders, returns, messages, reviews, 3D print queue, and settings to Supabase Postgres.'
     );
   };
 
@@ -1498,6 +1670,7 @@ export default function App() {
           <HomeView
             products={publicProducts}
             testimonials={testimonials}
+            reviews={productReviews}
             wishlistIds={activeWishlistIds}
             heroHeadline={settings.heroHeadline}
             heroSubheadline={settings.heroSubheadline}
@@ -1513,12 +1686,14 @@ export default function App() {
               navigateTo('gifts');
             }}
             onAddTestimonial={handleAddTestimonial}
+            onSubmitReview={handleSubmitProductReview}
           />
         )}
 
         {activePage === 'shop' && (
           <ShopView
             products={publicProducts}
+            reviews={productReviews}
             wishlistIds={activeWishlistIds}
             category={shopCategory}
             ageGroup={shopAgeGroup}
@@ -1545,6 +1720,7 @@ export default function App() {
         {activePage === 'gifts' && (
           <GiftIdeasView
             products={publicProducts}
+            reviews={productReviews}
             wishlistIds={activeWishlistIds}
             initialOccasion={giftFinderOccasion}
             giftWrapFee={settings.giftWrapFee}
@@ -1562,6 +1738,7 @@ export default function App() {
             key={activeProduct.id}
             product={activeProduct}
             relatedProducts={relatedProducts}
+            reviews={productReviews}
             wishlistIds={activeWishlistIds}
             whatsappNumber={settings.whatsappNumber}
             onBackToShop={() => navigateTo('shop')}
@@ -1570,6 +1747,7 @@ export default function App() {
             onAddToCart={handleAddToCart}
             onBuyNow={handleBuyNow}
             onToggleWishlist={handleToggleWishlist}
+            onSubmitReview={handleSubmitProductReview}
           />
         )}
 
@@ -1632,6 +1810,7 @@ export default function App() {
             whatsappNumber={settings.whatsappNumber}
             supportEmail={settings.supportEmail}
             onSubmitInquiry={handleSubmitInquiry}
+            onSubmitCustomerMessage={handleSubmitCustomerMessage}
           />
         )}
 
@@ -1657,6 +1836,8 @@ export default function App() {
               returns={returns}
               inventoryAdjustments={inventoryAdjustments}
               inquiries={inquiries}
+              customerMessages={customerMessages}
+              productReviews={productReviews}
               customers={customers}
               coupons={coupons}
               printJobs={printJobs}
@@ -1685,6 +1866,11 @@ export default function App() {
               onSaveFilamentSpool={handleSaveFilamentSpool}
               onSetCustomerFlag={handleSetCustomerFlag}
               onToggleInquiryStatus={handleToggleInquiryStatus}
+              onUpdateCustomerMessage={handleUpdateCustomerMessage}
+              onDeleteCustomerMessage={handleDeleteCustomerMessage}
+              onBulkDeleteCustomerMessages={handleBulkDeleteCustomerMessages}
+              onSaveProductReview={handleSaveProductReview}
+              onDeleteProductReview={handleDeleteProductReview}
               onChangeAdminPasswordHash={handleChangeAdminPasswordHash}
               onLockAdmin={handleLockAdmin}
               onBackToStore={() => navigateTo('home')}
@@ -1726,6 +1912,7 @@ export default function App() {
       {quickViewProduct && (
         <ProductQuickViewModal
           product={quickViewProduct}
+          reviews={productReviews}
           isWishlisted={activeWishlistIds.includes(quickViewProduct.id)}
           whatsappNumber={settings.whatsappNumber}
           onClose={() => setQuickViewProduct(null)}

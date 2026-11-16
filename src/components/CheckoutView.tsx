@@ -1,4 +1,5 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 import {
   ArrowLeft,
   Check,
@@ -40,6 +41,7 @@ import {
   validateCheckoutForm,
   WELCOME_PROMO_CODE,
 } from '../utils/storeLogic';
+import { OrderSuccessConfetti } from './OrderSuccessConfetti';
 import { ProductImage } from './ProductImage';
 
 interface CheckoutViewProps {
@@ -125,6 +127,12 @@ export function CheckoutView({
   const [isDispatchingNotifications, setIsDispatchingNotifications] = useState<boolean>(false);
   const [showEmailPreview, setShowEmailPreview] = useState<boolean>(false);
   const [copiedSms, setCopiedSms] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (confirmedOrder) {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior });
+    }
+  }, [confirmedOrder]);
 
   const handleSelectSavedAddress = (addr: SavedAddress) => {
     setSelectedAddressId(addr.id);
@@ -313,11 +321,22 @@ export function CheckoutView({
 
     return (
       <section className="max-w-[780px] mx-auto px-4 sm:px-6 py-12">
-        <div className="glass-surface rounded-3xl p-6 sm:p-10">
-          <div className="flex items-center gap-3 text-emerald-700 dark:text-emerald-300">
-            <div className="w-10 h-10 rounded-full glass-orb flex items-center justify-center shrink-0">
+        <motion.div
+          initial={{ opacity: 0, y: 12, scale: 0.985 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+          className="relative overflow-hidden glass-surface rounded-3xl p-6 sm:p-10"
+        >
+          <OrderSuccessConfetti active={Boolean(confirmedOrder)} orderKey={confirmedOrder.orderNumber} />
+          <div className="relative z-20 flex items-center gap-3 text-emerald-700 dark:text-emerald-300">
+            <motion.div
+              initial={{ scale: 0.6, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 20, delay: 0.08 }}
+              className="w-10 h-10 rounded-full glass-orb flex items-center justify-center shrink-0"
+            >
               <CheckCircle2 className="w-5 h-5 shrink-0" />
-            </div>
+            </motion.div>
             <span className="text-xs font-semibold tracking-wide">
               Order {confirmedOrder.orderNumber} Confirmed — Preparing Shipment
             </span>
@@ -650,7 +669,7 @@ export function CheckoutView({
               Downloaded {downloadedFilename}. Open it anytime to print or save as PDF.
             </p>
           )}
-        </div>
+        </motion.div>
       </section>
     );
   }
