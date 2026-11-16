@@ -1,3 +1,4 @@
+import { BRAND_LOGO_URL } from '../data/catalog';
 import { StorePage } from '../types';
 import { buildWhatsAppUrl, formatWhatsAppDisplay } from '../utils/storeLogic';
 
@@ -21,9 +22,18 @@ export function Footer({
       <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-12 sm:py-16">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
           <div className="md:col-span-2">
-            <span className="font-display text-xl font-extrabold tracking-tight text-zinc-900 dark:text-white">
-              BEE4
-            </span>
+            <div className="inline-flex items-center gap-2.5">
+              <span className="w-9 h-9 rounded-xl bg-white p-0.5 shadow-sm ring-1 ring-black/8 dark:ring-white/20 flex items-center justify-center overflow-hidden shrink-0">
+                <img
+                  src={BRAND_LOGO_URL}
+                  alt="BEE4 logo"
+                  className="w-full h-full object-contain"
+                />
+              </span>
+              <span className="font-display text-xl font-extrabold tracking-tight text-zinc-900 dark:text-white">
+                BEE4
+              </span>
+            </div>
             <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300 max-w-md leading-relaxed">
               D2C studio for East-Asian (Japanese, Korean &amp; Chinese) screen-free brain-training
               toys — precision 3D-printed in Bio-PLA between ₹349 and ₹899 for ages 3–15.

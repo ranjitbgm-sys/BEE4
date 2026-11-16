@@ -12,6 +12,8 @@ import {
   buildOrderSmsConfirmationText,
   normalizeIndianPhoneDigits10,
 } from './src/utils/orderNotifications.ts';
+import { INITIAL_PRODUCTS } from './src/data/catalog.ts';
+import { generateRobotsTxt, generateSitemapXml } from './src/utils/sitemap.ts';
 
 const PORT = Number(process.env.PORT || 3000);
 
@@ -311,6 +313,36 @@ async function startServer() {
       email,
     };
     res.json(result);
+  });
+
+  const resolveRequestOrigin = (req: express.Request): string => {
+    const envUrl = (
+      process.env.SITE_URL ||
+      process.env.URL ||
+      process.env.APP_URL ||
+      ''
+    ).trim();
+    if (envUrl && envUrl !== 'MY_APP_URL') {
+      return envUrl;
+    }
+    const host = req.get('host');
+    if (host) {
+      return `${req.protocol}://${host}`;
+    }
+    return 'https://bee4.in';
+  };
+
+  app.get('/sitemap.xml', (req, res) => {
+    const xml = generateSitemapXml({
+      products: INITIAL_PRODUCTS,
+      origin: resolveRequestOrigin(req),
+    });
+    res.status(200).type('application/xml; charset=utf-8').send(xml);
+  });
+
+  app.get('/robots.txt', (req, res) => {
+    const txt = generateRobotsTxt(resolveRequestOrigin(req));
+    res.status(200).type('text/plain; charset=utf-8').send(txt);
   });
 
   if (process.env.NODE_ENV !== 'production') {

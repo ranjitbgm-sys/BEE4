@@ -182,10 +182,35 @@ export default function App() {
       if (window.location.hash === '#admin' || params.get('admin') === '1') {
         return 'manager';
       }
+      const productParam = params.get('product');
+      if (productParam && INITIAL_PRODUCTS.some((p) => p.id === productParam)) {
+        return 'product';
+      }
+      const pageParam = params.get('page');
+      if (
+        pageParam === 'shop' ||
+        pageParam === 'gifts' ||
+        pageParam === 'about' ||
+        pageParam === 'contact' ||
+        pageParam === 'account'
+      ) {
+        return pageParam;
+      }
+      if (params.get('category') || params.get('age')) {
+        return 'shop';
+      }
     }
     return 'home';
   });
-  const [selectedProductId, setSelectedProductId] = useState<string>(INITIAL_PRODUCTS[0].id);
+  const [selectedProductId, setSelectedProductId] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const productParam = new URLSearchParams(window.location.search).get('product');
+      if (productParam && INITIAL_PRODUCTS.some((p) => p.id === productParam)) {
+        return productParam;
+      }
+    }
+    return INITIAL_PRODUCTS[0].id;
+  });
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
 
@@ -309,8 +334,29 @@ export default function App() {
   }, [activePage]);
 
   // Shop filter state
-  const [shopCategory, setShopCategory] = useState<ProductCategory>(ProductCategory.ALL);
-  const [shopAgeGroup, setShopAgeGroup] = useState<AgeGroup>(AgeGroup.ALL);
+  const [shopCategory, setShopCategory] = useState<ProductCategory>(() => {
+    if (typeof window !== 'undefined') {
+      const rawCat = new URLSearchParams(window.location.search).get('category');
+      if (rawCat && VALID_CATEGORIES.has(rawCat)) {
+        return rawCat as ProductCategory;
+      }
+    }
+    return ProductCategory.ALL;
+  });
+  const [shopAgeGroup, setShopAgeGroup] = useState<AgeGroup>(() => {
+    if (typeof window !== 'undefined') {
+      const rawAge = new URLSearchParams(window.location.search).get('age');
+      if (
+        rawAge === AgeGroup.AGE_3_5 ||
+        rawAge === AgeGroup.AGE_6_8 ||
+        rawAge === AgeGroup.AGE_9_11 ||
+        rawAge === AgeGroup.AGE_12_15
+      ) {
+        return rawAge;
+      }
+    }
+    return AgeGroup.ALL;
+  });
   const [shopOccasion, setShopOccasion] = useState<GiftOccasion>(GiftOccasion.ALL);
   const [shopSearch, setShopSearch] = useState('');
   const [shopMaxPrice, setShopMaxPrice] = useState<number | null>(null);

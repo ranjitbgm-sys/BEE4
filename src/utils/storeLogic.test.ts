@@ -23,6 +23,14 @@ test('INITIAL_PRODUCTS contains all 16 East-Asian 3D-printed brain toys priced â
     '/assets/images/toy_motor_front_1794767911807.jpg'
   );
   assert.equal(
+    normalizeAssetUrl('assets/images/toy_motor_front_1794767911807.jpg'),
+    '/assets/images/toy_motor_front_1794767911807.jpg'
+  );
+  assert.equal(
+    normalizeAssetUrl('./src/assets/images/hero_brain_toys_1794767911110.jpg'),
+    '/assets/images/hero_brain_toys_1794767911110.jpg'
+  );
+  assert.equal(
     normalizeAssetUrl('/assets/images/toy_motor_front_1794767911807.jpg'),
     '/assets/images/toy_motor_front_1794767911807.jpg'
   );

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Menu, Moon, ShoppingBag, Sun, X } from 'lucide-react';
+import { BRAND_LOGO_URL } from '../data/catalog';
 import { StorePage, ThemeMode } from '../types';
 
 interface HeaderProps {
@@ -61,13 +62,20 @@ export function Header({
 
       <header className="sticky top-0 z-40 glass-bar">
         <div className="max-w-[1200px] mx-auto px-4 sm:px-6 h-14 md:h-16 flex items-center justify-between gap-4">
-          {/* Zone 1: Single-element brand wordmark */}
+          {/* Zone 1: Brand logo lockup */}
           <button
             type="button"
             onClick={() => handleNavClick('home')}
-            className="font-display text-xl font-extrabold tracking-tight text-zinc-900 dark:text-white whitespace-nowrap shrink-0 hover:text-amber-700 dark:hover:text-amber-300 transition-colors"
+            className="inline-flex items-center gap-2.5 font-display text-xl font-extrabold tracking-tight text-zinc-900 dark:text-white whitespace-nowrap shrink-0 hover:text-amber-700 dark:hover:text-amber-300 transition-colors"
           >
-            BEE4
+            <span className="w-8 h-8 rounded-xl bg-white p-0.5 shadow-sm ring-1 ring-black/8 dark:ring-white/20 flex items-center justify-center overflow-hidden shrink-0">
+              <img
+                src={BRAND_LOGO_URL}
+                alt="BEE4 logo"
+                className="w-full h-full object-contain"
+              />
+            </span>
+            <span>BEE4</span>
           </button>
 
           {/* Zone 2: 5 concise single-line navigation links */}

@@ -1,5 +1,8 @@
 import { AgeGroup, GiftOccasion, Product, ProductAngle, ProductCategory } from '../types';
 
+export const BRAND_LOGO_URL =
+  '/assets/aistudio/WhatsApp_Image_2026-11-16_at_11.18.26_AM_4fe8444e.jpeg';
+
 export const HERO_IMAGE = '/assets/images/hero_brain_toys_1794767911110.jpg';
 
 const IMG_MOTOR = '/assets/images/toy_motor_front_1794767911807.jpg';

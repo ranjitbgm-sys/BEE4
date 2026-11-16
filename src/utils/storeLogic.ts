@@ -38,10 +38,16 @@ export const WELCOME_PROMO_CODE = 'BEE4WELCOME';
 
 export function normalizeAssetUrl(url: string): string {
   if (!url) return url;
-  if (url.startsWith('/src/assets/images/')) {
-    return url.replace('/src/assets/images/', '/assets/images/');
+  const trimmed = url.trim();
+  const srcMatch = trimmed.match(/^(?:\.?\/)?src\/assets\/images\/(.+)$/);
+  if (srcMatch) {
+    return `/assets/images/${srcMatch[1]}`;
   }
-  return url;
+  const relMatch = trimmed.match(/^(?:\.\/)?assets\/images\/(.+)$/);
+  if (relMatch) {
+    return `/assets/images/${relMatch[1]}`;
+  }
+  return trimmed;
 }
 
 export const ORDERED_AGE_GROUPS: Exclude<AgeGroup, AgeGroup.ALL>[] = [

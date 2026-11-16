@@ -102,9 +102,16 @@ const VALID_AGE_GROUPS = new Set<string>([
 ]);
 
 function normalizeAssetPath(url: string): string {
-  return url.startsWith('/src/assets/images/')
-    ? url.replace('/src/assets/images/', '/assets/images/')
-    : url;
+  const trimmed = url.trim();
+  const srcMatch = trimmed.match(/^(?:\.?\/)?src\/assets\/images\/(.+)$/);
+  if (srcMatch) {
+    return `/assets/images/${srcMatch[1]}`;
+  }
+  const relMatch = trimmed.match(/^(?:\.\/)?assets\/images\/(.+)$/);
+  if (relMatch) {
+    return `/assets/images/${relMatch[1]}`;
+  }
+  return trimmed;
 }
 
 function buildFallbackGallery(primaryUrl: string): [ProductAngle, ProductAngle, ProductAngle] {
