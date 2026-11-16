@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowRight, Brain, Layers, ShieldCheck, Sparkles, Truck } from 'lucide-react';
+import { ArrowRight, Brain, ShieldCheck, Sparkles, Truck } from 'lucide-react';
 import { AGE_GROUP_META, HERO_IMAGE } from '../data/catalog';
 import { AgeGroup, GiftOccasion, Product, ProductCategory, StorePage, Testimonial } from '../types';
 import { filterAndSortProducts, groupProductsByAge } from '../utils/storeLogic';
@@ -12,6 +12,10 @@ interface HomeViewProps {
   products: Product[];
   testimonials: Testimonial[];
   wishlistIds: string[];
+  heroHeadline?: string;
+  heroSubheadline?: string;
+  heroCtaText?: string;
+  featuredBannerEnabled?: boolean;
   onNavigate: (page: StorePage) => void;
   onSelectProduct: (productId: string) => void;
   onQuickView: (product: Product) => void;
@@ -32,6 +36,10 @@ export function HomeView({
   products,
   testimonials,
   wishlistIds,
+  heroHeadline,
+  heroSubheadline,
+  heroCtaText,
+  featuredBannerEnabled = true,
   onNavigate,
   onSelectProduct,
   onQuickView,
@@ -81,27 +89,31 @@ export function HomeView({
       {/* 1. Storefront Hero */}
       <section className="max-w-[1200px] mx-auto px-4 sm:px-6 pt-8 sm:pt-12 pb-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-stretch">
-          <div className="lg:col-span-6 flex flex-col justify-center py-2">
-            <p className="text-xs font-semibold tracking-wide text-amber-700 dark:text-amber-400">
-              East-Asian Screen-Free Brain-Training Studio · bee4.in
+          <div className="lg:col-span-6 glass-surface rounded-3xl p-7 sm:p-10 flex flex-col justify-center">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700 dark:text-amber-400">
+              BEE4 Studio · Ages 3–15
             </p>
-            <h1 className="mt-3 font-display text-[clamp(2rem,3.8vw,3.15rem)] font-bold leading-[1.1] tracking-tight text-zinc-900 dark:text-white text-balance">
-              Japanese, Korean &amp; Chinese Brain-Training Toys — Built for Deep Focus.
+            <h1 className="mt-4 font-display text-[clamp(2rem,3.6vw,3rem)] font-bold leading-[1.08] tracking-tight text-zinc-900 dark:text-white text-balance">
+              {heroHeadline?.trim() || 'Screen-Free Brain Toys for Deep Focus.'}
             </h1>
-            <p className="mt-4 text-base text-zinc-600 dark:text-zinc-300 leading-relaxed max-w-xl">
-              Scientifically crafted mechanical puzzles, Japanese Karakuri boxes, Korean Gabe cubes,
-              and kinetic STEM kits designed for ages 3–15 — small-batch 3D-printed from{' '}
-              <strong className="text-zinc-900 dark:text-white">₹349 to ₹899</strong>, shipping
-              across India, the US, and the UK.
+            <p className="mt-4 text-base sm:text-[17px] text-zinc-600 dark:text-zinc-300 leading-relaxed max-w-md">
+              {heroSubheadline?.trim() ? (
+                heroSubheadline
+              ) : (
+                <>
+                  Small-batch 3D-printed Japanese, Korean &amp; Chinese puzzles starting at{' '}
+                  <span className="font-semibold text-zinc-900 dark:text-white">₹99</span>.
+                </>
+              )}
             </p>
 
-            <div className="mt-7 flex flex-wrap items-center gap-4">
+            <div className="mt-8 flex flex-wrap items-center gap-3.5">
               <button
                 type="button"
                 onClick={scrollToCatalog}
-                className="px-6 py-3 rounded-xl glass-btn-amber text-white text-sm font-semibold inline-flex items-center gap-2 transition-all whitespace-nowrap shrink-0"
+                className="px-6 py-3.5 rounded-xl glass-btn-amber text-white text-sm font-semibold inline-flex items-center gap-2 transition-all whitespace-nowrap shrink-0"
               >
-                <span>Explore All {products.length} Brain Toys</span>
+                <span>{heroCtaText?.trim() || `Explore ${products.length} Brain Toys`}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
               <button
@@ -110,10 +122,9 @@ export function HomeView({
                   setGroupByAge(true);
                   scrollToCatalog();
                 }}
-                className="px-5 py-3 rounded-xl glass-btn-secondary text-zinc-900 dark:text-white text-sm font-semibold inline-flex items-center gap-2 transition-all whitespace-nowrap shrink-0"
+                className="px-5 py-3.5 rounded-xl glass-btn-secondary text-zinc-800 dark:text-zinc-100 text-sm font-semibold transition-all whitespace-nowrap shrink-0"
               >
-                <Layers className="w-4 h-4 text-amber-600" />
-                <span>Browse by Child&apos;s Age</span>
+                Browse by Age
               </button>
             </div>
           </div>
@@ -289,6 +300,7 @@ export function HomeView({
       </section>
 
       {/* 3. Occasion & Return Gift Finder */}
+      {featuredBannerEnabled && (
       <section className="glass-subtle border-x-0 py-14">
         <div className="max-w-[1200px] mx-auto px-4 sm:px-6">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
@@ -358,6 +370,7 @@ export function HomeView({
           </div>
         </div>
       </section>
+      )}
 
       {/* 4. Engineering Philosophy & Craft Story */}
       <section className="max-w-[1200px] mx-auto px-4 sm:px-6 pt-14">
@@ -371,9 +384,9 @@ export function HomeView({
             </h2>
             <p className="mt-3 text-sm sm:text-base text-zinc-600 dark:text-zinc-300 leading-relaxed">
               Imported Japanese Karakuri puzzle boxes or Korean Gabe kits typically cost 3×–5× more.
-              Our Bengaluru 3D-print studio fabricates these proven spatial, motor, and binary-STEM
-              mechanisms using non-toxic Bio-PLA — hand-inspected and shipped globally to India, the
-              US, and the UK.
+              Our Banka, Bihar 3D-print studio (PIN 813103) fabricates these proven spatial, motor,
+              and binary-STEM mechanisms using non-toxic Bio-PLA — hand-inspected and shipped
+              globally to India, the US, and the UK.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               <button

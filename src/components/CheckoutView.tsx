@@ -21,6 +21,7 @@ import {
   CartItem,
   CheckoutErrors,
   CheckoutFormValues,
+  CouponRecord,
   CustomerProfile,
   OrderNotificationDispatchResult,
   OrderRecord,
@@ -47,6 +48,15 @@ interface CheckoutViewProps {
   whatsappNumber: string;
   supportEmail?: string;
   freeShippingThreshold: number;
+  standardShippingFee?: number;
+  giftWrapFee?: number;
+  giftWrapEnabled?: boolean;
+  codHandlingFee?: number;
+  upiEnabled?: boolean;
+  codEnabled?: boolean;
+  whatsappOrderEnabled?: boolean;
+  upiVpa?: string;
+  coupons?: CouponRecord[];
   expectedPromoCode: string;
   promoDiscountPercent: number;
   onBackToShop: () => void;
@@ -61,6 +71,15 @@ export function CheckoutView({
   whatsappNumber,
   supportEmail = 'hello@bee4.in',
   freeShippingThreshold,
+  standardShippingFee = 49,
+  giftWrapFee = 49,
+  giftWrapEnabled = true,
+  codHandlingFee = 0,
+  upiEnabled = true,
+  codEnabled = true,
+  whatsappOrderEnabled = true,
+  upiVpa = 'bee4studio@okaxis',
+  coupons,
   expectedPromoCode,
   promoDiscountPercent,
   onBackToShop,
@@ -70,6 +89,16 @@ export function CheckoutView({
 }: CheckoutViewProps) {
   const defaultAddress =
     currentCustomer?.addresses.find((a) => a.isDefault) ?? currentCustomer?.addresses[0] ?? null;
+
+  const fallbackPayment: PaymentMethod = upiEnabled
+    ? 'upi'
+    : 'card';
+  const initialPayment: PaymentMethod =
+    currentCustomer?.preferredPayment === 'cod' && !codEnabled
+      ? fallbackPayment
+      : currentCustomer?.preferredPayment === 'upi' && !upiEnabled
+        ? 'card'
+        : currentCustomer?.preferredPayment || fallbackPayment;
 
   const [selectedAddressId, setSelectedAddressId] = useState<string>(defaultAddress?.id ?? '');
   const [saveAddressToAccount, setSaveAddressToAccount] = useState<boolean>(
@@ -83,7 +112,7 @@ export function CheckoutView({
     city: defaultAddress?.city || '',
     state: defaultAddress?.state || 'Karnataka',
     pinCode: defaultAddress?.pinCode || '',
-    paymentMethod: currentCustomer?.preferredPayment || 'upi',
+    paymentMethod: initialPayment,
     giftWrap: false,
     giftMessage: '',
     promoCode: '',
@@ -113,9 +142,14 @@ export function CheckoutView({
   };
 
   const totals = calculateCartTotals(items, {
-    giftWrap: form.giftWrap,
+    giftWrap: giftWrapEnabled ? form.giftWrap : false,
     promoCode: form.promoCode,
     freeShippingThreshold,
+    standardShippingFee,
+    giftWrapFee,
+    codHandlingFee,
+    paymentMethod: form.paymentMethod,
+    coupons,
     expectedPromoCode,
     promoDiscountPercent,
   });
@@ -130,6 +164,8 @@ export function CheckoutView({
       return;
     }
 
+    const effectiveGiftWrap = giftWrapEnabled && form.giftWrap;
+
     const newOrder: OrderRecord = {
       orderNumber: generateOrderNumber(),
       createdAt: new Date().toISOString(),
@@ -138,8 +174,11 @@ export function CheckoutView({
       discount: totals.discount,
       shippingFee: totals.shippingFee,
       giftWrapFee: totals.giftWrapFee,
+      codFee: totals.codFee,
       total: totals.total,
       paymentMethod: form.paymentMethod,
+      orderChannel: form.paymentMethod === 'cod' ? 'COD' : 'UPI / Prepaid',
+      couponCode: totals.promoApplied ? form.promoCode.trim().toUpperCase() : '',
       customer: {
         fullName: form.fullName.trim(),
         phone: form.phone.trim(),
@@ -149,9 +188,10 @@ export function CheckoutView({
         state: form.state.trim(),
         pinCode: form.pinCode.trim(),
       },
-      giftWrap: form.giftWrap,
-      giftMessage: form.giftMessage.trim(),
+      giftWrap: effectiveGiftWrap,
+      giftMessage: effectiveGiftWrap ? form.giftMessage.trim() : '',
       status: 'Confirmed',
+      fulfillmentStage: form.paymentMethod === 'cod' ? 'New / Unverified' : 'Confirmed',
     };
 
     if (currentCustomer && onSaveAddress && saveAddressToAccount) {
@@ -544,6 +584,12 @@ export function CheckoutView({
                   <span className="tabular-nums">{formatINR(confirmedOrder.giftWrapFee)}</span>
                 </div>
               )}
+              {(confirmedOrder.codFee ?? 0) > 0 && (
+                <div className="flex justify-between text-zinc-600 dark:text-zinc-300">
+                  <span>COD Handling Fee</span>
+                  <span className="tabular-nums">{formatINR(confirmedOrder.codFee ?? 0)}</span>
+                </div>
+              )}
               <div className="flex justify-between text-base font-bold text-zinc-900 dark:text-white pt-2 border-t border-zinc-900/10 dark:border-white/10">
                 <span>Total · {paymentLabel}</span>
                 <span className="tabular-nums">{formatINR(confirmedOrder.total)}</span>
@@ -843,48 +889,80 @@ export function CheckoutView({
           </div>
 
           {/* Gift Wrap Option */}
-          <div className="glass-surface rounded-3xl p-6 space-y-3">
-            <div className="flex items-start gap-3">
-              <input
-                id="checkout-giftwrap"
-                type="checkbox"
-                checked={form.giftWrap}
-                onChange={(e) => setForm({ ...form, giftWrap: e.target.checked })}
-                className="mt-1 w-4 h-4 accent-amber-600"
-              />
-              <label htmlFor="checkout-giftwrap" className="text-sm font-semibold text-zinc-900 dark:text-white flex items-center gap-2">
-                <Gift className="w-4 h-4 text-amber-700 dark:text-amber-400" />
-                <span>Add Kraft Gift Wrap &amp; Handwritten Note Card (+₹49)</span>
-              </label>
-            </div>
-
-            {form.giftWrap && (
-              <div>
-                <label htmlFor="checkout-giftmsg" className="block text-xs font-semibold text-zinc-600 dark:text-zinc-300 mb-1.5">
-                  Your Gift Message (optional)
-                </label>
-                <textarea
-                  id="checkout-giftmsg"
-                  rows={2}
-                  value={form.giftMessage}
-                  onChange={(e) => setForm({ ...form, giftMessage: e.target.value })}
-                  placeholder="Happy Birthday! Hope your child enjoys building screen-free."
-                  className="w-full px-3.5 py-2 text-sm glass-input rounded-xl focus:outline-none"
+          {giftWrapEnabled && (
+            <div className="glass-surface rounded-3xl p-6 space-y-3">
+              <div className="flex items-start gap-3">
+                <input
+                  id="checkout-giftwrap"
+                  type="checkbox"
+                  checked={form.giftWrap}
+                  onChange={(e) => setForm({ ...form, giftWrap: e.target.checked })}
+                  className="mt-1 w-4 h-4 accent-amber-600"
                 />
+                <label htmlFor="checkout-giftwrap" className="text-sm font-semibold text-zinc-900 dark:text-white flex items-center gap-2">
+                  <Gift className="w-4 h-4 text-amber-700 dark:text-amber-400" />
+                  <span>Add Kraft Gift Wrap &amp; Handwritten Note Card (+{formatINR(giftWrapFee)})</span>
+                </label>
               </div>
-            )}
-          </div>
+
+              {form.giftWrap && (
+                <div>
+                  <label htmlFor="checkout-giftmsg" className="block text-xs font-semibold text-zinc-600 dark:text-zinc-300 mb-1.5">
+                    Your Gift Message (optional)
+                  </label>
+                  <textarea
+                    id="checkout-giftmsg"
+                    rows={2}
+                    value={form.giftMessage}
+                    onChange={(e) => setForm({ ...form, giftMessage: e.target.value })}
+                    placeholder="Happy Birthday! Hope your child enjoys building screen-free."
+                    className="w-full px-3.5 py-2 text-sm glass-input rounded-xl focus:outline-none"
+                  />
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Payment Method */}
           <div className="glass-surface rounded-3xl p-6 space-y-4">
-            <h2 className="font-display text-lg font-bold text-zinc-900 dark:text-white">2. Payment Method</h2>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="font-display text-lg font-bold text-zinc-900 dark:text-white">2. Payment Method</h2>
+              {upiEnabled && upiVpa && (
+                <span className="text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
+                  Studio UPI: {upiVpa}
+                </span>
+              )}
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" role="radiogroup" aria-label="Payment method">
               {(
                 [
-                  { id: 'upi', label: 'Razorpay / UPI (GPay, PhonePe)', note: 'Zero extra fee · Instant' },
-                  { id: 'card', label: 'Card / Netbanking (Razorpay)', note: 'Visa, Mastercard, RuPay' },
-                  { id: 'cod', label: 'Cash on Delivery (COD)', note: 'Pay at your doorstep' },
-                ] as { id: PaymentMethod; label: string; note: string }[]
+                  ...(upiEnabled
+                    ? [
+                        {
+                          id: 'upi' as PaymentMethod,
+                          label: 'Razorpay / UPI (GPay, PhonePe)',
+                          note: 'Zero extra fee · Instant',
+                        },
+                      ]
+                    : []),
+                  {
+                    id: 'card' as PaymentMethod,
+                    label: 'Card / Netbanking (Razorpay)',
+                    note: 'Visa, Mastercard, RuPay',
+                  },
+                  ...(codEnabled
+                    ? [
+                        {
+                          id: 'cod' as PaymentMethod,
+                          label: 'Cash on Delivery (COD)',
+                          note:
+                            codHandlingFee > 0
+                              ? `+${formatINR(codHandlingFee)} COD handling fee`
+                              : 'Pay at your doorstep',
+                        },
+                      ]
+                    : []),
+                ]
               ).map((method) => {
                 const active = form.paymentMethod === method.id;
                 return (
@@ -950,7 +1028,12 @@ export function CheckoutView({
             />
             {totals.promoApplied && (
               <p className="mt-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-                {promoDiscountPercent}% welcome discount applied!
+                Promo savings of {formatINR(totals.discount)} applied!
+              </p>
+            )}
+            {!totals.promoApplied && form.promoCode.trim().length > 0 && totals.promoReason && (
+              <p className="mt-1 text-xs font-medium text-amber-700 dark:text-amber-300">
+                {totals.promoReason}
               </p>
             )}
           </div>
@@ -982,6 +1065,14 @@ export function CheckoutView({
                 </span>
               </div>
             )}
+            {totals.codFee > 0 && (
+              <div className="flex justify-between text-zinc-600 dark:text-zinc-300">
+                <span>COD Handling Fee</span>
+                <span className="tabular-nums font-medium text-zinc-900 dark:text-white">
+                  {formatINR(totals.codFee)}
+                </span>
+              </div>
+            )}
             <div className="flex justify-between text-lg font-bold text-zinc-900 dark:text-white pt-3 border-t border-zinc-900/10 dark:border-white/10">
               <span>Total Payable</span>
               <span className="tabular-nums">{formatINR(totals.total)}</span>
@@ -994,6 +1085,23 @@ export function CheckoutView({
           >
             Place Order · {formatINR(totals.total)}
           </button>
+
+          {whatsappOrderEnabled && (
+            <a
+              href={buildWhatsAppUrl(
+                `Hi BEE4 Studio! I'd like to place an order for:\n${items
+                  .map((i) => `• ${i.title} (${i.variant}) × ${i.quantity}`)
+                  .join('\n')}\nEstimated Total: ${formatINR(totals.total)}`,
+                whatsappNumber
+              )}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-2.5 px-4 rounded-xl glass-btn-secondary text-zinc-800 dark:text-zinc-100 text-xs font-semibold inline-flex items-center justify-center gap-2"
+            >
+              <MessageCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span>Express Order via WhatsApp Desk</span>
+            </a>
+          )}
 
           <p className="text-xs text-zinc-500 dark:text-zinc-400 flex items-center justify-center gap-1.5">
             <ShieldCheck className="w-4 h-4 text-amber-700 dark:text-amber-400" />

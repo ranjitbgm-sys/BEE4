@@ -28,9 +28,17 @@ import {
   OrderRecord,
   PaymentMethod,
   Product,
+  ReturnRequestRecord,
   SavedAddress,
   SavedAddressErrors,
 } from '../types';
+import {
+  buildCustomerReturnStepIndex,
+  CUSTOMER_RETURN_TRACKER_STEPS,
+  getOrderRmaStatusBadge,
+  isOrderEligibleForReturn,
+  lookupGuestOrderByOrderAndPhone,
+} from '../utils/rmaLogic';
 import {
   authenticateCustomer,
   buildWhatsAppUrl,
@@ -51,6 +59,7 @@ import {
   validateCustomerPasswordChange,
   validateSavedAddress,
 } from '../utils/storeLogic';
+import { CustomerReturnModal } from './CustomerReturnModal';
 import { ProductImage } from './ProductImage';
 
 export type CustomerAccountTab = 'overview' | 'orders' | 'wishlist' | 'addresses' | 'profile';
@@ -59,11 +68,12 @@ interface CustomerAccountViewProps {
   currentCustomer: CustomerProfile | null;
   customers: CustomerProfile[];
   orders: OrderRecord[];
+  returns?: ReturnRequestRecord[];
   products: Product[];
   guestWishlistIds: string[];
   whatsappNumber: string;
   supportEmail?: string;
-  firebaseUserEmail?: string | null;
+  cloudUserEmail?: string | null;
   onGoogleSignIn?: () => Promise<void>;
   onSignIn: (customerId: string) => void;
   onSignUp: (customer: CustomerProfile) => void;
@@ -73,6 +83,7 @@ interface CustomerAccountViewProps {
   onAddToCart: (product: Product, variant: string, quantity: number, openDrawer: boolean) => void;
   onReorderItems: (items: CartItem[]) => void;
   onCancelOrder: (orderNumber: string) => void;
+  onCreateReturnRequest?: (rma: ReturnRequestRecord) => void;
   onSelectProduct: (productId: string) => void;
   onContinueShopping: () => void;
 }
@@ -109,11 +120,12 @@ export function CustomerAccountView({
   currentCustomer,
   customers,
   orders,
+  returns = [],
   products,
   guestWishlistIds,
   whatsappNumber,
   supportEmail = 'hello@bee4.in',
-  firebaseUserEmail = null,
+  cloudUserEmail = null,
   onGoogleSignIn,
   onSignIn,
   onSignUp,
@@ -123,9 +135,17 @@ export function CustomerAccountView({
   onAddToCart,
   onReorderItems,
   onCancelOrder,
+  onCreateReturnRequest,
   onSelectProduct,
   onContinueShopping,
 }: CustomerAccountViewProps) {
+  const [returnModalOrder, setReturnModalOrder] = useState<OrderRecord | null>(null);
+  const [guestLookupOrderNo, setGuestLookupOrderNo] = useState('');
+  const [guestLookupPhone, setGuestLookupPhone] = useState('');
+  const [guestMatchedOrderNo, setGuestMatchedOrderNo] = useState<string | null>(null);
+  const [guestLookupError, setGuestLookupError] = useState('');
+  const [guestLookupNotice, setGuestLookupNotice] = useState('');
+
   const [authMode, setAuthMode] = useState<'signup' | 'signin' | 'forgot'>('signup');
   const [signinMethod, setSigninMethod] = useState<'otp' | 'password'>('otp');
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -1230,8 +1250,134 @@ export function CustomerAccountView({
             )}
           </div>
 
-          {/* Right: Customer Benefits & Guest Wishlist */}
+          {/* Right: Track Order & Returns (Order ID + Phone) + Customer Benefits */}
           <div className="lg:col-span-5 space-y-4">
+            <div className="p-6 rounded-3xl glass-surface space-y-4">
+              <div>
+                <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+                  Instant Guest Order &amp; RMA Lookup
+                </p>
+                <h2 className="mt-0.5 font-display text-lg font-bold text-zinc-900 dark:text-white">
+                  Track Order &amp; Returns
+                </h2>
+                <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-300">
+                  Check live delivery status, request a 7-day return/replacement, or track refund progress.
+                </p>
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const res = lookupGuestOrderByOrderAndPhone(
+                    orders,
+                    guestLookupOrderNo,
+                    guestLookupPhone
+                  );
+                  if (res.error || !res.order) {
+                    setGuestLookupError(res.error ?? 'Order not found.');
+                    setGuestMatchedOrderNo(null);
+                    return;
+                  }
+                  setGuestLookupError('');
+                  setGuestLookupNotice('');
+                  setGuestMatchedOrderNo(res.order.orderNumber);
+                }}
+                noValidate
+                className="space-y-3"
+              >
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label htmlFor="guest-rma-order" className="block text-[11px] font-semibold text-zinc-700 dark:text-zinc-200 mb-1">
+                      Order ID *
+                    </label>
+                    <input
+                      id="guest-rma-order"
+                      type="text"
+                      value={guestLookupOrderNo}
+                      onChange={(e) => {
+                        setGuestLookupOrderNo(e.target.value);
+                        if (guestLookupError) setGuestLookupError('');
+                      }}
+                      placeholder="e.g. BEE4-2044"
+                      className="w-full h-10 px-3 rounded-xl glass-input text-xs sm:text-sm font-mono uppercase focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="guest-rma-phone" className="block text-[11px] font-semibold text-zinc-700 dark:text-zinc-200 mb-1">
+                      Mobile Number *
+                    </label>
+                    <input
+                      id="guest-rma-phone"
+                      type="tel"
+                      value={guestLookupPhone}
+                      onChange={(e) => {
+                        setGuestLookupPhone(e.target.value);
+                        if (guestLookupError) setGuestLookupError('');
+                      }}
+                      placeholder="e.g. 9830556677"
+                      className="w-full h-10 px-3 rounded-xl glass-input text-xs sm:text-sm tabular-nums focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {guestLookupError && (
+                  <p role="alert" className="text-xs font-medium text-red-600">
+                    {guestLookupError}
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  className="w-full h-10 rounded-xl glass-btn-amber text-white text-xs sm:text-sm font-semibold transition-all"
+                >
+                  Track Order &amp; Manage Returns
+                </button>
+              </form>
+
+              {guestLookupNotice && (
+                <div
+                  role="status"
+                  className="p-3 rounded-2xl bg-emerald-50/90 border border-emerald-200 text-xs font-medium text-emerald-800"
+                >
+                  {guestLookupNotice}
+                </div>
+              )}
+
+              {guestMatchedOrderNo &&
+                (() => {
+                  const matchedOrder = orders.find((o) => o.orderNumber === guestMatchedOrderNo);
+                  if (!matchedOrder) return null;
+                  return (
+                    <div className="pt-3 border-t border-zinc-900/10 dark:border-white/10">
+                      <OrderTrackingCard
+                        compact
+                        order={matchedOrder}
+                        returns={returns}
+                        whatsappNumber={whatsappNumber}
+                        onDownloadInvoice={() => {
+                          const filename = downloadOrderInvoice(matchedOrder, {
+                            supportEmail,
+                            whatsappNumber,
+                          });
+                          setGuestLookupNotice(`Downloaded invoice ${filename}.`);
+                        }}
+                        onReorder={() => {
+                          onReorderItems(matchedOrder.items);
+                          setGuestLookupNotice(
+                            `Added items from ${matchedOrder.orderNumber} to your bag.`
+                          );
+                        }}
+                        onCancel={() => {
+                          onCancelOrder(matchedOrder.orderNumber);
+                          setGuestLookupNotice(`Cancelled order ${matchedOrder.orderNumber}.`);
+                        }}
+                        onOpenReturnModal={() => setReturnModalOrder(matchedOrder)}
+                      />
+                    </div>
+                  );
+                })()}
+            </div>
+
             <div className="p-6 rounded-3xl glass-surface space-y-4">
               <h2 className="font-display text-lg font-bold text-zinc-900">
                 Inside Your BEE4 User Panel
@@ -1241,7 +1387,7 @@ export function CustomerAccountView({
                   <div className="w-7 h-7 rounded-full glass-orb flex items-center justify-center shrink-0">
                     <Package className="w-3.5 h-3.5 text-amber-700" />
                   </div>
-                  <span className="pt-0.5">Track shipments step-by-step, cancel before dispatch, or reorder in 1 click.</span>
+                  <span className="pt-0.5">Track shipments step-by-step, request 7-day returns, or reorder in 1 click.</span>
                 </li>
                 <li className="flex items-start gap-2.5">
                   <div className="w-7 h-7 rounded-full glass-orb flex items-center justify-center shrink-0">
@@ -1292,6 +1438,21 @@ export function CustomerAccountView({
             )}
           </div>
         </div>
+
+        {returnModalOrder && (
+          <CustomerReturnModal
+            order={returnModalOrder}
+            existingReturns={returns}
+            onClose={() => setReturnModalOrder(null)}
+            onSubmitReturn={(rma) => {
+              onCreateReturnRequest?.(rma);
+              setReturnModalOrder(null);
+              setGuestLookupNotice(
+                `Return request ${rma.rmaNumber} submitted! Track live progress below.`
+              );
+            }}
+          />
+        )}
       </section>
     );
   }
@@ -1467,10 +1628,10 @@ export function CustomerAccountView({
           <h1 className="mt-1 font-display text-2xl sm:text-3xl font-bold text-zinc-900">
             Hello, {currentCustomer.fullName}
           </h1>
-          {firebaseUserEmail && (
+          {cloudUserEmail && (
             <p className="mt-1 inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700">
               <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Google Cloud Sync active · {firebaseUserEmail}</span>
+              <span>Supabase Cloud Sync active · {cloudUserEmail}</span>
             </p>
           )}
         </div>
@@ -1617,6 +1778,7 @@ export function CustomerAccountView({
                 ) : (
                   <OrderTrackingCard
                     order={customerOrders[0]}
+                    returns={returns}
                     whatsappNumber={whatsappNumber}
                     onDownloadInvoice={() => {
                       const filename = downloadOrderInvoice(customerOrders[0], {
@@ -1633,6 +1795,7 @@ export function CustomerAccountView({
                       onCancelOrder(customerOrders[0].orderNumber);
                       setNotice(`Cancelled order ${customerOrders[0].orderNumber}.`);
                     }}
+                    onOpenReturnModal={() => setReturnModalOrder(customerOrders[0])}
                   />
                 )}
               </div>
@@ -1726,6 +1889,7 @@ export function CustomerAccountView({
                     >
                       <OrderTrackingCard
                         order={order}
+                        returns={returns}
                         whatsappNumber={whatsappNumber}
                         onDownloadInvoice={() => {
                           const filename = downloadOrderInvoice(order, {
@@ -1742,6 +1906,7 @@ export function CustomerAccountView({
                           onCancelOrder(order.orderNumber);
                           setNotice(`Cancelled order ${order.orderNumber}.`);
                         }}
+                        onOpenReturnModal={() => setReturnModalOrder(order)}
                       />
                     </div>
                   ))}
@@ -2375,9 +2540,9 @@ export function CustomerAccountView({
                     <p className="mt-1 text-xs text-zinc-600">
                       Signed in securely with{' '}
                       <span className="font-semibold text-zinc-900">
-                        {firebaseUserEmail || currentCustomer.email || 'Google Account'}
+                        {cloudUserEmail || currentCustomer.email || 'Google Account'}
                       </span>
-                      . Your orders, wishlist, and saved addresses sync automatically with Cloud Firestore.
+                      . Your orders, wishlist, and saved addresses sync automatically with Supabase Postgres.
                     </p>
                   </div>
                   <button
@@ -2394,27 +2559,50 @@ export function CustomerAccountView({
           )}
         </div>
       </div>
+
+      {returnModalOrder && (
+        <CustomerReturnModal
+          order={returnModalOrder}
+          existingReturns={returns}
+          onClose={() => setReturnModalOrder(null)}
+          onSubmitReturn={(rma) => {
+            onCreateReturnRequest?.(rma);
+            setReturnModalOrder(null);
+            setNotice(`Return request ${rma.rmaNumber} submitted! Live progress tracker added below.`);
+          }}
+        />
+      )}
     </section>
   );
 }
 
 interface OrderTrackingCardProps {
   order: OrderRecord;
+  returns: ReturnRequestRecord[];
   whatsappNumber: string;
+  compact?: boolean;
   onDownloadInvoice: () => void;
   onReorder: () => void;
   onCancel: () => void;
+  onOpenReturnModal: () => void;
 }
 
 function OrderTrackingCard({
   order,
+  returns,
   whatsappNumber,
+  compact = false,
   onDownloadInvoice,
   onReorder,
   onCancel,
+  onOpenReturnModal,
 }: OrderTrackingCardProps) {
   const stepIndex = getOrderTrackingStepIndex(order.status);
   const canCancel = order.status === 'Confirmed' || order.status === 'Preparing Shipment';
+  const eligibility = isOrderEligibleForReturn(order, returns);
+  const existingRma = eligibility.existingRma;
+  const rmaBadge = getOrderRmaStatusBadge(order.orderNumber, returns);
+  const rmaStepIdx = existingRma ? buildCustomerReturnStepIndex(existingRma.status) : 0;
   const orderHelpUrl = buildWhatsAppUrl(
     `Hi BEE4! I need an update on my order ${order.orderNumber} (status: ${order.status}).`,
     whatsappNumber
@@ -2452,7 +2640,10 @@ function OrderTrackingCard({
           This order was cancelled before dispatch. You can reorder any item below.
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2" aria-label={`Tracking steps for ${order.orderNumber}`}>
+        <div
+          className={`grid gap-2 ${compact ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-4'}`}
+          aria-label={`Tracking steps for ${order.orderNumber}`}
+        >
           {ORDER_TRACKING_STEPS.map((step, idx) => {
             const done = idx <= stepIndex;
             const current = idx === stepIndex;
@@ -2507,8 +2698,139 @@ function OrderTrackingCard({
         </p>
       )}
 
+      {/* Live Return & Replacement Status Tracker */}
+      {existingRma && (
+        <div className="p-4 rounded-2xl bg-amber-50/55 dark:bg-amber-950/35 border border-amber-200/80 dark:border-amber-500/25 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-bold text-zinc-900 dark:text-white tabular-nums">
+                {existingRma.rmaNumber}
+              </span>
+              {rmaBadge && (
+                <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${rmaBadge.toneClass}`}>
+                  {rmaBadge.shortLabel}
+                </span>
+              )}
+              <span className="text-zinc-600 dark:text-zinc-300">
+                {existingRma.resolutionType}
+              </span>
+            </div>
+            <span className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">
+              {existingRma.reason}
+            </span>
+          </div>
+
+          {existingRma.status === 'Rejected' ? (
+            <div className="p-3 rounded-xl bg-red-50/90 border border-red-200 text-xs text-red-700 font-medium">
+              Return Declined: {existingRma.rejectionReason || existingRma.adminNote || 'Please contact BEE4 Support via WhatsApp for assistance.'}
+            </div>
+          ) : (
+            <div className="space-y-2.5" aria-label={`Return progress steps for ${existingRma.rmaNumber}`}>
+              {/* 5-segment progress track */}
+              <div className="grid grid-cols-5 gap-1.5" aria-hidden="true">
+                {CUSTOMER_RETURN_TRACKER_STEPS.map((label, idx) => (
+                  <div
+                    key={`bar-${label}`}
+                    className={`h-1.5 rounded-full transition-colors ${
+                      idx < rmaStepIdx
+                        ? 'bg-emerald-500'
+                        : idx === rmaStepIdx
+                          ? 'bg-amber-500'
+                          : 'bg-zinc-200/80 dark:bg-white/15'
+                    }`}
+                  />
+                ))}
+              </div>
+
+              <div
+                className={`grid gap-1.5 ${
+                  compact ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-5'
+                }`}
+              >
+                {CUSTOMER_RETURN_TRACKER_STEPS.map((label, idx) => {
+                  const done = idx <= rmaStepIdx;
+                  const current = idx === rmaStepIdx;
+                  return (
+                    <div
+                      key={label}
+                      className={`px-2.5 py-2 rounded-xl border text-[11px] flex items-center justify-between gap-2 ${
+                        current
+                          ? 'border-amber-500 bg-white/90 dark:bg-zinc-900/75 text-zinc-900 dark:text-white font-semibold shadow-xs'
+                          : done
+                            ? 'border-emerald-200 bg-emerald-50/75 text-emerald-800 font-medium'
+                            : 'glass-subtle text-zinc-500'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span
+                          className={`w-4 h-4 rounded-full inline-flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                            done ? 'bg-emerald-600 text-white' : 'bg-zinc-200 text-zinc-600'
+                          }`}
+                        >
+                          {done ? <Check className="w-2.5 h-2.5" /> : idx + 1}
+                        </span>
+                        <span className="leading-snug">{label}</span>
+                      </div>
+                      {current && (
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300 shrink-0">
+                          Active
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {(existingRma.reverseAwb || existingRma.replacementAwb || existingRma.refundUtr || existingRma.issuedCouponCode || existingRma.adminNote) && (
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-700 dark:text-zinc-200 tabular-nums">
+              {existingRma.reverseAwb && (
+                <span>
+                  Reverse Pickup: <strong>{existingRma.reverseCourier || 'Courier'}</strong> ({existingRma.reverseAwb})
+                </span>
+              )}
+              {existingRma.replacementAwb && (
+                <span>
+                  Replacement Tracking: <strong>{existingRma.replacementAwb}</strong>
+                </span>
+              )}
+              {existingRma.refundUtr && (
+                <span>
+                  Refund UTR: <strong>{existingRma.refundUtr}</strong>
+                </span>
+              )}
+              {existingRma.issuedCouponCode && (
+                <span>
+                  Store Credit Code: <strong className="text-emerald-700">{existingRma.issuedCouponCode}</strong>
+                </span>
+              )}
+              {existingRma.adminNote && (
+                <span className="w-full text-zinc-600 dark:text-zinc-300">
+                  Studio Update: {existingRma.adminNote}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Customer Actions */}
       <div className="pt-2 flex flex-wrap items-center gap-2.5">
+        {eligibility.eligible && (
+          <button
+            type="button"
+            onClick={onOpenReturnModal}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl glass-btn-amber text-white text-xs font-semibold transition-all"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>
+              Request Return / Replacement
+              {eligibility.daysRemaining ? ` (${eligibility.daysRemaining}d left)` : ''}
+            </span>
+          </button>
+        )}
+
         <button
           type="button"
           onClick={onDownloadInvoice}

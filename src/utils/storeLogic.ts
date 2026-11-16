@@ -3,10 +3,12 @@ import {
   CartItem,
   CheckoutErrors,
   CheckoutFormValues,
+  CouponRecord,
   CustomerProfile,
   GiftOccasion,
   OrderRecord,
   OrderStatus,
+  PaymentMethod,
   Product,
   ProductCategory,
   SavedAddress,
@@ -17,6 +19,7 @@ import {
   TestimonialFormValues,
 } from '../types';
 import { sha256Hex, verifyAdminPassword } from './adminAuth';
+import { validateAndApplyCoupon } from './adminLogic';
 import {
   buildOrderConfirmationEmailPayload,
   buildOrderInvoiceHtml,
@@ -73,9 +76,11 @@ export interface CartTotals {
   discount: number;
   shippingFee: number;
   giftWrapFee: number;
+  codFee: number;
   total: number;
   amountToFreeShipping: number;
   promoApplied: boolean;
+  promoReason?: string;
 }
 
 export function formatINR(amount: number): string {
@@ -151,11 +156,19 @@ export function calculateCartTotals(
     giftWrap?: boolean;
     promoCode?: string;
     freeShippingThreshold?: number;
+    standardShippingFee?: number;
+    giftWrapFee?: number;
+    codHandlingFee?: number;
+    paymentMethod?: PaymentMethod;
+    coupons?: CouponRecord[];
     expectedPromoCode?: string;
     promoDiscountPercent?: number;
   } = {}
 ): CartTotals {
   const threshold = options.freeShippingThreshold ?? FREE_SHIPPING_THRESHOLD;
+  const stdShipFee = options.standardShippingFee ?? STANDARD_SHIPPING_FEE;
+  const wrapUnitFee = options.giftWrapFee ?? GIFT_WRAP_FEE;
+  const codUnitFee = options.paymentMethod === 'cod' ? (options.codHandlingFee ?? 0) : 0;
   const expectedCode = (options.expectedPromoCode ?? WELCOME_PROMO_CODE).trim().toUpperCase();
   const discountPercent = options.promoDiscountPercent ?? 10;
 
@@ -166,15 +179,38 @@ export function calculateCartTotals(
   );
 
   const normalizedPromo = (options.promoCode ?? '').trim().toUpperCase();
-  const promoApplied =
-    subtotal > 0 && expectedCode.length > 0 && normalizedPromo === expectedCode;
-  const discount = promoApplied ? Math.round((subtotal * discountPercent) / 100) : 0;
-  const netMerchandise = Math.max(0, subtotal - discount);
+  let promoApplied = false;
+  let discount = 0;
+  let promoReason: string | undefined;
 
-  const shippingFee =
-    subtotal === 0 || netMerchandise >= threshold ? 0 : STANDARD_SHIPPING_FEE;
-  const giftWrapFee = subtotal > 0 && options.giftWrap ? GIFT_WRAP_FEE : 0;
-  const total = netMerchandise + shippingFee + giftWrapFee;
+  if (subtotal > 0 && normalizedPromo.length > 0) {
+    if (options.coupons && options.coupons.length > 0) {
+      const check = validateAndApplyCoupon({
+        code: normalizedPromo,
+        subtotal,
+        paymentMethod: options.paymentMethod ?? 'upi',
+        coupons: options.coupons,
+      });
+      if (check.valid) {
+        promoApplied = true;
+        discount = check.discount;
+      } else {
+        promoReason = check.reason;
+      }
+    }
+
+    if (!promoApplied && expectedCode.length > 0 && normalizedPromo === expectedCode) {
+      promoApplied = true;
+      discount = Math.round((subtotal * discountPercent) / 100);
+      promoReason = undefined;
+    }
+  }
+
+  const netMerchandise = Math.max(0, subtotal - discount);
+  const shippingFee = subtotal === 0 || netMerchandise >= threshold ? 0 : stdShipFee;
+  const giftWrapFee = subtotal > 0 && options.giftWrap ? wrapUnitFee : 0;
+  const codFee = subtotal > 0 ? codUnitFee : 0;
+  const total = netMerchandise + shippingFee + giftWrapFee + codFee;
   const amountToFreeShipping =
     subtotal === 0 ? threshold : Math.max(0, threshold - netMerchandise);
 
@@ -184,9 +220,11 @@ export function calculateCartTotals(
     discount,
     shippingFee,
     giftWrapFee,
+    codFee,
     total,
     amountToFreeShipping,
     promoApplied,
+    promoReason,
   };
 }
 

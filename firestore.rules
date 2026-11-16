@@ -31,9 +31,9 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isVerifiedUser() && (
+      return isSignedIn() && (
         exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
-        request.auth.token.email == 'ranjitbgm@gmail.com'
+        (request.auth.token.email_verified == true && request.auth.token.email == 'ranjitbgm@gmail.com')
       );
     }
 
@@ -50,26 +50,41 @@ service cloud.firestore {
           'variants', 'shortSpec', 'description', 'materials', 'dimensions', 'inStock'
         ]) &&
         data.keys().hasOnly([
-          'id', 'title', 'category', 'ageGroup', 'originConcept', 'occasion', 'price',
-          'compareAtPrice', 'image', 'variants', 'shortSpec', 'description',
-          'useCaseHi', 'brainBenefitsHi', 'whyParentsBuyHi',
-          'materials', 'dimensions', 'inStock', 'featured', 'tag', 'updatedAt'
+          'id', 'sku', 'slug', 'title', 'primaryCategory', 'category', 'skills',
+          'ageGroup', 'ageGroups', 'originConcept', 'occasion', 'price',
+          'compareAtPrice', 'manufacturingCost', 'image', 'galleryUrls', 'variants',
+          'shortSpec', 'description', 'useCaseHi', 'brainBenefitsHi', 'whyParentsBuyHi',
+          'materials', 'careInstruction', 'dimensions', 'weightGrams', 'hsnCode',
+          'stockQuantity', 'lowStockThreshold', 'giftable', 'madeToOrder', 'status',
+          'inStock', 'featured', 'tag', 'updatedAt'
         ]) &&
         isValidId(data.id) &&
+        (!('sku' in data) || (data.sku is string && data.sku.size() <= 64)) &&
+        (!('slug' in data) || (data.slug is string && data.slug.size() <= 128)) &&
         data.title is string && data.title.size() >= 2 && data.title.size() <= 140 &&
+        (!('primaryCategory' in data) || data.primaryCategory in [
+          'Brain-Training Toys', '3D Home Decor', 'Stainless Steel Flasks', 'Lifestyle Gear'
+        ]) &&
         data.category in [
           'Engineering', 'Maths & Science', 'Motor Skills', 'Imagination'
         ] &&
+        (!('skills' in data) || (data.skills is list && data.skills.size() <= 4 &&
+          (data.skills.size() == 0 || data.skills[0] is string))) &&
         (!('ageGroup' in data) || data.ageGroup in [
           '3–5 Years', '6–8 Years', '9–11 Years', '12–15 Years'
         ]) &&
+        (!('ageGroups' in data) || (data.ageGroups is list && data.ageGroups.size() <= 4 &&
+          (data.ageGroups.size() == 0 || data.ageGroups[0] is string))) &&
         (!('originConcept' in data) || (data.originConcept is string && data.originConcept.size() <= 120)) &&
         data.occasion in [
           'Birthday', 'Festivals & Diwali', 'Housewarming', 'Desk & College', 'Everyday Use'
         ] &&
         data.price is number && data.price >= 1 && data.price <= 500000 &&
         (!('compareAtPrice' in data) || (data.compareAtPrice is number && data.compareAtPrice >= 0 && data.compareAtPrice <= 500000)) &&
+        (!('manufacturingCost' in data) || (data.manufacturingCost is number && data.manufacturingCost >= 0 && data.manufacturingCost <= 500000)) &&
         data.image is string && data.image.size() >= 1 && data.image.size() <= 1000 &&
+        (!('galleryUrls' in data) || (data.galleryUrls is list && data.galleryUrls.size() <= 3 &&
+          (data.galleryUrls.size() == 0 || (data.galleryUrls[0] is string && data.galleryUrls[0].size() <= 1000)))) &&
         data.variants is list && data.variants.size() >= 1 && data.variants.size() <= 10 &&
         data.variants[0] is string && data.variants[0].size() >= 1 && data.variants[0].size() <= 80 &&
         data.shortSpec is string && data.shortSpec.size() >= 2 && data.shortSpec.size() <= 200 &&
@@ -78,7 +93,15 @@ service cloud.firestore {
         (!('brainBenefitsHi' in data) || (data.brainBenefitsHi is string && data.brainBenefitsHi.size() <= 1000)) &&
         (!('whyParentsBuyHi' in data) || (data.whyParentsBuyHi is string && data.whyParentsBuyHi.size() <= 1000)) &&
         data.materials is string && data.materials.size() >= 1 && data.materials.size() <= 300 &&
+        (!('careInstruction' in data) || (data.careInstruction is string && data.careInstruction.size() <= 200)) &&
         data.dimensions is string && data.dimensions.size() >= 1 && data.dimensions.size() <= 200 &&
+        (!('weightGrams' in data) || (data.weightGrams is number && data.weightGrams >= 0 && data.weightGrams <= 50000)) &&
+        (!('hsnCode' in data) || data.hsnCode in ['3926', '7323', '4202']) &&
+        (!('stockQuantity' in data) || (data.stockQuantity is number && data.stockQuantity >= 0 && data.stockQuantity <= 100000)) &&
+        (!('lowStockThreshold' in data) || (data.lowStockThreshold is number && data.lowStockThreshold >= 0 && data.lowStockThreshold <= 1000)) &&
+        (!('giftable' in data) || data.giftable is bool) &&
+        (!('madeToOrder' in data) || data.madeToOrder is bool) &&
+        (!('status' in data) || data.status in ['Active', 'Draft', 'Archived']) &&
         data.inStock is bool &&
         (!('featured' in data) || data.featured is bool) &&
         (!('tag' in data) || (data.tag is string && data.tag.size() <= 40)) &&
@@ -91,15 +114,35 @@ service cloud.firestore {
           'freeShippingThreshold', 'promoCode', 'promoDiscountPercent'
         ]) &&
         data.keys().hasOnly([
-          'whatsappNumber', 'supportEmail', 'announcementText',
-          'freeShippingThreshold', 'promoCode', 'promoDiscountPercent', 'updatedAt'
+          'whatsappNumber', 'supportEmail', 'announcementText', 'announcementEnabled',
+          'heroHeadline', 'heroSubheadline', 'heroCtaText', 'featuredBannerEnabled',
+          'visibleCategories', 'freeShippingThreshold', 'standardShippingFee',
+          'codHandlingFee', 'giftWrapFee', 'giftWrapEnabled',
+          'upiEnabled', 'codEnabled', 'whatsappOrderEnabled', 'upiVpa',
+          'promoCode', 'promoDiscountPercent', 'giftFinderWeights', 'updatedAt'
         ]) &&
         data.whatsappNumber is string && data.whatsappNumber.size() >= 10 && data.whatsappNumber.size() <= 20 &&
         data.supportEmail is string && data.supportEmail.size() >= 5 && data.supportEmail.size() <= 120 &&
         data.announcementText is string && data.announcementText.size() >= 1 && data.announcementText.size() <= 200 &&
+        (!('announcementEnabled' in data) || data.announcementEnabled is bool) &&
+        (!('heroHeadline' in data) || (data.heroHeadline is string && data.heroHeadline.size() <= 160)) &&
+        (!('heroSubheadline' in data) || (data.heroSubheadline is string && data.heroSubheadline.size() <= 260)) &&
+        (!('heroCtaText' in data) || (data.heroCtaText is string && data.heroCtaText.size() <= 60)) &&
+        (!('featuredBannerEnabled' in data) || data.featuredBannerEnabled is bool) &&
+        (!('visibleCategories' in data) || (data.visibleCategories is list && data.visibleCategories.size() <= 8 &&
+          (data.visibleCategories.size() == 0 || data.visibleCategories[0] is string))) &&
         data.freeShippingThreshold is number && data.freeShippingThreshold >= 0 && data.freeShippingThreshold <= 50000 &&
+        (!('standardShippingFee' in data) || (data.standardShippingFee is number && data.standardShippingFee >= 0 && data.standardShippingFee <= 5000)) &&
+        (!('codHandlingFee' in data) || (data.codHandlingFee is number && data.codHandlingFee >= 0 && data.codHandlingFee <= 5000)) &&
+        (!('giftWrapFee' in data) || (data.giftWrapFee is number && data.giftWrapFee >= 0 && data.giftWrapFee <= 5000)) &&
+        (!('giftWrapEnabled' in data) || data.giftWrapEnabled is bool) &&
+        (!('upiEnabled' in data) || data.upiEnabled is bool) &&
+        (!('codEnabled' in data) || data.codEnabled is bool) &&
+        (!('whatsappOrderEnabled' in data) || data.whatsappOrderEnabled is bool) &&
+        (!('upiVpa' in data) || (data.upiVpa is string && data.upiVpa.size() <= 80)) &&
         data.promoCode is string && data.promoCode.size() <= 32 &&
         data.promoDiscountPercent is number && data.promoDiscountPercent >= 0 && data.promoDiscountPercent <= 90 &&
+        (!('giftFinderWeights' in data) || data.giftFinderWeights is map) &&
         (!('updatedAt' in data) || data.updatedAt == request.time);
     }
 
@@ -161,10 +204,12 @@ service cloud.firestore {
           'giftWrap', 'giftMessage', 'itemCount', 'status', 'createdAt', 'updatedAt'
         ]) &&
         data.keys().hasOnly([
-          'orderNumber', 'userId', 'subtotal', 'discount', 'shippingFee', 'giftWrapFee', 'total',
-          'paymentMethod', 'customerFullName', 'customerPhone', 'customerEmail',
+          'orderNumber', 'userId', 'subtotal', 'discount', 'shippingFee', 'giftWrapFee', 'codFee', 'total',
+          'paymentMethod', 'orderChannel', 'couponCode',
+          'customerFullName', 'customerPhone', 'customerEmail',
           'shippingAddress', 'shippingCity', 'shippingState', 'shippingPinCode',
-          'giftWrap', 'giftMessage', 'itemCount', 'status', 'createdAt', 'updatedAt'
+          'giftWrap', 'giftMessage', 'itemCount', 'status', 'fulfillmentStage',
+          'courierPartner', 'awbNumber', 'trackingUrl', 'internalNotes', 'createdAt', 'updatedAt'
         ]) &&
         isValidId(data.orderNumber) &&
         isValidId(data.userId) &&
@@ -172,8 +217,11 @@ service cloud.firestore {
         data.discount is number && data.discount >= 0 &&
         data.shippingFee is number && data.shippingFee >= 0 &&
         data.giftWrapFee is number && data.giftWrapFee >= 0 &&
+        (!('codFee' in data) || (data.codFee is number && data.codFee >= 0)) &&
         data.total is number && data.total >= 0 &&
         data.paymentMethod in ['upi', 'card', 'cod'] &&
+        (!('orderChannel' in data) || data.orderChannel in ['UPI / Prepaid', 'COD', 'WhatsApp Order']) &&
+        (!('couponCode' in data) || (data.couponCode is string && data.couponCode.size() <= 32)) &&
         data.customerFullName is string && data.customerFullName.size() >= 2 && data.customerFullName.size() <= 100 &&
         data.customerPhone is string && data.customerPhone.size() >= 10 && data.customerPhone.size() <= 15 &&
         data.customerEmail is string && data.customerEmail.size() <= 160 &&
@@ -185,6 +233,13 @@ service cloud.firestore {
         data.giftMessage is string && data.giftMessage.size() <= 300 &&
         data.itemCount is number && data.itemCount >= 1 && data.itemCount <= 50 &&
         data.status in ['Confirmed', 'Preparing Shipment', 'Shipped', 'Delivered', 'Cancelled'] &&
+        (!('fulfillmentStage' in data) || data.fulfillmentStage in [
+          'New / Unverified', 'Confirmed', 'Printing / Packing', 'Shipped', 'Delivered', 'Cancelled', 'RTO / Return'
+        ]) &&
+        (!('courierPartner' in data) || (data.courierPartner is string && data.courierPartner.size() <= 64)) &&
+        (!('awbNumber' in data) || (data.awbNumber is string && data.awbNumber.size() <= 64)) &&
+        (!('trackingUrl' in data) || (data.trackingUrl is string && data.trackingUrl.size() <= 300)) &&
+        (!('internalNotes' in data) || (data.internalNotes is string && data.internalNotes.size() <= 500)) &&
         data.createdAt is timestamp &&
         data.updatedAt is timestamp;
     }
@@ -242,6 +297,89 @@ service cloud.firestore {
         data.updatedAt is timestamp;
     }
 
+    function isValidCoupon(data) {
+      return data.keys().hasAll([
+          'id', 'code', 'description', 'discountType', 'value', 'minOrderValue',
+          'prepaidOnly', 'usageLimit', 'usedCount', 'expiresAt', 'active'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'code', 'description', 'discountType', 'value', 'minOrderValue',
+          'prepaidOnly', 'usageLimit', 'usedCount', 'expiresAt', 'active', 'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        data.code is string && data.code.size() >= 2 && data.code.size() <= 32 &&
+        data.description is string && data.description.size() <= 200 &&
+        data.discountType in ['percentage', 'flat'] &&
+        data.value is number && data.value >= 1 && data.value <= 10000 &&
+        data.minOrderValue is number && data.minOrderValue >= 0 && data.minOrderValue <= 100000 &&
+        data.prepaidOnly is bool &&
+        data.usageLimit is number && data.usageLimit >= 0 && data.usageLimit <= 1000000 &&
+        data.usedCount is number && data.usedCount >= 0 && data.usedCount <= 1000000 &&
+        data.expiresAt is string && data.expiresAt.size() <= 32 &&
+        data.active is bool &&
+        (!('updatedAt' in data) || data.updatedAt == request.time);
+    }
+
+    function isValidPrintJob(data) {
+      return data.keys().hasAll([
+          'id', 'productId', 'productTitle', 'batchQty', 'material',
+          'estimatedGrams', 'stage', 'printerName', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'productId', 'productTitle', 'orderNumber', 'batchQty', 'material',
+          'estimatedGrams', 'stage', 'printerName', 'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        data.productId is string && data.productId.size() >= 1 && data.productId.size() <= 128 &&
+        data.productTitle is string && data.productTitle.size() >= 1 && data.productTitle.size() <= 160 &&
+        (!('orderNumber' in data) || (data.orderNumber is string && data.orderNumber.size() <= 64)) &&
+        data.batchQty is number && data.batchQty >= 1 && data.batchQty <= 1000 &&
+        data.material is string && data.material.size() >= 1 && data.material.size() <= 100 &&
+        data.estimatedGrams is number && data.estimatedGrams >= 1 && data.estimatedGrams <= 50000 &&
+        data.stage in ['Queued', 'Printing', 'Quality Check', 'Ready to Pack'] &&
+        data.printerName is string && data.printerName.size() >= 1 && data.printerName.size() <= 100 &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidFilamentSpool(data) {
+      return data.keys().hasAll([
+          'id', 'name', 'material', 'colorHex', 'colorName',
+          'remainingGrams', 'capacityGrams', 'costPerKg', 'gramsPerToyAvg'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'name', 'material', 'colorHex', 'colorName',
+          'remainingGrams', 'capacityGrams', 'costPerKg', 'gramsPerToyAvg', 'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        data.name is string && data.name.size() >= 2 && data.name.size() <= 120 &&
+        data.material in ['Eco-PLA', 'Matte Bio-PLA+', 'PETG', 'TPU'] &&
+        data.colorHex is string && data.colorHex.size() >= 4 && data.colorHex.size() <= 16 &&
+        data.colorName is string && data.colorName.size() >= 1 && data.colorName.size() <= 60 &&
+        data.remainingGrams is number && data.remainingGrams >= 0 && data.remainingGrams <= 20000 &&
+        data.capacityGrams is number && data.capacityGrams >= 100 && data.capacityGrams <= 20000 &&
+        data.costPerKg is number && data.costPerKg >= 0 && data.costPerKg <= 20000 &&
+        data.gramsPerToyAvg is number && data.gramsPerToyAvg >= 1 && data.gramsPerToyAvg <= 5000 &&
+        (!('updatedAt' in data) || data.updatedAt == request.time);
+    }
+
+    function isValidAdminAuditLog(data) {
+      return data.keys().hasAll([
+          'id', 'adminUid', 'adminEmail', 'action', 'entityType', 'entityId', 'summary', 'timestamp'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'adminUid', 'adminEmail', 'action', 'entityType', 'entityId', 'summary', 'timestamp'
+        ]) &&
+        isValidId(data.id) &&
+        isValidId(data.adminUid) &&
+        data.adminUid == request.auth.uid &&
+        data.adminEmail is string && data.adminEmail.size() >= 3 && data.adminEmail.size() <= 160 &&
+        data.action is string && data.action.size() >= 2 && data.action.size() <= 80 &&
+        data.entityType in ['order', 'product', 'inventory', 'coupon', 'settings', 'customer', 'auth'] &&
+        data.entityId is string && data.entityId.size() >= 1 && data.entityId.size() <= 128 &&
+        data.summary is string && data.summary.size() >= 2 && data.summary.size() <= 400 &&
+        data.timestamp is timestamp;
+    }
+
     // -------------------------------------------------------------------------
     // Collection Rules
     // -------------------------------------------------------------------------
@@ -258,10 +396,13 @@ service cloud.firestore {
       allow update: if isAdmin() && isValidId(productId) && isValidProduct(incoming()) &&
         incoming().id == existing().id &&
         incoming().diff(existing()).affectedKeys().hasOnly([
-          'title', 'category', 'ageGroup', 'originConcept', 'occasion', 'price', 'compareAtPrice',
-          'image', 'variants', 'shortSpec', 'description',
-          'useCaseHi', 'brainBenefitsHi', 'whyParentsBuyHi',
-          'materials', 'dimensions', 'inStock', 'featured', 'tag', 'updatedAt'
+          'sku', 'slug', 'title', 'primaryCategory', 'category', 'skills',
+          'ageGroup', 'ageGroups', 'originConcept', 'occasion', 'price',
+          'compareAtPrice', 'manufacturingCost', 'image', 'galleryUrls', 'variants',
+          'shortSpec', 'description', 'useCaseHi', 'brainBenefitsHi', 'whyParentsBuyHi',
+          'materials', 'careInstruction', 'dimensions', 'weightGrams', 'hsnCode',
+          'stockQuantity', 'lowStockThreshold', 'giftable', 'madeToOrder', 'status',
+          'inStock', 'featured', 'tag', 'updatedAt'
         ]);
       allow delete: if isAdmin() && isValidId(productId);
     }
@@ -272,10 +413,67 @@ service cloud.firestore {
       allow create: if isAdmin() && isValidId(settingId) && isValidStoreSettings(incoming());
       allow update: if isAdmin() && isValidId(settingId) && isValidStoreSettings(incoming()) &&
         incoming().diff(existing()).affectedKeys().hasOnly([
-          'whatsappNumber', 'supportEmail', 'announcementText',
-          'freeShippingThreshold', 'promoCode', 'promoDiscountPercent', 'updatedAt'
+          'whatsappNumber', 'supportEmail', 'announcementText', 'announcementEnabled',
+          'heroHeadline', 'heroSubheadline', 'heroCtaText', 'featuredBannerEnabled',
+          'visibleCategories', 'freeShippingThreshold', 'standardShippingFee',
+          'codHandlingFee', 'giftWrapFee', 'giftWrapEnabled',
+          'upiEnabled', 'codEnabled', 'whatsappOrderEnabled', 'upiVpa',
+          'promoCode', 'promoDiscountPercent', 'giftFinderWeights', 'updatedAt'
         ]);
       allow delete: if false;
+    }
+
+    match /coupons/{couponId} {
+      allow get: if isValidId(couponId);
+      allow list: if true;
+      allow create: if isAdmin() && isValidId(couponId) && isValidCoupon(incoming()) &&
+        incoming().id == couponId;
+      allow update: if isAdmin() && isValidId(couponId) && isValidCoupon(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'code', 'description', 'discountType', 'value', 'minOrderValue',
+          'prepaidOnly', 'usageLimit', 'usedCount', 'expiresAt', 'active', 'updatedAt'
+        ]);
+      allow delete: if isAdmin() && isValidId(couponId);
+    }
+
+    match /printJobs/{jobId} {
+      allow get: if isAdmin() && isValidId(jobId);
+      allow list: if isAdmin();
+      allow create: if isAdmin() && isValidId(jobId) && isValidPrintJob(incoming()) &&
+        incoming().id == jobId &&
+        incoming().updatedAt == request.time;
+      allow update: if isAdmin() && isValidId(jobId) && isValidPrintJob(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'productId', 'productTitle', 'orderNumber', 'batchQty', 'material',
+          'estimatedGrams', 'stage', 'printerName', 'updatedAt'
+        ]);
+      allow delete: if isAdmin() && isValidId(jobId);
+    }
+
+    match /filamentSpools/{spoolId} {
+      allow get: if isAdmin() && isValidId(spoolId);
+      allow list: if isAdmin();
+      allow create: if isAdmin() && isValidId(spoolId) && isValidFilamentSpool(incoming()) &&
+        incoming().id == spoolId;
+      allow update: if isAdmin() && isValidId(spoolId) && isValidFilamentSpool(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'name', 'material', 'colorHex', 'colorName',
+          'remainingGrams', 'capacityGrams', 'costPerKg', 'gramsPerToyAvg', 'updatedAt'
+        ]);
+      allow delete: if isAdmin() && isValidId(spoolId);
+    }
+
+    match /adminLogs/{logId} {
+      allow get: if isAdmin() && isValidId(logId);
+      allow list: if isAdmin();
+      allow create: if isAdmin() && isValidId(logId) && isValidAdminAuditLog(incoming()) &&
+        incoming().id == logId &&
+        incoming().timestamp == request.time;
+      allow update, delete: if false;
     }
 
     match /users/{userId} {

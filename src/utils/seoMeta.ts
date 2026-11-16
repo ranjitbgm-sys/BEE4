@@ -257,6 +257,13 @@ export function resolvePageSeoMetadata(params: {
             name: 'BEE4',
             url: origin,
             areaServed: 'IN',
+            address: {
+              '@type': 'PostalAddress',
+              addressLocality: 'Banka',
+              addressRegion: 'Bihar',
+              postalCode: '813103',
+              addressCountry: 'IN',
+            },
             description:
               'India’s first brand offering East-Asian screen-free brain-training toys custom 3D-printed in India.',
           },
@@ -289,6 +296,13 @@ export function resolvePageSeoMetadata(params: {
           description:
             'Screen-free brain training toys inspired by Japanese, Korean & Chinese mechanisms, custom 3D-printed in India for age-appropriate learning (ages 3–15).',
           priceRange: '₹349–₹899',
+          address: {
+            '@type': 'PostalAddress',
+            addressLocality: 'Banka',
+            addressRegion: 'Bihar',
+            postalCode: '813103',
+            addressCountry: 'IN',
+          },
           areaServed: {
             '@type': 'Country',
             name: 'India',

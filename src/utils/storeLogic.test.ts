@@ -9,7 +9,7 @@ import {
   normalizeAssetUrl,
   validateCheckoutForm,
 } from './storeLogic';
-import { AGE_GROUP_META, HERO_IMAGE, INITIAL_PRODUCTS } from '../data/catalog';
+import { AGE_GROUP_META, HERO_IMAGE, INITIAL_COUPONS, INITIAL_PRODUCTS } from '../data/catalog';
 import { AgeGroup, GiftOccasion, Product, ProductCategory } from '../types';
 
 const SAMPLE_PRODUCTS: Product[] = INITIAL_PRODUCTS.slice(0, 8);
@@ -175,7 +175,56 @@ test('calculateCartTotals applies free shipping at ₹499+, gift wrap, and promo
   assert.equal(aboveWithPromoAndGift.discount, 70);
   assert.equal(aboveWithPromoAndGift.shippingFee, 0);
   assert.equal(aboveWithPromoAndGift.giftWrapFee, 49);
+  assert.equal(aboveWithPromoAndGift.codFee, 0);
   assert.equal(aboveWithPromoAndGift.total, 678);
+
+  const codWithPrepaidCoupon = calculateCartTotals(
+    [
+      {
+        productId: 'bee4-karakuri-trick-box',
+        title: 'Karakuri Secret 5-Step Trick Box',
+        price: 699,
+        image: '/a.jpg',
+        variant: 'Obsidian Slate PLA',
+        quantity: 1,
+        category: 'Engineering',
+      },
+    ],
+    {
+      promoCode: 'PREPAID50',
+      paymentMethod: 'cod',
+      codHandlingFee: 29,
+      coupons: INITIAL_COUPONS,
+    }
+  );
+  assert.equal(codWithPrepaidCoupon.promoApplied, false);
+  assert.ok(codWithPrepaidCoupon.promoReason);
+  assert.equal(codWithPrepaidCoupon.codFee, 29);
+  assert.equal(codWithPrepaidCoupon.total, 728);
+
+  const upiWithSmartKid15 = calculateCartTotals(
+    [
+      {
+        productId: 'bee4-karakuri-trick-box',
+        title: 'Karakuri Secret 5-Step Trick Box',
+        price: 699,
+        image: '/a.jpg',
+        variant: 'Obsidian Slate PLA',
+        quantity: 1,
+        category: 'Engineering',
+      },
+    ],
+    {
+      promoCode: 'SMARTKID15',
+      paymentMethod: 'upi',
+      codHandlingFee: 29,
+      coupons: INITIAL_COUPONS,
+    }
+  );
+  assert.equal(upiWithSmartKid15.promoApplied, true);
+  assert.equal(upiWithSmartKid15.discount, 105);
+  assert.equal(upiWithSmartKid15.codFee, 0);
+  assert.equal(upiWithSmartKid15.total, 594);
 });
 
 test('validateCheckoutForm enforces valid Indian phone and 6-digit PIN code', () => {

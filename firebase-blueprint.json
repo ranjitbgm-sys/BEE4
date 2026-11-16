@@ -5,130 +5,54 @@
       "description": "Catalog product item available on the BEE4 storefront.",
       "type": "object",
       "properties": {
-        "id": {
+        "id": { "type": "string", "minLength": 2, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "sku": { "type": "string", "maxLength": 64 },
+        "slug": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "minLength": 2, "maxLength": 140 },
+        "primaryCategory": {
           "type": "string",
-          "description": "Unique product identifier.",
-          "minLength": 2,
-          "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$"
-        },
-        "title": {
-          "type": "string",
-          "description": "Display title of the product.",
-          "minLength": 2,
-          "maxLength": 140
+          "enum": ["Brain-Training Toys", "3D Home Decor", "Stainless Steel Flasks", "Lifestyle Gear"]
         },
         "category": {
           "type": "string",
-          "description": "Brain skill category.",
-          "enum": [
-            "Engineering",
-            "Maths & Science",
-            "Motor Skills",
-            "Imagination"
-          ]
+          "enum": ["Engineering", "Maths & Science", "Motor Skills", "Imagination"]
         },
+        "skills": { "type": "array", "description": "Multi-select skill categories." },
         "ageGroup": {
           "type": "string",
-          "description": "Child developmental age group.",
-          "enum": [
-            "3–5 Years",
-            "6–8 Years",
-            "9–11 Years",
-            "12–15 Years"
-          ]
+          "enum": ["3–5 Years", "6–8 Years", "9–11 Years", "12–15 Years"]
         },
-        "originConcept": {
-          "type": "string",
-          "description": "East-Asian origin design badge.",
-          "maxLength": 120
-        },
+        "ageGroups": { "type": "array", "description": "Multi-select age groups." },
+        "originConcept": { "type": "string", "maxLength": 120 },
         "occasion": {
           "type": "string",
-          "description": "Primary gifting occasion.",
-          "enum": [
-            "Birthday",
-            "Festivals & Diwali",
-            "Housewarming",
-            "Desk & College",
-            "Everyday Use"
-          ]
+          "enum": ["Birthday", "Festivals & Diwali", "Housewarming", "Desk & College", "Everyday Use"]
         },
-        "price": {
-          "type": "number",
-          "description": "Selling price in INR."
-        },
-        "compareAtPrice": {
-          "type": "number",
-          "description": "Original MRP in INR for discount display."
-        },
-        "image": {
-          "type": "string",
-          "description": "Product image path or HTTPS URL.",
-          "minLength": 1,
-          "maxLength": 1000
-        },
-        "variants": {
-          "type": "array",
-          "description": "Bounded list of selectable product variants (max 10)."
-        },
-        "shortSpec": {
-          "type": "string",
-          "description": "Single-line product specification summary.",
-          "minLength": 2,
-          "maxLength": 200
-        },
-        "description": {
-          "type": "string",
-          "description": "Full product description.",
-          "minLength": 2,
-          "maxLength": 2000
-        },
-        "useCaseHi": {
-          "type": "string",
-          "description": "How to play / mechanism explanation in Hindi.",
-          "maxLength": 1000
-        },
-        "brainBenefitsHi": {
-          "type": "string",
-          "description": "Scientific cognitive benefits for the child age group in Hindi.",
-          "maxLength": 1000
-        },
-        "whyParentsBuyHi": {
-          "type": "string",
-          "description": "Persuasive screen-free value for Indian parents in Hindi.",
-          "maxLength": 1000
-        },
-        "materials": {
-          "type": "string",
-          "description": "Craftsmanship and materials specification.",
-          "minLength": 1,
-          "maxLength": 300
-        },
-        "dimensions": {
-          "type": "string",
-          "description": "Dimensions or capacity specification.",
-          "minLength": 1,
-          "maxLength": 200
-        },
-        "inStock": {
-          "type": "boolean",
-          "description": "Whether the product is available for purchase."
-        },
-        "featured": {
-          "type": "boolean",
-          "description": "Whether the product appears in storefront featured picks."
-        },
-        "tag": {
-          "type": "string",
-          "description": "Optional short merchandising label.",
-          "maxLength": 40
-        },
-        "updatedAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Server timestamp when product was last updated."
-        }
+        "price": { "type": "number" },
+        "compareAtPrice": { "type": "number" },
+        "manufacturingCost": { "type": "number" },
+        "image": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "galleryUrls": { "type": "array", "description": "3-angle image URLs." },
+        "variants": { "type": "array" },
+        "shortSpec": { "type": "string", "minLength": 2, "maxLength": 200 },
+        "description": { "type": "string", "minLength": 2, "maxLength": 2000 },
+        "useCaseHi": { "type": "string", "maxLength": 1000 },
+        "brainBenefitsHi": { "type": "string", "maxLength": 1000 },
+        "whyParentsBuyHi": { "type": "string", "maxLength": 1000 },
+        "materials": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "careInstruction": { "type": "string", "maxLength": 200 },
+        "dimensions": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "weightGrams": { "type": "number" },
+        "hsnCode": { "type": "string", "enum": ["3926", "7323", "4202"] },
+        "stockQuantity": { "type": "number" },
+        "lowStockThreshold": { "type": "number" },
+        "giftable": { "type": "boolean" },
+        "madeToOrder": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["Active", "Draft", "Archived"] },
+        "inStock": { "type": "boolean" },
+        "featured": { "type": "boolean" },
+        "tag": { "type": "string", "maxLength": 40 },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": [
         "id",
@@ -148,46 +72,30 @@
     },
     "StoreSettings": {
       "title": "StoreSettings",
-      "description": "Publicly readable store configuration managed by store administrators.",
+      "description": "Publicly readable store & CMS configuration managed by store administrators.",
       "type": "object",
       "properties": {
-        "whatsappNumber": {
-          "type": "string",
-          "description": "Storefront WhatsApp concierge phone number.",
-          "minLength": 10,
-          "maxLength": 20
-        },
-        "supportEmail": {
-          "type": "string",
-          "format": "email",
-          "description": "Customer support email address.",
-          "minLength": 5,
-          "maxLength": 120
-        },
-        "announcementText": {
-          "type": "string",
-          "description": "Top announcement bar text.",
-          "minLength": 1,
-          "maxLength": 200
-        },
-        "freeShippingThreshold": {
-          "type": "number",
-          "description": "Order subtotal in INR required for free pan-India delivery."
-        },
-        "promoCode": {
-          "type": "string",
-          "description": "Active promo code.",
-          "maxLength": 32
-        },
-        "promoDiscountPercent": {
-          "type": "number",
-          "description": "Percentage discount applied for the active promo code."
-        },
-        "updatedAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Server timestamp when settings were updated."
-        }
+        "whatsappNumber": { "type": "string", "minLength": 10, "maxLength": 20 },
+        "supportEmail": { "type": "string", "format": "email", "minLength": 5, "maxLength": 120 },
+        "announcementText": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "announcementEnabled": { "type": "boolean" },
+        "heroHeadline": { "type": "string", "maxLength": 160 },
+        "heroSubheadline": { "type": "string", "maxLength": 260 },
+        "heroCtaText": { "type": "string", "maxLength": 60 },
+        "featuredBannerEnabled": { "type": "boolean" },
+        "visibleCategories": { "type": "array" },
+        "freeShippingThreshold": { "type": "number" },
+        "standardShippingFee": { "type": "number" },
+        "codHandlingFee": { "type": "number" },
+        "giftWrapFee": { "type": "number" },
+        "giftWrapEnabled": { "type": "boolean" },
+        "upiEnabled": { "type": "boolean" },
+        "codEnabled": { "type": "boolean" },
+        "whatsappOrderEnabled": { "type": "boolean" },
+        "upiVpa": { "type": "string", "maxLength": 80 },
+        "promoCode": { "type": "string", "maxLength": 32 },
+        "promoDiscountPercent": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": [
         "whatsappNumber",
@@ -203,29 +111,10 @@
       "description": "Non-PII root account record anchoring private customer subcollections.",
       "type": "object",
       "properties": {
-        "uid": {
-          "type": "string",
-          "description": "Firebase Auth UID.",
-          "minLength": 6,
-          "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$"
-        },
-        "displayName": {
-          "type": "string",
-          "description": "Customer display name.",
-          "minLength": 1,
-          "maxLength": 100
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Server creation timestamp."
-        },
-        "updatedAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Server update timestamp."
-        }
+        "uid": { "type": "string", "minLength": 6, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "displayName", "createdAt", "updatedAt"]
     },
@@ -234,54 +123,15 @@
       "description": "Isolated PII and preferences document stored at /users/{userId}/private/info.",
       "type": "object",
       "properties": {
-        "uid": {
-          "type": "string",
-          "description": "Firebase Auth UID.",
-          "minLength": 6,
-          "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$"
-        },
-        "fullName": {
-          "type": "string",
-          "description": "Customer full name.",
-          "minLength": 1,
-          "maxLength": 100
-        },
-        "phone": {
-          "type": "string",
-          "description": "Customer 10-digit Indian phone number (optional until provided).",
-          "maxLength": 20
-        },
-        "email": {
-          "type": "string",
-          "format": "email",
-          "description": "Customer email address.",
-          "maxLength": 160
-        },
-        "preferredPayment": {
-          "type": "string",
-          "description": "Preferred checkout payment method.",
-          "enum": ["upi", "card", "cod"]
-        },
-        "celebrationMonth": {
-          "type": "string",
-          "description": "Optional preferred celebration month.",
-          "maxLength": 40
-        },
-        "wishlistIds": {
-          "type": "array",
-          "description": "Bounded list of saved product IDs (max 50)."
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Server creation timestamp."
-        },
-        "updatedAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Server update timestamp."
-        }
+        "uid": { "type": "string", "minLength": 6, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "fullName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "phone": { "type": "string", "maxLength": 20 },
+        "email": { "type": "string", "format": "email", "maxLength": 160 },
+        "preferredPayment": { "type": "string", "enum": ["upi", "card", "cod"] },
+        "celebrationMonth": { "type": "string", "maxLength": 40 },
+        "wishlistIds": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "fullName", "preferredPayment", "wishlistIds", "createdAt", "updatedAt"]
     },
@@ -290,90 +140,22 @@
       "description": "Customer saved delivery address inside /users/{userId}/addresses/{addressId}.",
       "type": "object",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique address document ID.",
-          "minLength": 2,
-          "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$"
-        },
-        "userId": {
-          "type": "string",
-          "description": "Owner Firebase Auth UID.",
-          "minLength": 6,
-          "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$"
-        },
-        "label": {
-          "type": "string",
-          "description": "Address label.",
-          "enum": ["Home", "Work", "Other"]
-        },
-        "fullName": {
-          "type": "string",
-          "description": "Recipient full name.",
-          "minLength": 2,
-          "maxLength": 100
-        },
-        "phone": {
-          "type": "string",
-          "description": "10-digit Indian mobile number.",
-          "minLength": 10,
-          "maxLength": 15
-        },
-        "address": {
-          "type": "string",
-          "description": "Street and building delivery address.",
-          "minLength": 5,
-          "maxLength": 300
-        },
-        "city": {
-          "type": "string",
-          "description": "City name.",
-          "minLength": 2,
-          "maxLength": 80
-        },
-        "state": {
-          "type": "string",
-          "description": "Indian state or UT.",
-          "minLength": 2,
-          "maxLength": 80
-        },
-        "pinCode": {
-          "type": "string",
-          "description": "6-digit Indian PIN code.",
-          "pattern": "^[1-9][0-9]{5}$",
-          "minLength": 6,
-          "maxLength": 6
-        },
-        "isDefault": {
-          "type": "boolean",
-          "description": "Whether this is the default checkout address."
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Server creation timestamp."
-        },
-        "updatedAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Server update timestamp."
-        }
+        "id": { "type": "string", "minLength": 2, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userId": { "type": "string", "minLength": 6, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "label": { "type": "string", "enum": ["Home", "Work", "Other"] },
+        "fullName": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "phone": { "type": "string", "minLength": 10, "maxLength": 15 },
+        "address": { "type": "string", "minLength": 5, "maxLength": 300 },
+        "city": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "state": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "pinCode": { "type": "string", "pattern": "^[1-9][0-9]{5}$", "minLength": 6, "maxLength": 6 },
+        "isDefault": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": [
-        "id",
-        "userId",
-        "label",
-        "fullName",
-        "phone",
-        "address",
-        "city",
-        "state",
-        "pinCode",
-        "isDefault",
-        "createdAt",
-        "updatedAt"
+        "id", "userId", "label", "fullName", "phone", "address",
+        "city", "state", "pinCode", "isDefault", "createdAt", "updatedAt"
       ]
     },
     "Order": {
@@ -381,75 +163,47 @@
       "description": "Customer order summary document stored at /orders/{orderNumber}.",
       "type": "object",
       "properties": {
-        "orderNumber": {
-          "type": "string",
-          "description": "Unique order number.",
-          "minLength": 4,
-          "maxLength": 64,
-          "pattern": "^[a-zA-Z0-9_\\-]+$"
-        },
-        "userId": {
-          "type": "string",
-          "description": "Owner Firebase Auth UID.",
-          "minLength": 6,
-          "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$"
-        },
-        "subtotal": { "type": "number", "description": "Order subtotal in INR." },
-        "discount": { "type": "number", "description": "Promo discount in INR." },
-        "shippingFee": { "type": "number", "description": "Delivery fee in INR." },
-        "giftWrapFee": { "type": "number", "description": "Gift wrap fee in INR." },
-        "total": { "type": "number", "description": "Final payable total in INR." },
-        "paymentMethod": {
-          "type": "string",
-          "enum": ["upi", "card", "cod"],
-          "description": "Selected payment method."
-        },
+        "orderNumber": { "type": "string", "minLength": 4, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userId": { "type": "string", "minLength": 6, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "subtotal": { "type": "number" },
+        "discount": { "type": "number" },
+        "shippingFee": { "type": "number" },
+        "giftWrapFee": { "type": "number" },
+        "codFee": { "type": "number" },
+        "total": { "type": "number" },
+        "paymentMethod": { "type": "string", "enum": ["upi", "card", "cod"] },
+        "orderChannel": { "type": "string", "enum": ["UPI / Prepaid", "COD", "WhatsApp Order"] },
+        "couponCode": { "type": "string", "maxLength": 32 },
         "customerFullName": { "type": "string", "minLength": 2, "maxLength": 100 },
         "customerPhone": { "type": "string", "minLength": 10, "maxLength": 15 },
         "customerEmail": { "type": "string", "maxLength": 160 },
         "shippingAddress": { "type": "string", "minLength": 5, "maxLength": 300 },
         "shippingCity": { "type": "string", "minLength": 2, "maxLength": 80 },
         "shippingState": { "type": "string", "minLength": 2, "maxLength": 80 },
-        "shippingPinCode": {
-          "type": "string",
-          "pattern": "^[1-9][0-9]{5}$",
-          "minLength": 6,
-          "maxLength": 6
-        },
+        "shippingPinCode": { "type": "string", "pattern": "^[1-9][0-9]{5}$", "minLength": 6, "maxLength": 6 },
         "giftWrap": { "type": "boolean" },
         "giftMessage": { "type": "string", "maxLength": 300 },
-        "itemCount": { "type": "number", "description": "Number of line items in subcollection." },
+        "itemCount": { "type": "number" },
         "status": {
           "type": "string",
-          "enum": ["Confirmed", "Preparing Shipment", "Shipped", "Delivered", "Cancelled"],
-          "description": "Fulfillment lifecycle status."
+          "enum": ["Confirmed", "Preparing Shipment", "Shipped", "Delivered", "Cancelled"]
         },
+        "fulfillmentStage": {
+          "type": "string",
+          "enum": ["New / Unverified", "Confirmed", "Printing / Packing", "Shipped", "Delivered", "Cancelled", "RTO / Return"]
+        },
+        "courierPartner": { "type": "string", "maxLength": 64 },
+        "awbNumber": { "type": "string", "maxLength": 64 },
+        "trackingUrl": { "type": "string", "maxLength": 300 },
+        "internalNotes": { "type": "string", "maxLength": 500 },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": [
-        "orderNumber",
-        "userId",
-        "subtotal",
-        "discount",
-        "shippingFee",
-        "giftWrapFee",
-        "total",
-        "paymentMethod",
-        "customerFullName",
-        "customerPhone",
-        "customerEmail",
-        "shippingAddress",
-        "shippingCity",
-        "shippingState",
-        "shippingPinCode",
-        "giftWrap",
-        "giftMessage",
-        "itemCount",
-        "status",
-        "createdAt",
-        "updatedAt"
+        "orderNumber", "userId", "subtotal", "discount", "shippingFee", "giftWrapFee", "total",
+        "paymentMethod", "customerFullName", "customerPhone", "customerEmail",
+        "shippingAddress", "shippingCity", "shippingState", "shippingPinCode",
+        "giftWrap", "giftMessage", "itemCount", "status", "createdAt", "updatedAt"
       ]
     },
     "OrderItem": {
@@ -457,18 +211,8 @@
       "description": "Individual line item inside /orders/{orderNumber}/items/{itemId}.",
       "type": "object",
       "properties": {
-        "orderNumber": {
-          "type": "string",
-          "minLength": 4,
-          "maxLength": 64,
-          "pattern": "^[a-zA-Z0-9_\\-]+$"
-        },
-        "userId": {
-          "type": "string",
-          "minLength": 6,
-          "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$"
-        },
+        "orderNumber": { "type": "string", "minLength": 4, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userId": { "type": "string", "minLength": 6, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
         "productId": { "type": "string", "minLength": 1, "maxLength": 128 },
         "title": { "type": "string", "minLength": 1, "maxLength": 160 },
         "price": { "type": "number" },
@@ -477,35 +221,15 @@
         "quantity": { "type": "number" },
         "category": { "type": "string", "minLength": 1, "maxLength": 80 }
       },
-      "required": [
-        "orderNumber",
-        "userId",
-        "productId",
-        "title",
-        "price",
-        "image",
-        "variant",
-        "quantity",
-        "category"
-      ]
+      "required": ["orderNumber", "userId", "productId", "title", "price", "image", "variant", "quantity", "category"]
     },
     "Testimonial": {
       "title": "Testimonial",
       "description": "Verified customer review displayed on the storefront.",
       "type": "object",
       "properties": {
-        "id": {
-          "type": "string",
-          "minLength": 2,
-          "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$"
-        },
-        "userId": {
-          "type": "string",
-          "minLength": 6,
-          "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$"
-        },
+        "id": { "type": "string", "minLength": 2, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userId": { "type": "string", "minLength": 6, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
         "customerName": { "type": "string", "minLength": 2, "maxLength": 80 },
         "cityOrRole": { "type": "string", "minLength": 2, "maxLength": 80 },
         "productName": { "type": "string", "minLength": 2, "maxLength": 160 },
@@ -513,34 +237,15 @@
         "feedback": { "type": "string", "minLength": 5, "maxLength": 600 },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": [
-        "id",
-        "userId",
-        "customerName",
-        "cityOrRole",
-        "productName",
-        "rating",
-        "feedback",
-        "createdAt"
-      ]
+      "required": ["id", "userId", "customerName", "cityOrRole", "productName", "rating", "feedback", "createdAt"]
     },
     "CustomerInquiry": {
       "title": "CustomerInquiry",
       "description": "Contact / bulk gifting inquiry submitted to store support.",
       "type": "object",
       "properties": {
-        "id": {
-          "type": "string",
-          "minLength": 2,
-          "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$"
-        },
-        "userId": {
-          "type": "string",
-          "minLength": 6,
-          "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$"
-        },
+        "id": { "type": "string", "minLength": 2, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userId": { "type": "string", "minLength": 6, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
         "name": { "type": "string", "minLength": 2, "maxLength": 100 },
         "contact": { "type": "string", "minLength": 4, "maxLength": 160 },
         "topic": { "type": "string", "minLength": 2, "maxLength": 100 },
@@ -551,17 +256,84 @@
       },
       "required": ["id", "userId", "name", "contact", "topic", "message", "status", "createdAt", "updatedAt"]
     },
+    "Coupon": {
+      "title": "Coupon",
+      "description": "Promo coupon document managed by admins and validated on storefront checkout.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 2, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "code": { "type": "string", "minLength": 2, "maxLength": 32 },
+        "description": { "type": "string", "maxLength": 200 },
+        "discountType": { "type": "string", "enum": ["percentage", "flat"] },
+        "value": { "type": "number" },
+        "minOrderValue": { "type": "number" },
+        "prepaidOnly": { "type": "boolean" },
+        "usageLimit": { "type": "number" },
+        "usedCount": { "type": "number" },
+        "expiresAt": { "type": "string", "maxLength": 32 },
+        "active": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "code", "discountType", "value", "minOrderValue", "prepaidOnly", "usageLimit", "usedCount", "active"]
+    },
+    "PrintJob": {
+      "title": "PrintJob",
+      "description": "3D printer production job in Banka studio lab.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 2, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "productId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "productTitle": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "orderNumber": { "type": "string", "maxLength": 64 },
+        "batchQty": { "type": "number" },
+        "material": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "estimatedGrams": { "type": "number" },
+        "stage": { "type": "string", "enum": ["Queued", "Printing", "Quality Check", "Ready to Pack"] },
+        "printerName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "productId", "productTitle", "batchQty", "material", "estimatedGrams", "stage", "printerName", "updatedAt"]
+    },
+    "FilamentSpool": {
+      "title": "FilamentSpool",
+      "description": "3D filament spool inventory tracker.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 2, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "material": { "type": "string", "enum": ["Eco-PLA", "Matte Bio-PLA+", "PETG", "TPU"] },
+        "colorHex": { "type": "string", "maxLength": 16 },
+        "colorName": { "type": "string", "maxLength": 60 },
+        "remainingGrams": { "type": "number" },
+        "capacityGrams": { "type": "number" },
+        "costPerKg": { "type": "number" },
+        "gramsPerToyAvg": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "material", "colorHex", "colorName", "remainingGrams", "capacityGrams", "costPerKg", "gramsPerToyAvg"]
+    },
+    "AdminAuditLog": {
+      "title": "AdminAuditLog",
+      "description": "Immutable admin mutation audit log entry.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 2, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "adminUid": { "type": "string", "minLength": 6, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "adminEmail": { "type": "string", "minLength": 3, "maxLength": 160 },
+        "action": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "entityType": { "type": "string", "enum": ["order", "product", "inventory", "coupon", "settings", "customer", "auth"] },
+        "entityId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "summary": { "type": "string", "minLength": 2, "maxLength": 400 },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "adminUid", "adminEmail", "action", "entityType", "entityId", "summary", "timestamp"]
+    },
     "AdminMarker": {
       "title": "AdminMarker",
       "description": "Server-managed role document granting admin permissions when UID matches.",
       "type": "object",
       "properties": {
-        "uid": {
-          "type": "string",
-          "minLength": 6,
-          "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$"
-        },
+        "uid": { "type": "string", "minLength": 6, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "createdAt"]
@@ -574,7 +346,7 @@
     },
     "/storeSettings/{settingId}": {
       "schema": { "$ref": "#/entities/StoreSettings" },
-      "description": "Public storefront settings document (main) managed by verified admins."
+      "description": "Public storefront CMS and payment settings managed by verified admins."
     },
     "/users/{userId}": {
       "schema": { "$ref": "#/entities/UserPublic" },
@@ -603,6 +375,22 @@
     "/inquiries/{inquiryId}": {
       "schema": { "$ref": "#/entities/CustomerInquiry" },
       "description": "Customer support and bulk order inquiries visible only to submitter or admin."
+    },
+    "/coupons/{couponId}": {
+      "schema": { "$ref": "#/entities/Coupon" },
+      "description": "Promo coupon configurations managed by admins."
+    },
+    "/printJobs/{jobId}": {
+      "schema": { "$ref": "#/entities/PrintJob" },
+      "description": "Admin-only 3D printer batch queue records."
+    },
+    "/filamentSpools/{spoolId}": {
+      "schema": { "$ref": "#/entities/FilamentSpool" },
+      "description": "Admin-only 3D filament spool inventory records."
+    },
+    "/adminLogs/{logId}": {
+      "schema": { "$ref": "#/entities/AdminAuditLog" },
+      "description": "Immutable admin audit trail."
     },
     "/admins/{userId}": {
       "schema": { "$ref": "#/entities/AdminMarker" },

@@ -31,12 +31,28 @@ test('default home SEO metadata stays within optimal title/description lengths a
   assert.match(meta.keywords, /age-appropriate learning India/i);
   assert.equal(meta.ogType, 'website');
 
-  const storeNode = findGraphNode(meta.structuredData, 'Store');
+  const storeNode = findGraphNode(meta.structuredData, 'Store') as
+    | {
+        address?: {
+          addressLocality: string;
+          addressRegion: string;
+          postalCode: string;
+          addressCountry: string;
+        };
+      }
+    | undefined;
   const breadcrumbNode = findGraphNode(meta.structuredData, 'BreadcrumbList') as
     | { itemListElement: Array<{ position: number; name: string; item: string }> }
     | undefined;
 
   assert.ok(storeNode, 'Expected Store entity in @graph');
+  assert.deepEqual(storeNode.address, {
+    '@type': 'PostalAddress',
+    addressLocality: 'Banka',
+    addressRegion: 'Bihar',
+    postalCode: '813103',
+    addressCountry: 'IN',
+  });
   assert.ok(breadcrumbNode, 'Expected BreadcrumbList entity in @graph');
   assert.equal(breadcrumbNode.itemListElement.length, 3);
   assert.deepEqual(

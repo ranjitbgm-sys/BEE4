@@ -23,11 +23,31 @@ export enum GiftOccasion {
   EVERYDAY = 'Everyday Use',
 }
 
+export type PrimaryStoreCategory =
+  | 'Brain-Training Toys'
+  | '3D Home Decor'
+  | 'Stainless Steel Flasks'
+  | 'Lifestyle Gear';
+
+export type HsnCode = '3926' | '7323' | '4202';
+
+export type ProductVisibilityStatus = 'Active' | 'Draft' | 'Archived';
+
 export type ThemeMode = 'daylight' | 'aurora';
 
 export type SortOption = 'featured' | 'price-asc' | 'price-desc';
 
 export type PaymentMethod = 'upi' | 'card' | 'cod';
+
+export type AdminModuleRoute =
+  | 'dashboard'
+  | 'orders'
+  | 'returns'
+  | 'products'
+  | 'inventory'
+  | 'discounts'
+  | 'customers'
+  | 'settings';
 
 export type StorePage =
   | 'home'
@@ -50,13 +70,19 @@ export interface ProductAngle {
 
 export interface Product {
   id: string;
+  sku?: string;
+  slug?: string;
   title: string;
+  primaryCategory?: PrimaryStoreCategory;
   category: Exclude<ProductCategory, ProductCategory.ALL>;
+  skills?: Exclude<ProductCategory, ProductCategory.ALL>[];
   ageGroup: Exclude<AgeGroup, AgeGroup.ALL>;
+  ageGroups?: Exclude<AgeGroup, AgeGroup.ALL>[];
   originConcept: string;
   occasion: Exclude<GiftOccasion, GiftOccasion.ALL>;
   price: number;
   compareAtPrice?: number;
+  manufacturingCost?: number;
   image: string;
   gallery: [ProductAngle, ProductAngle, ProductAngle];
   variants: string[];
@@ -66,7 +92,16 @@ export interface Product {
   brainBenefitsHi: string;
   whyParentsBuyHi: string;
   materials: string;
+  careInstruction?: string;
   dimensions: string;
+  weightGrams?: number;
+  hsnCode?: HsnCode;
+  stockQuantity?: number;
+  lowStockThreshold?: number;
+  giftable?: boolean;
+  madeToOrder?: boolean;
+  status?: ProductVisibilityStatus;
+  damagedScrapCount?: number;
   inStock: boolean;
   featured?: boolean;
   tag?: string;
@@ -113,6 +148,17 @@ export type OrderStatus =
   | 'Delivered'
   | 'Cancelled';
 
+export type FulfillmentStage =
+  | 'New / Unverified'
+  | 'Confirmed'
+  | 'Printing / Packing'
+  | 'Shipped'
+  | 'Delivered'
+  | 'Cancelled'
+  | 'RTO / Return';
+
+export type OrderChannel = 'UPI / Prepaid' | 'COD' | 'WhatsApp Order';
+
 export interface OrderRecord {
   orderNumber: string;
   createdAt: string;
@@ -121,8 +167,11 @@ export interface OrderRecord {
   discount: number;
   shippingFee: number;
   giftWrapFee: number;
+  codFee?: number;
   total: number;
   paymentMethod: PaymentMethod;
+  orderChannel?: OrderChannel;
+  couponCode?: string;
   customer: {
     fullName: string;
     phone: string;
@@ -135,6 +184,13 @@ export interface OrderRecord {
   giftWrap: boolean;
   giftMessage: string;
   status: OrderStatus;
+  fulfillmentStage?: FulfillmentStage;
+  courierPartner?: string;
+  awbNumber?: string;
+  trackingUrl?: string;
+  internalNotes?: string;
+  refundStatus?: 'None' | 'Partially Refunded' | 'Refunded';
+  refundedAmount?: number;
 }
 
 export interface CustomerInquiry {
@@ -151,10 +207,161 @@ export interface StoreSettings {
   whatsappNumber: string;
   supportEmail: string;
   announcementText: string;
+  announcementEnabled?: boolean;
+  heroHeadline?: string;
+  heroSubheadline?: string;
+  heroCtaText?: string;
+  featuredBannerEnabled?: boolean;
+  visibleCategories?: PrimaryStoreCategory[];
   freeShippingThreshold: number;
+  standardShippingFee?: number;
+  codHandlingFee?: number;
+  giftWrapFee?: number;
+  giftWrapEnabled?: boolean;
+  upiEnabled?: boolean;
+  codEnabled?: boolean;
+  whatsappOrderEnabled?: boolean;
+  upiVpa?: string;
   promoCode: string;
   promoDiscountPercent: number;
+  giftFinderWeights?: Record<Exclude<GiftOccasion, GiftOccasion.ALL>, number>;
 }
+
+export type CouponDiscountType = 'percentage' | 'flat';
+
+export interface CouponRecord {
+  id: string;
+  code: string;
+  description: string;
+  discountType: CouponDiscountType;
+  value: number;
+  minOrderValue: number;
+  prepaidOnly: boolean;
+  usageLimit: number;
+  usedCount: number;
+  expiresAt: string;
+  active: boolean;
+}
+
+export type PrintJobStage = 'Queued' | 'Printing' | 'Quality Check' | 'Ready to Pack';
+
+export interface PrintJobRecord {
+  id: string;
+  productId: string;
+  productTitle: string;
+  orderNumber?: string;
+  batchQty: number;
+  material: string;
+  estimatedGrams: number;
+  stage: PrintJobStage;
+  printerName: string;
+  updatedAt: string;
+}
+
+export interface FilamentSpool {
+  id: string;
+  name: string;
+  material: 'Eco-PLA' | 'Matte Bio-PLA+' | 'PETG' | 'TPU';
+  colorHex: string;
+  colorName: string;
+  remainingGrams: number;
+  capacityGrams: number;
+  costPerKg: number;
+  gramsPerToyAvg: number;
+}
+
+export interface AdminAuditLog {
+  id: string;
+  timestamp: string;
+  adminEmail: string;
+  action: string;
+  entityType: 'order' | 'rma' | 'product' | 'inventory' | 'coupon' | 'settings' | 'customer' | 'auth';
+  entityId: string;
+  summary: string;
+}
+
+export type ReturnReason =
+  | 'Damaged in Transit'
+  | 'Missing 3D Puzzle Piece / Part'
+  | 'Heat Warping During Delivery (>55°C exposure)'
+  | 'Wrong Item Received'
+  | 'Quality / Finish Issue'
+  | 'Other';
+
+export type ReturnResolutionType =
+  | 'Free Instant Replacement'
+  | 'Instant Store Credit Coupon (+10% Bonus Value)'
+  | 'Refund to Original Payment / UPI ID';
+
+export type ReturnRequestStatus =
+  | 'Return Requested'
+  | 'Approved — Reverse Pickup Scheduled'
+  | 'Rejected'
+  | 'Item Received at Banka Hub (Pending QC)'
+  | 'QC Passed — Restocked to Inventory'
+  | 'QC Failed — Damaged / Scrap PLA (Do Not Restock)'
+  | 'Replacement Dispatched'
+  | 'Refund Completed';
+
+export type RefundMode = 'UPI Transfer' | 'Original Source' | 'Store Credit Coupon';
+
+export interface ReturnItemEntry {
+  productId: string;
+  title: string;
+  variant: string;
+  quantity: number;
+  unitPrice: number;
+  image: string;
+}
+
+export interface ReturnRequestRecord {
+  id: string;
+  rmaNumber: string;
+  orderNumber: string;
+  customerName: string;
+  customerPhone: string;
+  customerEmail: string;
+  orderPaymentMethod: PaymentMethod;
+  orderTotal: number;
+  items: ReturnItemEntry[];
+  reason: ReturnReason;
+  resolutionType: ReturnResolutionType;
+  customerComments: string;
+  proofImages: string[];
+  refundUpiId?: string;
+  refundBankAccount?: string;
+  refundBankIfsc?: string;
+  status: ReturnRequestStatus;
+  rejectionReason?: string;
+  adminNote?: string;
+  reverseCourier?: string;
+  reverseAwb?: string;
+  replacementAwb?: string;
+  autoRestockEnabled: boolean;
+  isRestocked: boolean;
+  scrapRecorded?: boolean;
+  replacementPrintQueued?: boolean;
+  refundAmount?: number;
+  refundMode?: RefundMode;
+  refundUtr?: string;
+  issuedCouponCode?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InventoryAdjustmentRecord {
+  id: string;
+  timestamp: string;
+  productId: string;
+  productTitle: string;
+  sku?: string;
+  delta: number;
+  adjustmentType: 'rma_restock' | 'rma_scrap' | 'manual_adjust';
+  referenceId: string;
+  note: string;
+}
+
+export type CrmCustomerFlag = 'VIP' | 'Standard' | 'High-Risk RTO';
 
 export interface Testimonial {
   id: string;
@@ -202,6 +409,7 @@ export interface CustomerProfile {
   passwordHash?: string;
   preferredPayment: PaymentMethod;
   celebrationMonth?: string;
+  crmFlag?: CrmCustomerFlag;
   createdAt: string;
   addresses: SavedAddress[];
   wishlistIds: string[];

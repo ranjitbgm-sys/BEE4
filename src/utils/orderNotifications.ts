@@ -116,7 +116,7 @@ export function buildOrderInvoiceHtml(
     <header style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding-bottom:20px;border-bottom:1px solid #e6e4dd;flex-wrap:wrap;">
       <div>
         <div style="font-size:24px;font-weight:800;letter-spacing:-0.02em;">BEE4</div>
-        <p style="margin:4px 0 0;font-size:12px;color:#52525b;">Bengaluru Dispatch Studio · Curated Indian Lifestyle &amp; Gifting</p>
+        <p style="margin:4px 0 0;font-size:12px;color:#52525b;">3D-Print Dispatch Studio · Banka, Bihar, India 813103</p>
         <p style="margin:2px 0 0;font-size:12px;color:#52525b;">${escapeHtmlSafe(supportEmail)} · WhatsApp ${escapeHtmlSafe(whatsappDisplay)}</p>
       </div>
       <div style="text-align:right;">
@@ -250,7 +250,7 @@ export function buildOrderConfirmationEmailPayload(
   const textLines: Array<string | false> = [
     `Hi ${order.customer.fullName},`,
     '',
-    `Thank you for your order with BEE4! Your order ${order.orderNumber} is confirmed and being prepared at our Bengaluru studio.`,
+    `Thank you for your order with BEE4! Your order ${order.orderNumber} is confirmed and being prepared at our Banka, Bihar studio (813103).`,
     '',
     'Order Summary:',
     itemsText,

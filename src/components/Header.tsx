@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Menu, Moon, ShoppingBag, Sun, X } from 'lucide-react';
+import { Lock, Menu, Moon, ShoppingBag, Sun, X } from 'lucide-react';
 import { BRAND_LOGO_URL } from '../data/catalog';
 import { StorePage, ThemeMode } from '../types';
 
@@ -7,6 +7,7 @@ interface HeaderProps {
   activePage: StorePage;
   cartCount: number;
   announcementText: string;
+  announcementEnabled?: boolean;
   customerFirstName?: string | null;
   theme: ThemeMode;
   onToggleTheme: () => void;
@@ -18,6 +19,7 @@ export function Header({
   activePage,
   cartCount,
   announcementText,
+  announcementEnabled = true,
   customerFirstName,
   theme,
   onToggleTheme,
@@ -43,7 +45,7 @@ export function Header({
 
   return (
     <>
-      {showBanner && (
+      {announcementEnabled && showBanner && (
         <div className="h-9 glass-banner text-zinc-100 text-xs flex items-center justify-between px-4 sm:px-8">
           <div className="w-6 shrink-0 hidden sm:block" aria-hidden="true" />
           <p className="min-w-0 flex-1 truncate text-center font-medium tracking-wide">
@@ -103,8 +105,19 @@ export function Header({
             })}
           </nav>
 
-          {/* Zone 3: Theme Toggle + Bag + Mobile menu trigger */}
+          {/* Zone 3: Subtle Admin Panel + Theme Toggle + Bag + Mobile menu trigger */}
           <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => handleNavClick('manager')}
+              aria-label="Admin Panel"
+              title="Admin Panel (/admin)"
+              className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-xl glass-btn-secondary text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white opacity-85 hover:opacity-100 whitespace-nowrap shrink-0 transition-all"
+            >
+              <Lock className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden lg:inline">Admin Panel</span>
+            </button>
+
             <button
               type="button"
               onClick={onToggleTheme}
@@ -170,6 +183,14 @@ export function Header({
                 </button>
               );
             })}
+            <button
+              type="button"
+              onClick={() => handleNavClick('manager')}
+              className="w-full text-left px-3.5 py-2.5 rounded-xl text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-white/10 inline-flex items-center gap-2 transition-colors border-t border-zinc-900/5 dark:border-white/10 mt-1 pt-2.5"
+            >
+              <Lock className="w-3.5 h-3.5 shrink-0" />
+              <span>Admin Panel</span>
+            </button>
           </nav>
         )}
       </header>

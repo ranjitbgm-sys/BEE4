@@ -8,6 +8,9 @@ interface GiftIdeasViewProps {
   products: Product[];
   wishlistIds: string[];
   initialOccasion?: GiftOccasion;
+  giftWrapFee?: number;
+  giftWrapEnabled?: boolean;
+  giftFinderWeights?: Partial<Record<Exclude<GiftOccasion, GiftOccasion.ALL>, number>>;
   onSelectProduct: (productId: string) => void;
   onQuickView?: (product: Product) => void;
   onQuickAdd: (product: Product) => void;
@@ -26,6 +29,9 @@ export function GiftIdeasView({
   products,
   wishlistIds,
   initialOccasion = GiftOccasion.ALL,
+  giftWrapFee = 49,
+  giftWrapEnabled = true,
+  giftFinderWeights,
   onSelectProduct,
   onQuickView,
   onQuickAdd,
@@ -34,7 +40,9 @@ export function GiftIdeasView({
   const [selectedOccasion, setSelectedOccasion] = useState<GiftOccasion>(initialOccasion);
   const [budgetCap, setBudgetCap] = useState<number | null>(null);
 
-  const giftItems = filterAndSortProducts(products, {
+  const giftableProducts = products.filter((p) => p.giftable !== false);
+
+  const baseGiftItems = filterAndSortProducts(giftableProducts, {
     category: ProductCategory.ALL,
     ageGroup: AgeGroup.ALL,
     occasion: selectedOccasion,
@@ -42,6 +50,13 @@ export function GiftIdeasView({
     maxPrice: budgetCap,
     sortBy: 'featured',
   });
+
+  const giftItems =
+    selectedOccasion === GiftOccasion.ALL && giftFinderWeights
+      ? [...baseGiftItems].sort(
+          (a, b) => (giftFinderWeights[b.occasion] ?? 5) - (giftFinderWeights[a.occasion] ?? 5)
+        )
+      : baseGiftItems;
 
   return (
     <section className="max-w-[1200px] mx-auto px-4 sm:px-6 pt-8 pb-12">
@@ -54,8 +69,10 @@ export function GiftIdeasView({
             Thoughtful East-Asian brain gifts ₹349–₹899, wrapped &amp; ready to delight.
           </h1>
           <p className="mt-3 text-sm sm:text-base text-zinc-600 dark:text-zinc-300 leading-relaxed">
-            Pick an occasion and comfort budget below. Add Kraft gift wrapping and a handwritten
-            message card right inside checkout for ₹49.
+            Pick an occasion and comfort budget below.
+            {giftWrapEnabled
+              ? ` Add Kraft gift wrapping and a handwritten message card right inside checkout for ₹${giftWrapFee}.`
+              : ' Ready-to-ship screen-free gift boxes from our Banka studio.'}
           </p>
         </div>
 
@@ -131,7 +148,9 @@ export function GiftIdeasView({
         </div>
         <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
           <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-          <span>Bulk school STEM fest or return gift sets? Contact our Bengaluru studio.</span>
+          <span>
+            Bulk school STEM fest or return gift sets? Contact our Banka, Bihar studio.
+          </span>
         </div>
       </div>
 

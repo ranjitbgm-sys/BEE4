@@ -67,8 +67,8 @@ export function AboutView({ onNavigate }: AboutViewProps) {
             Custom 3D-Printed in India
           </h2>
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300 leading-relaxed">
-            Each gear, dovetail track, and polycube is tuned and inspected in Bengaluru for crisp
-            mechanical tolerances between ₹349 and ₹899.
+            Each gear, dovetail track, and polycube is tuned and inspected in Banka, Bihar for
+            crisp mechanical tolerances between ₹349 and ₹899.
           </p>
         </div>
         <div className="p-6 rounded-3xl glass-surface">
@@ -195,7 +195,7 @@ export function ContactView({
                   3D Print &amp; Dispatch Studio
                 </p>
                 <p className="text-xs text-zinc-600 dark:text-zinc-300 mt-0.5">
-                  Indiranagar 100 Feet Road, Bengaluru 560038
+                  Banka, Bihar, India 813103
                 </p>
               </div>
             </div>

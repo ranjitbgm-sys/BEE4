@@ -1,3 +1,4 @@
+import { Lock } from 'lucide-react';
 import { BRAND_LOGO_URL } from '../data/catalog';
 import { StorePage } from '../types';
 import { buildWhatsAppUrl, formatWhatsAppDisplay } from '../utils/storeLogic';
@@ -39,7 +40,7 @@ export function Footer({
               toys — precision 3D-printed in Bio-PLA between ₹349 and ₹899 for ages 3–15.
             </p>
             <p className="mt-4 text-xs text-zinc-500 dark:text-zinc-400">
-              Bengaluru 3D-Print Studio · Ships across India, the US &amp; the UK
+              3D-Print Studio: Banka, Bihar, India 813103 · Ships across India, the US &amp; the UK
             </p>
           </div>
 
@@ -121,7 +122,19 @@ export function Footer({
         </div>
 
         <div className="mt-10 pt-6 border-t border-zinc-900/10 dark:border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-500 dark:text-zinc-400">
-          <p>© {new Date().getFullYear()} BEE4 Studio (bee4.in). All rights reserved.</p>
+          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-4 gap-y-2">
+            <p>© {new Date().getFullYear()} BEE4 Studio (bee4.in). All rights reserved.</p>
+            <button
+              type="button"
+              onClick={() => onNavigate('manager')}
+              aria-label="Admin Panel"
+              title="Open BEE4 Admin Panel (/admin)"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-white/55 dark:hover:bg-white/10 border border-transparent hover:border-zinc-900/10 dark:hover:border-white/10 transition-all"
+            >
+              <Lock className="w-3 h-3 shrink-0" />
+              <span>Admin Panel</span>
+            </button>
+          </div>
           {promoCode && promoDiscountPercent > 0 && (
             <p>
               Use code {promoCode} at checkout for {promoDiscountPercent}% off your first order.
