@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Package } from 'lucide-react';
+import { normalizeAssetUrl } from '../utils/storeLogic';
 
 interface ProductImageProps {
   src: string;
@@ -14,13 +15,14 @@ export function ProductImage({
   objectPosition = '50% 50%',
   className = '',
 }: ProductImageProps) {
+  const normalizedSrc = normalizeAssetUrl(src);
   const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
     setHasError(false);
-  }, [src]);
+  }, [normalizedSrc]);
 
-  if (!src || hasError) {
+  if (!normalizedSrc || hasError) {
     return (
       <div
         className={`flex flex-col items-center justify-center glass-subtle text-zinc-500 dark:text-zinc-400 p-6 text-center ${className}`}
@@ -37,7 +39,7 @@ export function ProductImage({
 
   return (
     <img
-      src={src}
+      src={normalizedSrc}
       alt={alt}
       referrerPolicy="no-referrer"
       onError={() => setHasError(true)}

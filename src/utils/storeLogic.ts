@@ -36,6 +36,14 @@ export const STANDARD_SHIPPING_FEE = 49;
 export const GIFT_WRAP_FEE = 49;
 export const WELCOME_PROMO_CODE = 'BEE4WELCOME';
 
+export function normalizeAssetUrl(url: string): string {
+  if (!url) return url;
+  if (url.startsWith('/src/assets/images/')) {
+    return url.replace('/src/assets/images/', '/assets/images/');
+  }
+  return url;
+}
+
 export const ORDERED_AGE_GROUPS: Exclude<AgeGroup, AgeGroup.ALL>[] = [
   AgeGroup.AGE_3_5,
   AgeGroup.AGE_6_8,
@@ -49,6 +57,7 @@ export interface ProductFilterOptions {
   occasion: GiftOccasion;
   search: string;
   maxPrice: number | null;
+  inStockOnly?: boolean;
   sortBy: SortOption;
 }
 
@@ -83,6 +92,9 @@ export function filterAndSortProducts(
       return false;
     }
     if (options.occasion !== GiftOccasion.ALL && product.occasion !== options.occasion) {
+      return false;
+    }
+    if (options.inStockOnly && !product.inStock) {
       return false;
     }
     if (options.maxPrice !== null && product.price > options.maxPrice) {

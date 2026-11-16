@@ -9,6 +9,7 @@ interface DualFilterBarProps {
   selectedAgeGroup: AgeGroup;
   groupByAge: boolean;
   search?: string;
+  minimalSkillsOnly?: boolean;
   onChangeCategory: (category: ProductCategory) => void;
   onChangeAgeGroup: (ageGroup: AgeGroup) => void;
   onToggleGroupByAge: () => void;
@@ -30,6 +31,7 @@ export function DualFilterBar({
   selectedAgeGroup,
   groupByAge,
   search = '',
+  minimalSkillsOnly = false,
   onChangeCategory,
   onChangeAgeGroup,
   onToggleGroupByAge,
@@ -40,6 +42,55 @@ export function DualFilterBar({
     selectedCategory !== ProductCategory.ALL ||
     selectedAgeGroup !== AgeGroup.ALL ||
     search.trim().length > 0;
+
+  if (minimalSkillsOnly) {
+    return (
+      <div
+        id="dual-filter-bar"
+        aria-label="Filter by Brain Skill"
+        className="md:sticky md:top-20 z-30 glass-surface rounded-full px-2.5 py-1.5 sm:px-3 sm:py-2 w-fit max-w-full overflow-x-auto no-scrollbar"
+      >
+        <div
+          className="flex flex-nowrap items-center gap-1.5 sm:gap-2 min-w-max"
+          role="group"
+          aria-label="Filter by Brain Skill"
+        >
+          <button
+            type="button"
+            onClick={() => onChangeCategory(ProductCategory.ALL)}
+            aria-pressed={selectedCategory === ProductCategory.ALL}
+            className={`px-3 py-1 rounded-full text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
+              selectedCategory === ProductCategory.ALL
+                ? 'glass-btn-ink'
+                : 'glass-btn-secondary text-zinc-700 dark:text-zinc-200 hover:text-zinc-900 dark:hover:text-white'
+            }`}
+          >
+            All Skills ({products.length})
+          </button>
+
+          {SKILL_CATEGORIES.map((skill) => {
+            const active = selectedCategory === skill;
+            const count = products.filter((p) => p.category === skill).length;
+            return (
+              <button
+                key={skill}
+                type="button"
+                onClick={() => onChangeCategory(skill)}
+                aria-pressed={active}
+                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all whitespace-nowrap shrink-0 ${
+                  active
+                    ? 'glass-btn-ink'
+                    : 'glass-btn-secondary text-zinc-700 dark:text-zinc-200 hover:text-zinc-900 dark:hover:text-white'
+                }`}
+              >
+                {skill} ({count})
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

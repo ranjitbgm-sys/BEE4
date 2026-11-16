@@ -314,6 +314,7 @@ export default function App() {
   const [shopOccasion, setShopOccasion] = useState<GiftOccasion>(GiftOccasion.ALL);
   const [shopSearch, setShopSearch] = useState('');
   const [shopMaxPrice, setShopMaxPrice] = useState<number | null>(null);
+  const [shopInStockOnly, setShopInStockOnly] = useState<boolean>(false);
   const [shopSortBy, setShopSortBy] = useState<SortOption>('featured');
   const [giftFinderOccasion, setGiftFinderOccasion] = useState<GiftOccasion>(GiftOccasion.ALL);
 
@@ -762,6 +763,7 @@ export default function App() {
     setShopOccasion(GiftOccasion.ALL);
     setShopSearch('');
     setShopMaxPrice(null);
+    setShopInStockOnly(false);
     setShopSortBy('featured');
   };
 
@@ -855,12 +857,14 @@ export default function App() {
             occasion={shopOccasion}
             search={shopSearch}
             maxPrice={shopMaxPrice}
+            inStockOnly={shopInStockOnly}
             sortBy={shopSortBy}
             onChangeCategory={setShopCategory}
             onChangeAgeGroup={setShopAgeGroup}
             onChangeOccasion={setShopOccasion}
             onChangeSearch={setShopSearch}
             onChangeMaxPrice={setShopMaxPrice}
+            onToggleInStockOnly={() => setShopInStockOnly((prev) => !prev)}
             onChangeSortBy={setShopSortBy}
             onResetFilters={handleResetShopFilters}
             onSelectProduct={handleSelectProduct}

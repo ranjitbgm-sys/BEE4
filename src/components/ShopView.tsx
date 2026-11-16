@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ArrowDownUp, ArrowUpDown, Check, RotateCcw, Tag } from 'lucide-react';
 import { AGE_GROUP_META } from '../data/catalog';
 import { AgeGroup, GiftOccasion, Product, ProductCategory, SortOption } from '../types';
 import { filterAndSortProducts, groupProductsByAge } from '../utils/storeLogic';
@@ -13,12 +14,14 @@ interface ShopViewProps {
   occasion: GiftOccasion;
   search: string;
   maxPrice: number | null;
+  inStockOnly: boolean;
   sortBy: SortOption;
   onChangeCategory: (category: ProductCategory) => void;
   onChangeAgeGroup: (ageGroup: AgeGroup) => void;
   onChangeOccasion: (occasion: GiftOccasion) => void;
   onChangeSearch: (search: string) => void;
   onChangeMaxPrice: (maxPrice: number | null) => void;
+  onToggleInStockOnly: () => void;
   onChangeSortBy: (sortBy: SortOption) => void;
   onResetFilters: () => void;
   onSelectProduct: (productId: string) => void;
@@ -37,12 +40,14 @@ export function ShopView({
   occasion,
   search,
   maxPrice,
+  inStockOnly,
   sortBy,
   onChangeCategory,
   onChangeAgeGroup,
   onChangeOccasion,
   onChangeSearch,
   onChangeMaxPrice,
+  onToggleInStockOnly,
   onChangeSortBy,
   onResetFilters,
   onSelectProduct,
@@ -58,10 +63,13 @@ export function ShopView({
     occasion,
     search,
     maxPrice,
+    inStockOnly,
     sortBy,
   });
 
   const groupedSections = groupProductsByAge(filtered);
+  const inStockCount = products.filter((p) => p.inStock).length;
+  const hasQuickFilter = inStockOnly || sortBy !== 'featured' || maxPrice !== null;
 
   return (
     <section className="max-w-[1200px] mx-auto px-4 sm:px-6 pt-8 pb-12 space-y-6">
@@ -148,6 +156,109 @@ export function ShopView({
         onChangeSearch={onChangeSearch}
         onResetFilters={onResetFilters}
       />
+
+      {/* Horizontal Scrollable Quick-Filter Chips */}
+      <div
+        role="region"
+        aria-label="Quick shop filters"
+        className="w-full overflow-x-auto no-scrollbar pb-1"
+      >
+        <div className="flex flex-nowrap items-center gap-2 min-w-max">
+          <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mr-1 whitespace-nowrap shrink-0">
+            Quick Filters:
+          </span>
+
+          <button
+            type="button"
+            onClick={onToggleInStockOnly}
+            aria-pressed={inStockOnly}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold inline-flex items-center gap-1.5 transition-all whitespace-nowrap shrink-0 ${
+              inStockOnly
+                ? 'glass-btn-ink'
+                : 'glass-btn-secondary text-zinc-700 dark:text-zinc-200 hover:text-zinc-900 dark:hover:text-white'
+            }`}
+          >
+            <Check
+              className={`w-3.5 h-3.5 shrink-0 ${
+                inStockOnly ? 'opacity-100' : 'opacity-60 text-emerald-600 dark:text-emerald-400'
+              }`}
+              aria-hidden="true"
+            />
+            <span>In Stock ({inStockCount})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onChangeSortBy(sortBy === 'price-asc' ? 'featured' : 'price-asc')}
+            aria-pressed={sortBy === 'price-asc'}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold inline-flex items-center gap-1.5 transition-all whitespace-nowrap shrink-0 ${
+              sortBy === 'price-asc'
+                ? 'glass-btn-amber text-white'
+                : 'glass-btn-secondary text-zinc-700 dark:text-zinc-200 hover:text-zinc-900 dark:hover:text-white'
+            }`}
+          >
+            <ArrowUpDown className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+            <span>Price: Low to High</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onChangeSortBy(sortBy === 'price-desc' ? 'featured' : 'price-desc')}
+            aria-pressed={sortBy === 'price-desc'}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold inline-flex items-center gap-1.5 transition-all whitespace-nowrap shrink-0 ${
+              sortBy === 'price-desc'
+                ? 'glass-btn-amber text-white'
+                : 'glass-btn-secondary text-zinc-700 dark:text-zinc-200 hover:text-zinc-900 dark:hover:text-white'
+            }`}
+          >
+            <ArrowDownUp className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+            <span>Price: High to Low</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onChangeMaxPrice(maxPrice === 449 ? null : 449)}
+            aria-pressed={maxPrice === 449}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold inline-flex items-center gap-1.5 transition-all whitespace-nowrap shrink-0 ${
+              maxPrice === 449
+                ? 'glass-btn-ink'
+                : 'glass-btn-secondary text-zinc-700 dark:text-zinc-200 hover:text-zinc-900 dark:hover:text-white'
+            }`}
+          >
+            <Tag className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+            <span>Under ₹449</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onChangeMaxPrice(maxPrice === 599 ? null : 599)}
+            aria-pressed={maxPrice === 599}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold inline-flex items-center gap-1.5 transition-all whitespace-nowrap shrink-0 ${
+              maxPrice === 599
+                ? 'glass-btn-ink'
+                : 'glass-btn-secondary text-zinc-700 dark:text-zinc-200 hover:text-zinc-900 dark:hover:text-white'
+            }`}
+          >
+            <Tag className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+            <span>Under ₹599</span>
+          </button>
+
+          {hasQuickFilter && (
+            <button
+              type="button"
+              onClick={() => {
+                if (inStockOnly) onToggleInStockOnly();
+                onChangeMaxPrice(null);
+                onChangeSortBy('featured');
+              }}
+              className="px-3 py-1.5 rounded-full text-xs font-semibold inline-flex items-center gap-1 text-amber-700 dark:text-amber-400 hover:underline whitespace-nowrap shrink-0"
+            >
+              <RotateCcw className="w-3 h-3 shrink-0" aria-hidden="true" />
+              <span>Clear Quick Filters</span>
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* Product Grid or Grouped by Age View */}
       {filtered.length === 0 ? (

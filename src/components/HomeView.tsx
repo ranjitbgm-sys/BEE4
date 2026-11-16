@@ -200,6 +200,7 @@ export function HomeView({
           selectedAgeGroup={selectedAgeGroup}
           groupByAge={groupByAge}
           search={searchQuery}
+          minimalSkillsOnly
           onChangeCategory={setSelectedCategory}
           onChangeAgeGroup={setSelectedAgeGroup}
           onToggleGroupByAge={() => setGroupByAge((prev) => !prev)}

@@ -101,27 +101,33 @@ const VALID_AGE_GROUPS = new Set<string>([
   AgeGroup.AGE_12_15,
 ]);
 
+function normalizeAssetPath(url: string): string {
+  return url.startsWith('/src/assets/images/')
+    ? url.replace('/src/assets/images/', '/assets/images/')
+    : url;
+}
+
 function buildFallbackGallery(primaryUrl: string): [ProductAngle, ProductAngle, ProductAngle] {
   return [
     {
       id: 'front',
       label: 'View 1: Front',
       shortLabel: 'Front',
-      url: primaryUrl || '/src/assets/images/toy_engineering_front_1794767911598.jpg',
+      url: normalizeAssetPath(primaryUrl) || '/assets/images/toy_engineering_front_1794767911598.jpg',
       objectPosition: '50% 50%',
     },
     {
       id: 'mechanism',
       label: 'View 2: Mechanism/Inside',
       shortLabel: 'Mechanism',
-      url: '/src/assets/images/toy_mechanism_inside_1794767912639.jpg',
+      url: '/assets/images/toy_mechanism_inside_1794767912639.jpg',
       objectPosition: '50% 50%',
     },
     {
       id: 'scale',
       label: 'View 3: Hands-On Scale',
       shortLabel: 'Scale',
-      url: '/src/assets/images/toy_hands_on_scale_1794767913261.jpg',
+      url: '/assets/images/toy_hands_on_scale_1794767913261.jpg',
       objectPosition: '50% 50%',
     },
   ];
@@ -143,7 +149,11 @@ function toProductPayload(product: Product) {
     originConcept: clampStr(product.originConcept, 120, '🇯🇵 East-Asian Brain Toy'),
     occasion: product.occasion,
     price: Math.max(1, Math.min(500000, Number(product.price) || 449)),
-    image: clampStr(product.image, 1000, '/src/assets/images/toy_engineering_front_1794767911598.jpg'),
+    image: clampStr(
+      normalizeAssetPath(product.image),
+      1000,
+      '/assets/images/toy_engineering_front_1794767911598.jpg'
+    ),
     variants,
     shortSpec: clampStr(product.shortSpec, 200, '3D-printed Bio-PLA+ · Screen-free'),
     description: clampStr(product.description, 2000, 'Custom 3D-printed screen-free brain-training toy.'),
@@ -185,8 +195,10 @@ export function subscribePublicProducts(
           }
           const id = String(data.id ?? d.id);
           const seedMatch = INITIAL_PRODUCTS.find((p) => p.id === id);
-          const image = String(
-            data.image ?? seedMatch?.image ?? '/src/assets/images/toy_engineering_front_1794767911598.jpg'
+          const image = normalizeAssetPath(
+            String(
+              data.image ?? seedMatch?.image ?? '/assets/images/toy_engineering_front_1794767911598.jpg'
+            )
           );
           const gallery = seedMatch?.gallery ?? buildFallbackGallery(image);
 
@@ -663,7 +675,11 @@ export async function createOrderInFirestore(
         productId: clampStr(item.productId, 128, 'item'),
         title: clampStr(item.title, 160, 'BEE4 Product'),
         price: Math.max(0, Number(item.price) || 0),
-        image: clampStr(item.image, 1000, '/src/assets/images/hero_brain_toys_1794767911110.jpg'),
+        image: clampStr(
+          normalizeAssetPath(item.image),
+          1000,
+          '/assets/images/hero_brain_toys_1794767911110.jpg'
+        ),
         variant: clampStr(item.variant, 80, 'Standard'),
         quantity: Math.max(1, Math.min(99, Number(item.quantity) || 1)),
         category: clampStr(item.category, 80, 'Engineering'),

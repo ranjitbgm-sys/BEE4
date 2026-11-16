@@ -85,7 +85,7 @@ const ORDER_STATUSES: OrderStatus[] = [
   'Cancelled',
 ];
 
-const DEFAULT_CUSTOM_IMAGE = '/src/assets/images/toy_engineering_front_1794767911598.jpg';
+const DEFAULT_CUSTOM_IMAGE = '/assets/images/toy_engineering_front_1794767911598.jpg';
 
 function emptyProductDraft(): Product {
   return {
@@ -110,14 +110,14 @@ function emptyProductDraft(): Product {
         id: 'mechanism',
         label: 'View 2: Mechanism/Inside',
         shortLabel: 'Mechanism',
-        url: '/src/assets/images/toy_mechanism_inside_1794767912639.jpg',
+        url: '/assets/images/toy_mechanism_inside_1794767912639.jpg',
         objectPosition: '50% 50%',
       },
       {
         id: 'scale',
         label: 'View 3: Hands-On Scale',
         shortLabel: 'Scale',
-        url: '/src/assets/images/toy_hands_on_scale_1794767913261.jpg',
+        url: '/assets/images/toy_hands_on_scale_1794767913261.jpg',
         objectPosition: '50% 50%',
       },
     ],
@@ -301,8 +301,8 @@ export function AdminPanelView({
         ]
       : [
           { id: 'front', label: 'View 1: Front', shortLabel: 'Front', url: editing.image, objectPosition: '50% 50%' },
-          { id: 'mechanism', label: 'View 2: Mechanism/Inside', shortLabel: 'Mechanism', url: '/src/assets/images/toy_mechanism_inside_1794767912639.jpg', objectPosition: '50% 50%' },
-          { id: 'scale', label: 'View 3: Hands-On Scale', shortLabel: 'Scale', url: '/src/assets/images/toy_hands_on_scale_1794767913261.jpg', objectPosition: '50% 50%' },
+          { id: 'mechanism', label: 'View 2: Mechanism/Inside', shortLabel: 'Mechanism', url: '/assets/images/toy_mechanism_inside_1794767912639.jpg', objectPosition: '50% 50%' },
+          { id: 'scale', label: 'View 3: Hands-On Scale', shortLabel: 'Scale', url: '/assets/images/toy_hands_on_scale_1794767913261.jpg', objectPosition: '50% 50%' },
         ];
 
     const saved: Product = {

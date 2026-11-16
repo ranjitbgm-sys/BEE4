@@ -6,9 +6,10 @@ import {
   formatINR,
   formatWhatsAppBagMessage,
   groupProductsByAge,
+  normalizeAssetUrl,
   validateCheckoutForm,
 } from './storeLogic';
-import { AGE_GROUP_META, INITIAL_PRODUCTS } from '../data/catalog';
+import { AGE_GROUP_META, HERO_IMAGE, INITIAL_PRODUCTS } from '../data/catalog';
 import { AgeGroup, GiftOccasion, Product, ProductCategory } from '../types';
 
 const SAMPLE_PRODUCTS: Product[] = INITIAL_PRODUCTS.slice(0, 8);
@@ -16,6 +17,15 @@ const DEVANAGARI_RE = /[\u0900-\u097F]/;
 
 test('INITIAL_PRODUCTS contains all 16 East-Asian 3D-printed brain toys priced ₹349–₹899 with 3-angle galleries & clean global English copy', () => {
   assert.equal(INITIAL_PRODUCTS.length, 16);
+  assert.ok(HERO_IMAGE.startsWith('/assets/images/'), 'HERO_IMAGE must resolve from public /assets/images/');
+  assert.equal(
+    normalizeAssetUrl('/src/assets/images/toy_motor_front_1794767911807.jpg'),
+    '/assets/images/toy_motor_front_1794767911807.jpg'
+  );
+  assert.equal(
+    normalizeAssetUrl('/assets/images/toy_motor_front_1794767911807.jpg'),
+    '/assets/images/toy_motor_front_1794767911807.jpg'
+  );
 
   const byAge = groupProductsByAge(INITIAL_PRODUCTS);
   assert.equal(byAge.length, 4);
@@ -30,7 +40,11 @@ test('INITIAL_PRODUCTS contains all 16 East-Asian 3D-printed brain toys priced �
 
   for (const product of INITIAL_PRODUCTS) {
     assert.ok(product.price >= 349 && product.price <= 899, `${product.title} price out of range`);
+    assert.ok(product.image.startsWith('/assets/images/'), `${product.title} image must be under /assets/images/`);
     assert.equal(product.gallery.length, 3, `${product.title} must have 3 angles`);
+    for (const angle of product.gallery) {
+      assert.ok(angle.url.startsWith('/assets/images/'), `${product.title} angle ${angle.id} must be under /assets/images/`);
+    }
     assert.equal(product.gallery[0].label, 'View 1: Front');
     assert.equal(product.gallery[1].label, 'View 2: Mechanism/Inside');
     assert.equal(product.gallery[2].label, 'View 3: Hands-On Scale');
@@ -96,6 +110,25 @@ test('filterAndSortProducts supports dual skill + ageGroup filtering, search, ma
   assert.deepEqual(
     sortedDesc.map((p) => p.price),
     [549, 449, 399]
+  );
+
+  const mixedStock: Product[] = SAMPLE_PRODUCTS.slice(0, 4).map((p, idx) => ({
+    ...p,
+    inStock: idx !== 1,
+  }));
+  const inStockAsc = filterAndSortProducts(mixedStock, {
+    category: ProductCategory.ALL,
+    occasion: GiftOccasion.ALL,
+    search: '',
+    maxPrice: null,
+    inStockOnly: true,
+    sortBy: 'price-asc',
+  });
+  assert.equal(inStockAsc.length, 3);
+  assert.ok(inStockAsc.every((p) => p.inStock));
+  assert.deepEqual(
+    inStockAsc.map((p) => p.price),
+    [399, 449, 649]
   );
 });
 

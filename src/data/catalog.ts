@@ -1,14 +1,14 @@
 import { AgeGroup, GiftOccasion, Product, ProductAngle, ProductCategory } from '../types';
 
-export const HERO_IMAGE = '/src/assets/images/hero_brain_toys_1794767911110.jpg';
+export const HERO_IMAGE = '/assets/images/hero_brain_toys_1794767911110.jpg';
 
-const IMG_MOTOR = '/src/assets/images/toy_motor_front_1794767911807.jpg';
-const IMG_ENGINEERING = '/src/assets/images/toy_engineering_front_1794767911598.jpg';
-const IMG_MATHS = '/src/assets/images/toy_maths_front_1794767911382.jpg';
-const IMG_IMAGINATION = '/src/assets/images/toy_imagination_front_1794767912731.jpg';
-const IMG_MECHANISM = '/src/assets/images/toy_mechanism_inside_1794767912639.jpg';
-const IMG_SCALE = '/src/assets/images/toy_hands_on_scale_1794767913261.jpg';
-const IMG_BINARY_STEM = '/src/assets/images/toy_binary_stem_front_1794767914261.jpg';
+const IMG_MOTOR = '/assets/images/toy_motor_front_1794767911807.jpg';
+const IMG_ENGINEERING = '/assets/images/toy_engineering_front_1794767911598.jpg';
+const IMG_MATHS = '/assets/images/toy_maths_front_1794767911382.jpg';
+const IMG_IMAGINATION = '/assets/images/toy_imagination_front_1794767912731.jpg';
+const IMG_MECHANISM = '/assets/images/toy_mechanism_inside_1794767912639.jpg';
+const IMG_SCALE = '/assets/images/toy_hands_on_scale_1794767913261.jpg';
+const IMG_BINARY_STEM = '/assets/images/toy_binary_stem_front_1794767914261.jpg';
 
 function makeGallery(
   frontUrl: string,
