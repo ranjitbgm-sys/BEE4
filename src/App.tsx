@@ -9,6 +9,8 @@ import { isSupabaseAdminUser, supabaseDiagnostics } from './lib/supabase';
 import {
   addTestimonialToSupabase,
   bulkDeleteCustomerMessagesFromSupabase,
+  cancelOrderInSupabase,
+  createGiftCardInSupabase,
   createOrderInSupabase,
   createReturnRequestInSupabase,
   deleteAutomationRuleFromSupabase,
@@ -22,6 +24,7 @@ import {
   onSupabaseAuthChange,
   onSupabaseAuthEvent,
   purgeTestDataInSupabase,
+  redeemGiftCardViaSupabaseRpc,
   saveAdSpendLogToSupabase,
   saveAutomationRuleToSupabase,
   saveCouponToSupabase,
@@ -47,6 +50,7 @@ import {
   subscribeAutomationRulesAdmin,
   subscribeCoupons,
   subscribeFilamentSpoolsAdmin,
+  subscribeGiftCards,
   subscribeInventoryAdjustmentsAdmin,
   subscribeMarketplaceIntegrationsAdmin,
   subscribePrintJobsAdmin,
@@ -54,10 +58,12 @@ import {
   subscribePublicPublishedReviews,
   subscribePublicSettings,
   subscribePublicTestimonials,
+  subscribeUserCustomerMessages,
   subscribeUserOrders,
   subscribeUserReturns,
   toggleInquiryStatusInSupabase,
   updateCustomerMessageInSupabase,
+  updateGiftCardInSupabase,
   updateOrderLogisticsInSupabase,
   updateOrderRefundInSupabase,
   updateOrderStatusInSupabase,
@@ -87,6 +93,7 @@ import {
   CustomerProfile,
   FilamentSpool,
   FulfillmentStage,
+  GiftCardRecord,
   GiftOccasion,
   InventoryAdjustmentRecord,
   MarketplaceChannel,
@@ -121,10 +128,17 @@ import { CheckoutView } from './components/CheckoutView';
 import { AboutView, ContactView } from './components/AboutContactView';
 import { AdminPanelView } from './components/AdminPanelView';
 import { AdminGuard } from './components/admin/AdminGuard';
+import { BuyGiftCardModal } from './components/BuyGiftCardModal';
 import { CustomerAccountView } from './components/CustomerAccountView';
 import { WhatsAppWidget } from './components/WhatsAppWidget';
 import { resolveExpectedAdminHash } from './utils/adminAuth';
 import { mapFulfillmentStageToOrderStatus } from './utils/adminLogic';
+import {
+  applyOrderCancellation,
+  createDigitalGiftCard,
+  deductWalletOnOrder,
+  redeemGiftCardIntoProfile,
+} from './utils/giftCardWalletLogic';
 import {
   DEFAULT_AUTOMATION_RULE_TEMPLATES,
   DEFAULT_MARKETPLACE_INTEGRATIONS,
@@ -151,6 +165,7 @@ const STORAGE_GUEST_WISHLIST_KEY = 'bee4_guest_wishlist_v1';
 const STORAGE_ADMIN_PASS_HASH_KEY = 'bee4_admin_pass_hash_v1';
 const STORAGE_THEME_KEY = 'bee4_theme_v1';
 const STORAGE_COUPONS_KEY = 'bee4_coupons_v1';
+const STORAGE_GIFT_CARDS_KEY = 'bee4_gift_cards_v1';
 const STORAGE_PRINT_JOBS_KEY = 'bee4_print_jobs_v1';
 const STORAGE_SPOOLS_KEY = 'bee4_filament_spools_v1';
 const STORAGE_AUDIT_LOGS_KEY = 'bee4_admin_logs_v1';
@@ -282,6 +297,10 @@ export default function App() {
   const [coupons, setCoupons] = useState<CouponRecord[]>(() =>
     loadStoredJson<CouponRecord[]>(STORAGE_COUPONS_KEY, INITIAL_COUPONS)
   );
+  const [giftCards, setGiftCards] = useState<GiftCardRecord[]>(() =>
+    loadStoredJson<GiftCardRecord[]>(STORAGE_GIFT_CARDS_KEY, [])
+  );
+  const [showBuyGiftCardModal, setShowBuyGiftCardModal] = useState(false);
   const [printJobs, setPrintJobs] = useState<PrintJobRecord[]>(() =>
     loadStoredJson<PrintJobRecord[]>(STORAGE_PRINT_JOBS_KEY, [])
   );
@@ -464,12 +483,16 @@ export default function App() {
     const unsubCoupons = subscribeCoupons((cloudCoupons) => {
       setCoupons(cloudCoupons);
     });
+    const unsubGiftCards = subscribeGiftCards((cloudCards) => {
+      setGiftCards(cloudCards);
+    });
     return () => {
       unsubProducts();
       unsubSettings();
       unsubTestimonials();
       unsubPublicReviews();
       unsubCoupons();
+      unsubGiftCards();
     };
   }, []);
 
@@ -506,10 +529,19 @@ export default function App() {
       setReturns(cloudReturns);
     });
 
+    const unsubUserMessages = subscribeUserCustomerMessages(
+      supabaseUser.id,
+      supabaseUser.email ?? undefined,
+      (cloudMsgs) => {
+        setCustomerMessages(cloudMsgs);
+      }
+    );
+
     return () => {
       cancelled = true;
       unsubUserOrders();
       unsubUserReturns();
+      unsubUserMessages();
     };
   }, [supabaseAuthReady, supabaseUser, isSupabaseAdmin]);
 
@@ -713,6 +745,14 @@ export default function App() {
       // Ignore storage errors
     }
   }, [coupons]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(STORAGE_GIFT_CARDS_KEY, JSON.stringify(giftCards));
+    } catch {
+      // Ignore storage errors
+    }
+  }, [giftCards]);
 
   useEffect(() => {
     try {
@@ -1129,6 +1169,16 @@ export default function App() {
       ...prev.filter((o) => o.orderNumber !== finalOrder.orderNumber),
     ]);
     setCart([]);
+
+    if (finalOrder.walletAmountUsed && finalOrder.walletAmountUsed > 0 && currentCustomer) {
+      const debitedProfile = deductWalletOnOrder({
+        profile: currentCustomer,
+        walletAmountUsed: finalOrder.walletAmountUsed,
+        orderNumber: finalOrder.orderNumber,
+      });
+      handleUpdateCustomer(debitedProfile);
+    }
+
     if (finalOrder.couponCode) {
       setCoupons((prev) =>
         prev.map((c) =>
@@ -1947,6 +1997,7 @@ export default function App() {
     setProductReviews([]);
     setTestimonials([]);
     setCustomers([]);
+    setGiftCards([]);
     setPrintJobs([]);
     setAuditLogs([]);
     setCrmFlagsByPhone({});
@@ -2009,8 +2060,259 @@ export default function App() {
     setIsCartOpen(true);
   };
 
-  const handleCancelCustomerOrder = (orderNumber: string) => {
-    handleUpdateOrderStatus(orderNumber, 'Cancelled');
+  const handleCancelCustomerOrder = async (
+    orderNumber: string,
+    reason = 'Ordered by mistake'
+  ): Promise<void> => {
+    const targetOrder = orders.find((o) => o.orderNumber === orderNumber);
+    if (!targetOrder) return;
+
+    const res = applyOrderCancellation({
+      order: targetOrder,
+      products,
+      reason,
+      cancelledBy: 'Customer',
+      autoRestock: true,
+      issueRefundCredit: true,
+    });
+
+    if (supabaseDiagnostics.isConfigured) {
+      await cancelOrderInSupabase({
+        orderNumber,
+        reason,
+        cancelledBy: 'Customer',
+        autoRestock: true,
+        refundStatus: res.updatedOrder.refundStatus,
+        refundedAmount: res.updatedOrder.refundedAmount,
+        paymentStatus: res.updatedOrder.paymentStatus,
+        updatedProductsToRestock: res.restoredLogs.map((log) => {
+          const prod = res.updatedProducts.find((p) => p.id === log.productId);
+          return {
+            id: log.productId,
+            stockQuantity: prod?.stockQuantity ?? 25,
+            inStock: prod?.inStock ?? true,
+          };
+        }),
+      });
+    }
+
+    setOrders((prev) =>
+      prev.map((o) => (o.orderNumber === orderNumber ? res.updatedOrder : o))
+    );
+    setProducts(res.updatedProducts);
+    if (res.restoredLogs.length > 0) {
+      setInventoryAdjustments((prev) => [...res.restoredLogs, ...prev].slice(0, 80));
+    }
+
+    if (res.issuedGiftCard) {
+      if (currentCustomer && res.refundAmountToCredit > 0) {
+        const nowIso = new Date().toISOString();
+        const prevBalance = Math.max(0, Math.round(Number(currentCustomer.walletBalance ?? 0)));
+        const nextBalance = prevBalance + res.refundAmountToCredit;
+        handleUpdateCustomer({
+          ...currentCustomer,
+          walletBalance: nextBalance,
+          walletTransactions: [
+            {
+              id: `wtx-cancel-${Date.now()}`,
+              type: 'credit_refund',
+              amount: res.refundAmountToCredit,
+              balanceAfter: nextBalance,
+              referenceId: orderNumber,
+              note: `Automatic store credit refund for cancelled order ${orderNumber}`,
+              createdAt: nowIso,
+            },
+            ...(currentCustomer.walletTransactions ?? []),
+          ],
+        });
+      } else {
+        setGiftCards((prev) => [res.issuedGiftCard!, ...prev]);
+        void createGiftCardInSupabase(res.issuedGiftCard).catch((err) => console.error(err));
+      }
+    }
+  };
+
+  const handleAdminCancelOrder = async (payload: {
+    orderNumber: string;
+    reason: string;
+    autoRestock: boolean;
+    issueRefundCredit: boolean;
+  }): Promise<void> => {
+    const targetOrder = orders.find((o) => o.orderNumber === payload.orderNumber);
+    if (!targetOrder) return;
+
+    const res = applyOrderCancellation({
+      order: targetOrder,
+      products,
+      reason: payload.reason,
+      cancelledBy: 'Admin',
+      autoRestock: payload.autoRestock,
+      issueRefundCredit: payload.issueRefundCredit,
+    });
+
+    if (supabaseDiagnostics.isConfigured) {
+      await cancelOrderInSupabase({
+        orderNumber: payload.orderNumber,
+        reason: payload.reason,
+        cancelledBy: 'Admin',
+        autoRestock: payload.autoRestock,
+        refundStatus: res.updatedOrder.refundStatus,
+        refundedAmount: res.updatedOrder.refundedAmount,
+        paymentStatus: res.updatedOrder.paymentStatus,
+        updatedProductsToRestock: res.restoredLogs.map((log) => {
+          const prod = res.updatedProducts.find((p) => p.id === log.productId);
+          return {
+            id: log.productId,
+            stockQuantity: prod?.stockQuantity ?? 25,
+            inStock: prod?.inStock ?? true,
+          };
+        }),
+      });
+
+      if (isSupabaseAdmin) {
+        const restockedIds = new Set(res.restoredLogs.map((l) => l.productId));
+        for (const p of res.updatedProducts) {
+          if (restockedIds.has(p.id)) {
+            void saveProductToSupabase(p).catch((err) => console.error(err));
+          }
+        }
+        for (const log of res.restoredLogs) {
+          void writeInventoryAdjustmentToSupabase(log).catch((err) => console.error(err));
+        }
+      }
+    }
+
+    setOrders((prev) =>
+      prev.map((o) => (o.orderNumber === payload.orderNumber ? res.updatedOrder : o))
+    );
+    setProducts(res.updatedProducts);
+    if (res.restoredLogs.length > 0) {
+      setInventoryAdjustments((prev) => [...res.restoredLogs, ...prev].slice(0, 80));
+    }
+
+    if (res.issuedGiftCard) {
+      setGiftCards((prev) => [res.issuedGiftCard!, ...prev]);
+      void createGiftCardInSupabase(res.issuedGiftCard).catch((err) => console.error(err));
+    }
+
+    recordAuditLog(
+      'ORDER_CANCELLED_ADMIN',
+      'order',
+      payload.orderNumber,
+      `Admin cancelled ${payload.orderNumber} (${payload.reason})${
+        payload.autoRestock ? ' + auto-restocked' : ''
+      }${res.issuedGiftCard ? ` + issued ₹${res.refundAmountToCredit} credit` : ''}.`
+    );
+  };
+
+  const handleIssueGiftCard = async (input: {
+    amount: number;
+    recipientName: string;
+    recipientEmail: string;
+    message: string;
+    issuedBy?: 'Customer' | 'Admin';
+  }): Promise<GiftCardRecord> => {
+    const isAdminIssued = input.issuedBy === 'Admin';
+    const card = createDigitalGiftCard({
+      amount: input.amount,
+      purchaserUserId: supabaseUser?.id ?? currentCustomer?.id ?? null,
+      purchaserName: isAdminIssued
+        ? 'BEE4 Studio'
+        : currentCustomer?.fullName || 'BEE4 Customer',
+      purchaserEmail: isAdminIssued
+        ? settings.supportEmail
+        : currentCustomer?.email || settings.supportEmail,
+      purchaserPhone: currentCustomer?.phone || '',
+      recipientName: input.recipientName,
+      recipientEmail: input.recipientEmail,
+      message: input.message,
+      issuedReason: isAdminIssued ? 'Admin Promo' : 'Purchased',
+    });
+    setGiftCards((prev) => [card, ...prev]);
+    await createGiftCardInSupabase(card);
+    if (isAdminIssued) {
+      recordAuditLog(
+        'GIFTCARD_ISSUED',
+        'giftcard',
+        card.code,
+        `Issued ₹${card.initialAmount} digital gift card for ${card.recipientName} (${card.recipientEmail}).`
+      );
+    }
+    return card;
+  };
+
+  const handleRedeemGiftCard = async (
+    code: string,
+    pin: string
+  ): Promise<{ ok: boolean; creditedAmount?: number; error?: string }> => {
+    if (!currentCustomer) {
+      return { ok: false, error: 'Please sign in to redeem a BEE4 Gift Card to your Wallet.' };
+    }
+
+    if (supabaseDiagnostics.isConfigured && supabaseUser) {
+      try {
+        const rpcRes = await redeemGiftCardViaSupabaseRpc(code, pin);
+        if (rpcRes.usedRpc && rpcRes.creditedAmount && rpcRes.creditedAmount > 0) {
+          const prevBal = Math.max(0, Math.round(Number(currentCustomer.walletBalance ?? 0)));
+          const balanceAfter = prevBal + Math.round(rpcRes.creditedAmount);
+          const nowIso = rpcRes.redeemedAt || new Date().toISOString();
+          const tx = {
+            id: `wtx-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            type: 'credit_gift_card' as const,
+            amount: Math.round(rpcRes.creditedAmount),
+            balanceAfter,
+            referenceId: rpcRes.code || code.trim().toUpperCase(),
+            note: `Redeemed Gift Card ${rpcRes.code || code.trim().toUpperCase()}`,
+            createdAt: nowIso,
+          };
+          const updatedProfile: CustomerProfile = {
+            ...currentCustomer,
+            walletBalance: balanceAfter,
+            walletTransactions: [tx, ...(currentCustomer.walletTransactions ?? [])],
+          };
+          setGiftCards((prev) =>
+            prev.map((c) =>
+              c.code.toUpperCase() === (rpcRes.code || code.trim().toUpperCase())
+                ? { ...c, balance: 0, redeemedAt: nowIso, redeemedByUserId: currentCustomer.id }
+                : c
+            )
+          );
+          handleUpdateCustomer(updatedProfile);
+          return { ok: true, creditedAmount: Math.round(rpcRes.creditedAmount) };
+        }
+      } catch (err) {
+        return {
+          ok: false,
+          error: err instanceof Error ? err.message : 'Unable to verify gift card.',
+        };
+      }
+    }
+
+    const localRes = redeemGiftCardIntoProfile({
+      code,
+      pin,
+      giftCards,
+      profile: currentCustomer,
+    });
+    if (localRes.ok === false) {
+      return { ok: false, error: localRes.error };
+    }
+    setGiftCards(localRes.updatedGiftCards);
+    void updateGiftCardInSupabase(localRes.redeemedCard).catch((err) => console.error(err));
+    handleUpdateCustomer(localRes.updatedProfile);
+    return { ok: true, creditedAmount: localRes.creditedAmount };
+  };
+
+  const handleToggleGiftCardActive = (card: GiftCardRecord) => {
+    const updated: GiftCardRecord = { ...card, active: !card.active };
+    setGiftCards((prev) => prev.map((c) => (c.id === card.id ? updated : c)));
+    void updateGiftCardInSupabase(updated).catch((err) => console.error(err));
+    recordAuditLog(
+      'GIFTCARD_TOGGLED',
+      'giftcard',
+      card.code,
+      `${updated.active ? 'Activated' : 'Disabled'} digital gift card ${card.code}.`
+    );
   };
 
   const handleSaveAddressFromCheckout = (addr: Omit<SavedAddress, 'id' | 'isDefault'>) => {
@@ -2188,6 +2490,7 @@ export default function App() {
             onQuickView={setQuickViewProduct}
             onQuickAdd={handleQuickAdd}
             onToggleWishlist={handleToggleWishlist}
+            onOpenGiftCardModal={() => setShowBuyGiftCardModal(true)}
           />
         )}
 
@@ -2240,6 +2543,8 @@ export default function App() {
             currentCustomer={currentCustomer}
             orders={orders}
             returns={returns}
+            giftCards={giftCards}
+            customerMessages={customerMessages}
             products={publicProducts}
             guestWishlistIds={guestWishlistIds}
             whatsappNumber={settings.whatsappNumber}
@@ -2258,6 +2563,9 @@ export default function App() {
             onReorderItems={handleReorderItems}
             onCancelOrder={handleCancelCustomerOrder}
             onCreateReturnRequest={handleCreateReturnRequest}
+            onOpenBuyGiftCardModal={() => setShowBuyGiftCardModal(true)}
+            onRedeemGiftCard={handleRedeemGiftCard}
+            onSubmitCustomerMessage={handleSubmitCustomerMessage}
             onSelectProduct={handleSelectProduct}
             onContinueShopping={() => navigateTo('shop')}
             onRefreshOrders={handleRefreshUserOrders}
@@ -2301,6 +2609,7 @@ export default function App() {
               productReviews={productReviews}
               customers={customers}
               coupons={coupons}
+              giftCards={giftCards}
               printJobs={printJobs}
               spools={spools}
               auditLogs={auditLogs}
@@ -2324,10 +2633,13 @@ export default function App() {
               onResetCatalog={handleResetCatalog}
               onUpdateOrderLogistics={handleUpdateOrderLogistics}
               onBulkUpdateOrders={handleBulkUpdateOrders}
+              onCancelOrderAdmin={handleAdminCancelOrder}
               onUpdateOrderSettlement={handleUpdateOrderSettlement}
               onUpdateReturnRequest={handleUpdateReturnRequest}
               onSaveCoupon={handleSaveCoupon}
               onDeleteCoupon={handleDeleteCoupon}
+              onCreateGiftCardAdmin={handleIssueGiftCard}
+              onToggleGiftCardActive={handleToggleGiftCardActive}
               onSavePrintJob={handleSavePrintJob}
               onSaveFilamentSpool={handleSaveFilamentSpool}
               onSetCustomerFlag={handleSetCustomerFlag}
@@ -2360,6 +2672,7 @@ export default function App() {
           promoCode={settings.promoCode}
           promoDiscountPercent={settings.promoDiscountPercent}
           onNavigate={navigateTo}
+          onOpenGiftCardModal={() => setShowBuyGiftCardModal(true)}
         />
       )}
 
@@ -2397,6 +2710,15 @@ export default function App() {
             setQuickViewProduct(null);
             handleSelectProduct(productId);
           }}
+        />
+      )}
+
+      {showBuyGiftCardModal && (
+        <BuyGiftCardModal
+          currentCustomer={currentCustomer}
+          onClose={() => setShowBuyGiftCardModal(false)}
+          onIssueGiftCard={handleIssueGiftCard}
+          onRedeemImmediately={handleRedeemGiftCard}
         />
       )}
     </div>

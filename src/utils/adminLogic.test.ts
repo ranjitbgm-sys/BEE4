@@ -131,7 +131,7 @@ test('WhatsApp templates, printable GST invoice, and A5 label generate valid out
   assert.equal(invoiceHtml.includes('Banka, Bihar, India 813103'), true);
 
   const codLabelHtml = buildShippingLabelHtml(TEST_ORDERS[2]);
-  assert.equal(codLabelHtml.includes('CASH ON DELIVERY'), true);
+  assert.equal(codLabelHtml.includes('COD — COLLECT ₹'), true);
   assert.equal(codLabelHtml.includes('KEEP BELOW 55°C'), true);
 });
 

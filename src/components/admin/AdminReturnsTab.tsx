@@ -165,7 +165,8 @@ export function AdminReturnsTab({
       selectedRma.refundMode ??
         (selectedRma.resolutionType === 'Instant Store Credit Coupon (+10% Bonus Value)'
           ? 'Store Credit Coupon'
-          : selectedRma.orderPaymentMethod === 'cod'
+          : selectedRma.orderPaymentMethod.trim().toLowerCase() === 'cod' ||
+              selectedRma.orderPaymentMethod.trim().toLowerCase().includes('cash on delivery')
             ? 'UPI Transfer'
             : 'Original Source')
     );

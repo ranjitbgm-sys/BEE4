@@ -6,9 +6,11 @@ import {
   CouponRecord,
   CustomerProfile,
   GiftOccasion,
+  OrderChannel,
   OrderRecord,
   OrderStatus,
   PaymentMethod,
+  PaymentStatus,
   Product,
   ProductCategory,
   SavedAddress,
@@ -78,9 +80,68 @@ export interface CartTotals {
   giftWrapFee: number;
   codFee: number;
   total: number;
+  walletAmountApplied: number;
+  remainingPayable: number;
   amountToFreeShipping: number;
   promoApplied: boolean;
   promoReason?: string;
+}
+
+export function isCodPaymentMethod(method?: string | null): boolean {
+  if (!method) return false;
+  const norm = method.trim().toLowerCase();
+  return norm === 'cod' || norm === 'cash on delivery' || norm.includes('cash on delivery');
+}
+
+export function formatPaymentMethodLabel(method?: string | null): string {
+  if (!method) return 'UPI / Prepaid';
+  const norm = method.trim().toLowerCase();
+  if (isCodPaymentMethod(method)) return 'Cash on Delivery (COD)';
+  if (norm.includes('wallet')) return 'BEE4 Wallet';
+  if (norm === 'card') return 'Credit / Debit Card';
+  return 'Direct UPI / QR (Prepaid)';
+}
+
+export function resolveCanonicalOrderPayment(input: {
+  selectedMethod: PaymentMethod;
+  walletAmountUsed?: number;
+  totalAmount?: number;
+}): {
+  paymentMethod: PaymentMethod;
+  paymentStatus: PaymentStatus;
+  orderChannel: OrderChannel;
+} {
+  const walletUsed = Math.max(0, Math.round(Number(input.walletAmountUsed ?? 0)));
+  const total = Math.max(0, Math.round(Number(input.totalAmount ?? 0)));
+  if (
+    (total > 0 && walletUsed >= total) ||
+    input.selectedMethod === 'BEE4 Wallet'
+  ) {
+    return {
+      paymentMethod: 'BEE4 Wallet',
+      paymentStatus: 'Paid',
+      orderChannel: 'UPI / Prepaid',
+    };
+  }
+  if (isCodPaymentMethod(input.selectedMethod)) {
+    return {
+      paymentMethod: 'COD',
+      paymentStatus: 'Pending (Collect on Delivery)',
+      orderChannel: 'COD',
+    };
+  }
+  if (input.selectedMethod === 'card') {
+    return {
+      paymentMethod: 'UPI / Prepaid',
+      paymentStatus: 'Paid',
+      orderChannel: 'UPI / Prepaid',
+    };
+  }
+  return {
+    paymentMethod: 'UPI / Prepaid',
+    paymentStatus: 'Paid',
+    orderChannel: 'UPI / Prepaid',
+  };
 }
 
 export function formatINR(amount: number): string {
@@ -163,12 +224,14 @@ export function calculateCartTotals(
     coupons?: CouponRecord[];
     expectedPromoCode?: string;
     promoDiscountPercent?: number;
+    walletBalanceAvailable?: number;
+    useWalletBalance?: boolean;
   } = {}
 ): CartTotals {
   const threshold = options.freeShippingThreshold ?? FREE_SHIPPING_THRESHOLD;
   const stdShipFee = options.standardShippingFee ?? STANDARD_SHIPPING_FEE;
   const wrapUnitFee = options.giftWrapFee ?? GIFT_WRAP_FEE;
-  const codUnitFee = options.paymentMethod === 'cod' ? (options.codHandlingFee ?? 0) : 0;
+  const codUnitFee = isCodPaymentMethod(options.paymentMethod) ? (options.codHandlingFee ?? 0) : 0;
   const expectedCode = (options.expectedPromoCode ?? WELCOME_PROMO_CODE).trim().toUpperCase();
   const discountPercent = options.promoDiscountPercent ?? 10;
 
@@ -188,7 +251,7 @@ export function calculateCartTotals(
       const check = validateAndApplyCoupon({
         code: normalizedPromo,
         subtotal,
-        paymentMethod: options.paymentMethod ?? 'upi',
+        paymentMethod: options.paymentMethod ?? 'UPI / Prepaid',
         coupons: options.coupons,
       });
       if (check.valid) {
@@ -209,8 +272,18 @@ export function calculateCartTotals(
   const netMerchandise = Math.max(0, subtotal - discount);
   const shippingFee = subtotal === 0 || netMerchandise >= threshold ? 0 : stdShipFee;
   const giftWrapFee = subtotal > 0 && options.giftWrap ? wrapUnitFee : 0;
-  const codFee = subtotal > 0 ? codUnitFee : 0;
-  const total = netMerchandise + shippingFee + giftWrapFee + codFee;
+  const basePreCod = netMerchandise + shippingFee + giftWrapFee;
+
+  const walletAvailable =
+    subtotal > 0 && options.useWalletBalance
+      ? Math.max(0, Math.round(Number(options.walletBalanceAvailable ?? 0)))
+      : 0;
+
+  const coversBaseWithWallet = walletAvailable > 0 && walletAvailable >= basePreCod;
+  const codFee = subtotal > 0 && !coversBaseWithWallet ? codUnitFee : 0;
+  const total = basePreCod + codFee;
+  const walletAmountApplied = walletAvailable > 0 ? Math.min(walletAvailable, total) : 0;
+  const remainingPayable = Math.max(0, total - walletAmountApplied);
   const amountToFreeShipping =
     subtotal === 0 ? threshold : Math.max(0, threshold - netMerchandise);
 
@@ -222,6 +295,8 @@ export function calculateCartTotals(
     giftWrapFee,
     codFee,
     total,
+    walletAmountApplied,
+    remainingPayable,
     amountToFreeShipping,
     promoApplied,
     promoReason,
@@ -307,7 +382,7 @@ export function formatWhatsAppSingleProductMessage(
     `• ${product.title} (${variant}) × ${quantity}`,
     `Age Group: ${product.ageGroup} · Skill: ${product.category}`,
     `Total: ${formatINR(total)}`,
-    `Please share Razorpay / UPI / COD confirmation details.`,
+    `Please share Direct UPI / QR or COD confirmation details.`,
   ].join('\n');
 }
 

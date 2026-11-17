@@ -585,7 +585,7 @@ export function AdminSettingsTab({
                 onChange={(e) => setUpiEnabled(e.target.checked)}
                 className="w-4 h-4 accent-amber-600"
               />
-              <span>UPI / Razorpay Enabled</span>
+              <span>Direct UPI / QR Enabled</span>
             </label>
             <label className="inline-flex items-center gap-2">
               <input

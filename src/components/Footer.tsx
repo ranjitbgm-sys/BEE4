@@ -9,6 +9,7 @@ interface FooterProps {
   promoCode: string;
   promoDiscountPercent: number;
   onNavigate: (page: StorePage) => void;
+  onOpenGiftCardModal?: () => void;
 }
 
 export function Footer({
@@ -17,6 +18,7 @@ export function Footer({
   promoCode,
   promoDiscountPercent,
   onNavigate,
+  onOpenGiftCardModal,
 }: FooterProps) {
   return (
     <footer className="glass-surface border-x-0 border-b-0 mt-20">
@@ -107,8 +109,19 @@ export function Footer({
                   {formatWhatsAppDisplay(whatsappNumber)} (WhatsApp)
                 </a>
               </li>
-              <li>Razorpay · UPI · Cards · Cash on Delivery</li>
-              <li className="pt-2">
+              <li>Direct UPI / QR · BEE4 Wallet · Cash on Delivery</li>
+              {onOpenGiftCardModal && (
+                <li>
+                  <button
+                    type="button"
+                    onClick={onOpenGiftCardModal}
+                    className="text-xs font-semibold text-amber-700 dark:text-amber-300 hover:underline underline-offset-4 transition-colors"
+                  >
+                    Buy Digital Gift Cards
+                  </button>
+                </li>
+              )}
+              <li className="pt-1">
                 <button
                   type="button"
                   onClick={() => onNavigate('account')}

@@ -361,7 +361,7 @@ export function ProductQuickViewModal({
               </span>
               <span className="inline-flex items-center gap-1">
                 <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
-                Razorpay / UPI / COD
+                Direct UPI / Wallet / COD
               </span>
               <span className="inline-flex items-center gap-1">
                 <Check className="w-3.5 h-3.5 text-amber-600" />

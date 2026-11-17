@@ -442,7 +442,8 @@ export function CustomerReturnModal({
 
             {/* COD Payout Inputs when Refund to UPI/Original is chosen */}
             {resolutionType === 'Refund to Original Payment / UPI ID' &&
-              order.paymentMethod === 'cod' && (
+              (order.paymentMethod.trim().toLowerCase() === 'cod' ||
+                order.paymentMethod.trim().toLowerCase().includes('cash on delivery')) && (
                 <div className="p-4 rounded-2xl bg-sky-50/70 dark:bg-sky-950/35 border border-sky-200/80 dark:border-sky-500/25 space-y-3">
                   <div className="flex items-start gap-2 text-xs text-sky-900 dark:text-sky-200">
                     <ShieldCheck className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />

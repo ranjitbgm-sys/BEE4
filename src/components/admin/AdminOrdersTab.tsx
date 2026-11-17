@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
+  Ban,
   CheckSquare,
   Clock,
   Download,
@@ -42,7 +43,13 @@ import {
   OPERATIONAL_ORDER_BUCKETS,
 } from '../../utils/omnichannelLogic';
 import { getOrderRmaStatusBadge } from '../../utils/rmaLogic';
-import { formatINR } from '../../utils/storeLogic';
+import { canAdminCancelOrder } from '../../utils/giftCardWalletLogic';
+import {
+  formatINR,
+  formatPaymentMethodLabel,
+  isCodPaymentMethod,
+} from '../../utils/storeLogic';
+import { CancelOrderModal } from '../CancelOrderModal';
 import { OrderGstInvoiceModal } from './OrderGstInvoiceModal';
 
 interface AdminOrdersTabProps {
@@ -73,6 +80,12 @@ interface AdminOrdersTabProps {
     }
   ) => void;
   onBulkUpdateOrders?: (orders: OrderRecord[], label: string) => void;
+  onCancelOrderAdmin?: (payload: {
+    orderNumber: string;
+    reason: string;
+    autoRestock: boolean;
+    issueRefundCredit: boolean;
+  }) => Promise<void> | void;
 }
 
 const STAGES: FulfillmentStage[] = [
@@ -119,6 +132,7 @@ export function AdminOrdersTab({
   onInspectRma,
   onUpdateOrderLogistics,
   onBulkUpdateOrders,
+  onCancelOrderAdmin,
 }: AdminOrdersTabProps) {
   const [search, setSearch] = useState('');
   const [stageFilter, setStageFilter] = useState<OperationalOrderBucket | 'All'>('All');
@@ -129,6 +143,7 @@ export function AdminOrdersTab({
     initialSelectedOrderNumber || null
   );
   const [invoiceOrder, setInvoiceOrder] = useState<OrderRecord | null>(null);
+  const [cancelModalOrder, setCancelModalOrder] = useState<OrderRecord | null>(null);
   const [bulkPaperSize, setBulkPaperSize] = useState<'4x6' | 'A5'>('4x6');
   const [isRefreshingOrders, setIsRefreshingOrders] = useState(false);
   const [refreshOrdersError, setRefreshOrdersError] = useState('');
@@ -375,6 +390,7 @@ export function AdminOrdersTab({
     { kind: 'printing', label: '2. 3D Crafting & Packing' },
     { kind: 'dispatch', label: '3. Dispatch + Tracking Link' },
     { kind: 'feedback_repeat', label: '4. Feedback + SMARTKID15' },
+    { kind: 'cancelled', label: '5. Order Cancellation Alert' },
   ];
 
   return (
@@ -638,14 +654,27 @@ export function AdminOrdersTab({
                     </td>
                     <td className="py-3.5 px-4 whitespace-nowrap font-medium text-zinc-700 dark:text-zinc-300">
                       <span className="font-bold text-zinc-900 dark:text-white">{srcChannel}</span>
-                      <div className="text-[10px] text-zinc-500 dark:text-zinc-400">
-                        {getEffectiveOrderChannel(order)}
+                      <div className="mt-0.5 flex flex-wrap items-center gap-1">
+                        <span
+                          className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            isCodPaymentMethod(order.paymentMethod)
+                              ? 'bg-amber-500/15 text-amber-800 dark:text-amber-300'
+                              : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                          }`}
+                        >
+                          {formatPaymentMethodLabel(order.paymentMethod)}
+                        </span>
+                        {order.paymentStatus && (
+                          <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                            {order.paymentStatus}
+                          </span>
+                        )}
                       </div>
                     </td>
-                    <td className="py-3.5 px-4 whitespace-nowrap">
+                    <td className="py-3.5 px-4">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span
-                          className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-bold ${stageBadgeClass(stage)}`}
+                          className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap ${stageBadgeClass(stage)}`}
                         >
                           {order.status} · {bucket}
                         </span>
@@ -660,6 +689,12 @@ export function AdminOrdersTab({
                           </button>
                         )}
                       </div>
+                      {order.status === 'Cancelled' && (
+                        <p className="mt-1 text-[11px] font-medium text-rose-700 dark:text-rose-300 max-w-[230px]">
+                          Cancelled by {order.cancelledBy || 'Admin'} — Reason:{' '}
+                          {order.cancellationReason || 'Not specified'}
+                        </p>
+                      )}
                     </td>
                     <td className="py-3.5 px-4 whitespace-nowrap tabular-nums text-zinc-600 dark:text-zinc-300">
                       {order.courierPartner ? (
@@ -685,6 +720,17 @@ export function AdminOrdersTab({
                         >
                           Manage
                         </button>
+                        {onCancelOrderAdmin && canAdminCancelOrder(order.status) && (
+                          <button
+                            type="button"
+                            onClick={() => setCancelModalOrder(order)}
+                            aria-label={`Cancel order ${order.orderNumber}`}
+                            title="Cancel Order & Restock"
+                            className="p-1.5 rounded-xl glass-btn-secondary text-rose-600 dark:text-rose-400"
+                          >
+                            <Ban className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => setInvoiceOrder(order)}
@@ -748,11 +794,33 @@ export function AdminOrdersTab({
                   )}
                 </div>
               </div>
-              <div className="flex items-center justify-between text-xs pt-2 border-t border-zinc-900/8 dark:border-white/10">
-                <span className="font-bold tabular-nums text-zinc-900 dark:text-white">
-                  {formatINR(order.total)} · {getEffectiveOrderChannel(order)}
-                </span>
+              {order.status === 'Cancelled' && (
+                <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/25 text-[11px] font-semibold text-rose-700 dark:text-rose-300">
+                  Cancelled by {order.cancelledBy || 'Admin'} — Reason:{' '}
+                  {order.cancellationReason || 'Not specified'}
+                </div>
+              )}
+              <div className="flex items-center justify-between gap-2 text-xs pt-2 border-t border-zinc-900/8 dark:border-white/10">
+                <div>
+                  <span className="font-bold tabular-nums text-zinc-900 dark:text-white">
+                    {formatINR(order.total)} · {formatPaymentMethodLabel(order.paymentMethod)}
+                  </span>
+                  {order.paymentStatus && (
+                    <div className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                      {order.paymentStatus}
+                    </div>
+                  )}
+                </div>
                 <div className="flex gap-2">
+                  {onCancelOrderAdmin && canAdminCancelOrder(order.status) && (
+                    <button
+                      type="button"
+                      onClick={() => setCancelModalOrder(order)}
+                      className="px-2.5 py-1.5 rounded-xl glass-btn-secondary text-rose-600 dark:text-rose-400 text-xs font-semibold"
+                    >
+                      Cancel
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => setInvoiceOrder(order)}
@@ -799,7 +867,8 @@ export function AdminOrdersTab({
             <div className="flex items-start justify-between gap-3 border-b border-zinc-900/10 dark:border-white/10 pb-4">
               <div>
                 <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
-                  Order Command Drawer · {getEffectiveOrderChannel(selectedOrder)} · {selectedOrder.status}
+                  Order Command Drawer · {formatPaymentMethodLabel(selectedOrder.paymentMethod)}
+                  {selectedOrder.paymentStatus ? ` (${selectedOrder.paymentStatus})` : ''} · {selectedOrder.status}
                 </p>
                 <h2 className="mt-0.5 font-display text-xl font-bold text-zinc-900 dark:text-white tabular-nums">
                   {selectedOrder.orderNumber}
@@ -808,15 +877,54 @@ export function AdminOrdersTab({
                   Placed {new Date(selectedOrder.createdAt).toLocaleString('en-IN')}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setSelectedOrderNumber(null)}
-                aria-label="Close drawer"
-                className="p-2 rounded-xl glass-btn-secondary"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-2">
+                {onCancelOrderAdmin && canAdminCancelOrder(selectedOrder.status) && (
+                  <button
+                    type="button"
+                    onClick={() => setCancelModalOrder(selectedOrder)}
+                    className="px-3 py-1.5 rounded-xl bg-rose-600 text-white text-xs font-semibold inline-flex items-center gap-1.5 hover:bg-rose-700"
+                  >
+                    <Ban className="w-3.5 h-3.5" />
+                    <span>Cancel Order</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setSelectedOrderNumber(null)}
+                  aria-label="Close drawer"
+                  className="p-2 rounded-xl glass-btn-secondary"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
+
+            {selectedOrder.status === 'Cancelled' && (
+              <div className="p-3.5 rounded-2xl border border-rose-500/35 bg-rose-500/10 space-y-2.5 text-xs">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-bold text-rose-800 dark:text-rose-200">
+                      Cancelled by {selectedOrder.cancelledBy || 'Admin'} — Reason:{' '}
+                      {selectedOrder.cancellationReason || 'Not specified'}
+                    </p>
+                    {selectedOrder.cancelledAt && (
+                      <p className="mt-0.5 text-[11px] text-rose-700/80 dark:text-rose-300/80 tabular-nums">
+                        Cancelled on {new Date(selectedOrder.cancelledAt).toLocaleString('en-IN')}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <a
+                  href={buildAdminWhatsAppTemplate(selectedOrder, 'cancelled').url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-2 rounded-xl glass-btn-emerald text-white text-xs font-semibold inline-flex items-center gap-1.5"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  <span>Notify Customer on WhatsApp</span>
+                </a>
+              </div>
+            )}
 
             {/* Customer & Delivery Address */}
             <div className="glass-subtle rounded-2xl p-4 space-y-1.5 text-xs">
@@ -910,6 +1018,12 @@ export function AdminOrdersTab({
                     <span>Shipping &amp; Gift Wrap</span>
                     <span>{formatINR(selectedOrder.shippingFee + selectedOrder.giftWrapFee)}</span>
                   </div>
+                  {(selectedOrder.walletAmountUsed ?? 0) > 0 && (
+                    <div className="flex justify-between text-emerald-700 dark:text-emerald-300">
+                      <span>BEE4 Wallet Applied</span>
+                      <span>-{formatINR(selectedOrder.walletAmountUsed ?? 0)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between font-bold text-sm text-zinc-900 dark:text-white pt-1">
                     <span>Grand Total</span>
                     <span>{formatINR(selectedOrder.total)}</span>
@@ -1129,6 +1243,23 @@ export function AdminOrdersTab({
         whatsappNumber={whatsappNumber}
         onClose={() => setInvoiceOrder(null)}
       />
+
+      {/* Admin Order Cancellation & Restock Modal */}
+      {cancelModalOrder && onCancelOrderAdmin && (
+        <CancelOrderModal
+          order={cancelModalOrder}
+          mode="admin"
+          onClose={() => setCancelModalOrder(null)}
+          onConfirm={async ({ reason, autoRestock, issueRefundCredit }) => {
+            await onCancelOrderAdmin({
+              orderNumber: cancelModalOrder.orderNumber,
+              reason,
+              autoRestock,
+              issueRefundCredit,
+            });
+          }}
+        />
+      )}
     </div>
   );
 }

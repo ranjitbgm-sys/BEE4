@@ -188,8 +188,8 @@ export function lookupGuestOrderByOrderAndPhone(
   }
 
   const matched = orders.find((o) => {
-    const orderPhone10 = normalizeIndianPhone10(o.customer.phone);
-    return o.orderNumber.trim().toUpperCase() === cleanOrderNo && orderPhone10 === cleanPhone10;
+    const orderPhone10 = normalizeIndianPhone10(o.customer?.phone ?? '');
+    return (o.orderNumber ?? '').trim().toUpperCase() === cleanOrderNo && orderPhone10 === cleanPhone10;
   });
 
   if (!matched) {
@@ -240,7 +240,7 @@ export function validateReturnRequestForm(input: ReturnRequestFormInput): {
 
   if (
     input.resolutionType === 'Refund to Original Payment / UPI ID' &&
-    input.orderPaymentMethod === 'cod'
+    String(input.orderPaymentMethod || '').trim().toLowerCase() === 'cod'
   ) {
     const upi = (input.refundUpiId ?? '').trim();
     const bankAcc = (input.refundBankAccount ?? '').replace(/\s+/g, '');
@@ -466,7 +466,7 @@ export function applyRmaTransitionSync(input: {
       nextReturn.refundMode ??
       (nextReturn.resolutionType === 'Instant Store Credit Coupon (+10% Bonus Value)'
         ? 'Store Credit Coupon'
-        : nextReturn.orderPaymentMethod === 'cod'
+        : String(nextReturn.orderPaymentMethod || '').trim().toLowerCase() === 'cod'
           ? 'UPI Transfer'
           : 'Original Source');
 

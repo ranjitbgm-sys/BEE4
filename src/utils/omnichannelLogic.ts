@@ -423,7 +423,9 @@ export function generateBulkThermalLabelsHtml(
   const cards = orders
     .map((order) => {
       const channel = getEffectiveSourceChannel(order);
-      const isCod = order.paymentMethod === 'cod';
+      const payNorm = String(order.paymentMethod || '').trim().toLowerCase();
+      const isCod = payNorm === 'cod' || payNorm.includes('cash on delivery');
+      const collectAmt = Math.max(0, Math.round(order.total - (order.walletAmountUsed ?? 0)));
       return `
       <section class="label-card">
         <header class="row">
@@ -449,7 +451,7 @@ export function generateBulkThermalLabelsHtml(
           </div>
           <div>
             <div class="muted">PAYMENT</div>
-            <strong>${isCod ? `COD COLLECT ₹${Math.round(order.total)}` : 'PREPAID'}</strong>
+            <strong>${isCod ? `COD — COLLECT ₹${collectAmt}` : 'PREPAID — DO NOT COLLECT'}</strong>
           </div>
           <div>
             <div class="muted">COURIER / AWB</div>
@@ -545,7 +547,15 @@ export function doesConditionMatch(
 ): boolean {
   if (rule.conditionField === 'always') return true;
   if (rule.conditionField === 'payment_method_eq' && ctx.order) {
-    return ctx.order.paymentMethod.toLowerCase() === rule.conditionValue.trim().toLowerCase();
+    const orderPayNorm = ctx.order.paymentMethod.trim().toLowerCase();
+    const ruleNorm = rule.conditionValue.trim().toLowerCase();
+    if (ruleNorm === 'cod') {
+      return orderPayNorm === 'cod' || orderPayNorm.includes('cash on delivery');
+    }
+    if (ruleNorm === 'upi' || ruleNorm === 'upi / prepaid') {
+      return orderPayNorm === 'upi' || orderPayNorm.includes('upi');
+    }
+    return orderPayNorm === ruleNorm;
   }
   if (rule.conditionField === 'source_channel_eq') {
     const ch = ctx.order
@@ -732,7 +742,9 @@ export function importMarketplaceOrdersFromCsv(
     const rawTotal = Number((idxTotal >= 0 ? cols[idxTotal] : '0').replace(/[^\d.]/g, '')) || 0;
     const orderTotal = rawTotal > 0 ? rawTotal : (matchedProduct?.price ?? 449) * qty;
     const payText = (idxPay >= 0 ? cols[idxPay] : 'prepaid').toLowerCase();
-    const paymentMethod: OrderRecord['paymentMethod'] = payText.includes('cod') ? 'cod' : 'upi';
+    const paymentMethod: OrderRecord['paymentMethod'] = payText.includes('cod')
+      ? 'COD'
+      : 'UPI / Prepaid';
 
     const commissionFee =
       idxCommission >= 0 ? Math.max(0, Number(cols[idxCommission].replace(/[^\d.]/g, '')) || 0) : 0;
@@ -770,7 +782,8 @@ export function importMarketplaceOrdersFromCsv(
       giftWrapFee: 0,
       total: orderTotal,
       paymentMethod,
-      orderChannel: paymentMethod === 'cod' ? 'COD' : 'UPI / Prepaid',
+      paymentStatus: paymentMethod === 'COD' ? 'Pending (Collect on Delivery)' : 'Paid',
+      orderChannel: paymentMethod === 'COD' ? 'COD' : 'UPI / Prepaid',
       customer: {
         fullName: (idxBuyer >= 0 ? cols[idxBuyer] : '') || `${defaultChannel} Customer`,
         phone: ((idxPhone >= 0 ? cols[idxPhone] : '') || '9800000000').replace(/\D/g, '').slice(-10) || '9800000000',
@@ -1041,9 +1054,11 @@ export function calculateReconciliationReport(input: {
       returnsAndRtoDeduction += order.total;
     }
 
+    const payNorm = String(order.paymentMethod || '').trim().toLowerCase();
+    const isCodOrder = payNorm === 'cod' || payNorm.includes('cash on delivery');
     const orderFees =
       (order.settlement?.commissionFee ?? 0) +
-      (order.settlement?.paymentGatewayFee ?? (ch === 'bee4.in' && order.paymentMethod !== 'cod' ? Math.round(order.total * 0.02) : 0)) +
+      (order.settlement?.paymentGatewayFee ?? (ch === 'bee4.in' && !isCodOrder ? Math.round(order.total * 0.02) : 0)) +
       (order.settlement?.shippingCharged ?? (order.shippingFee > 0 ? order.shippingFee : 0));
 
     marketplaceAndShippingFees += orderFees;

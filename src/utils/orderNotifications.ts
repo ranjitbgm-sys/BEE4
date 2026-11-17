@@ -57,12 +57,15 @@ export function buildOrderInvoiceHtml(
   const supportEmail = options?.supportEmail?.trim() || 'hello@bee4.in';
   const whatsappDisplay = formatWaReadable(options?.whatsappNumber || '9800004004');
 
-  const paymentLabel =
-    order.paymentMethod === 'upi'
-      ? 'UPI (GPay / PhonePe / Paytm)'
-      : order.paymentMethod === 'card'
-        ? 'Credit / Debit Card'
-        : 'Cash on Delivery (COD)';
+  const normalizedPay = (order.paymentMethod || '').trim().toLowerCase();
+  const isCod = normalizedPay === 'cod' || normalizedPay.includes('cash on delivery');
+  const paymentLabel = isCod
+    ? 'Cash on Delivery (COD)'
+    : normalizedPay.includes('wallet')
+      ? 'BEE4 Wallet (Prepaid)'
+      : normalizedPay === 'card'
+        ? 'Credit / Debit Card (Prepaid)'
+        : 'Direct UPI / QR (Prepaid)';
 
   const orderDate = new Date(order.createdAt);
   const formattedDate = Number.isNaN(orderDate.getTime())
@@ -205,7 +208,13 @@ export function buildOrderSmsConfirmationText(
   options?: { whatsappNumber?: string }
 ): string {
   const whatsappDisplay = formatWaReadable(options?.whatsappNumber || '9800004004');
-  const paymentShort = order.paymentMethod.toUpperCase();
+  const normalizedPay = (order.paymentMethod || '').trim().toLowerCase();
+  const paymentShort =
+    normalizedPay === 'cod' || normalizedPay.includes('cash on delivery')
+      ? 'COD'
+      : normalizedPay.includes('wallet')
+        ? 'BEE4 WALLET'
+        : 'UPI / PREPAID';
   const emailPart = order.customer.email.trim()
     ? ` Invoice emailed to ${order.customer.email.trim()}.`
     : '';
@@ -231,12 +240,15 @@ export function buildOrderConfirmationEmailPayload(
   const whatsappDisplay = formatWaReadable(options?.whatsappNumber || '9800004004');
   const invoiceFilename = getInvoiceFilename(order.orderNumber);
   const invoiceHtml = buildOrderInvoiceHtml(order, options);
+  const normalizedPay = (order.paymentMethod || '').trim().toLowerCase();
   const paymentLabel =
-    order.paymentMethod === 'upi'
-      ? 'UPI (GPay / PhonePe / Paytm)'
-      : order.paymentMethod === 'card'
-        ? 'Credit / Debit Card'
-        : 'Cash on Delivery (COD)';
+    normalizedPay === 'cod' || normalizedPay.includes('cash on delivery')
+      ? 'Cash on Delivery (COD)'
+      : normalizedPay.includes('wallet')
+        ? 'BEE4 Wallet (Prepaid)'
+        : normalizedPay === 'card'
+          ? 'Credit / Debit Card (Prepaid)'
+          : 'Direct UPI / QR (Prepaid)';
 
   const subject = `BEE4 Order Confirmed: ${order.orderNumber} (${formatInrPlain(order.total)}) + Invoice`;
 

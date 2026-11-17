@@ -22,6 +22,7 @@ interface GiftIdeasViewProps {
   onQuickView?: (product: Product) => void;
   onQuickAdd: (product: Product) => void;
   onToggleWishlist: (productId: string) => void;
+  onOpenGiftCardModal?: () => void;
 }
 
 const OCCASION_CARDS: { occasion: GiftOccasion; label: string; subtitle: string }[] = [
@@ -44,6 +45,7 @@ export function GiftIdeasView({
   onQuickView,
   onQuickAdd,
   onToggleWishlist,
+  onOpenGiftCardModal,
 }: GiftIdeasViewProps) {
   const [selectedOccasion, setSelectedOccasion] = useState<GiftOccasion>(initialOccasion);
   const [budgetCap, setBudgetCap] = useState<number | null>(null);
@@ -140,6 +142,31 @@ export function GiftIdeasView({
             );
           })}
         </div>
+
+        {onOpenGiftCardModal && (
+          <div className="mt-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-amber-500/35 bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-transparent p-4">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-600 text-white">
+                <Gift className="h-5 w-5" />
+              </span>
+              <div>
+                <p className="text-sm font-bold text-zinc-900 dark:text-white">
+                  Let them pick their favorite brain toy — Send a BEE4 Digital Gift Card
+                </p>
+                <p className="text-xs text-zinc-600 dark:text-zinc-300 mt-0.5">
+                  Instant ₹250, ₹500, ₹1,000, or ₹2,000 e-Gift Card with unique 16-char code &amp; PIN redeemable in BEE4 Wallet.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onOpenGiftCardModal}
+              className="glass-btn-amber shrink-0 px-4 py-2.5 text-xs font-semibold text-white"
+            >
+              Buy Digital Gift Card
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Gift Wrap Info Strip */}

@@ -170,11 +170,13 @@ export function validateAndApplyCoupon(input: {
       reason: `Minimum order of ₹${matched.minOrderValue} required for ${matched.code}.`,
     };
   }
-  if (matched.prepaidOnly && input.paymentMethod === 'cod') {
+  const payNorm = String(input.paymentMethod || '').trim().toLowerCase();
+  const isCod = payNorm === 'cod' || payNorm.includes('cash on delivery');
+  if (matched.prepaidOnly && isCod) {
     return {
       valid: false,
       discount: 0,
-      reason: `${matched.code} is valid only on Prepaid (UPI / Card) orders.`,
+      reason: `${matched.code} is valid only on Prepaid (UPI / Wallet) orders.`,
     };
   }
 
@@ -230,7 +232,8 @@ export function mapFulfillmentStageToOrderStatus(stage: FulfillmentStage): Order
 
 export function getEffectiveOrderChannel(order: OrderRecord): OrderChannel {
   if (order.orderChannel) return order.orderChannel;
-  return order.paymentMethod === 'cod' ? 'COD' : 'UPI / Prepaid';
+  const norm = String(order.paymentMethod || '').trim().toLowerCase();
+  return norm === 'cod' || norm.includes('cash on delivery') ? 'COD' : 'UPI / Prepaid';
 }
 
 export function filterOrdersByPeriod(
@@ -331,8 +334,12 @@ export function buildExecutiveDashboardSummary(input: {
   const averageOrderValue =
     validOrders.length > 0 ? Math.round(grossRevenue / validOrders.length) : 0;
 
-  const prepaidCount = periodOrders.filter((o) => o.paymentMethod !== 'cod').length;
-  const codCount = periodOrders.filter((o) => o.paymentMethod === 'cod').length;
+  const isOrderCod = (o: OrderRecord) => {
+    const norm = String(o.paymentMethod || '').trim().toLowerCase();
+    return norm === 'cod' || norm.includes('cash on delivery');
+  };
+  const prepaidCount = periodOrders.filter((o) => !isOrderCod(o)).length;
+  const codCount = periodOrders.filter((o) => isOrderCod(o)).length;
   const prepaidSharePercent =
     periodOrders.length > 0 ? Math.round((prepaidCount / periodOrders.length) * 100) : 0;
 
@@ -434,7 +441,12 @@ export function estimateSpoolRemainingUnits(spool: FilamentSpool): number {
   return Math.max(0, Math.floor(spool.remainingGrams / spool.gramsPerToyAvg));
 }
 
-export type WhatsAppTemplateKind = 'confirm_cod' | 'printing' | 'dispatch' | 'feedback_repeat';
+export type WhatsAppTemplateKind =
+  | 'confirm_cod'
+  | 'printing'
+  | 'dispatch'
+  | 'feedback_repeat'
+  | 'cancelled';
 
 export function buildAdminWhatsAppTemplate(
   order: OrderRecord,
@@ -446,13 +458,16 @@ export function buildAdminWhatsAppTemplate(
   const courier = order.courierPartner || 'Delhivery';
   const awb = order.awbNumber || 'Pending AWB';
   const tracking = order.trackingUrl || 'https://bee4.in/track';
+  const isCod =
+    String(order.paymentMethod || '').trim().toLowerCase() === 'cod' ||
+    String(order.paymentMethod || '').toLowerCase().includes('cash on delivery');
 
   let message = '';
   let label = '';
   switch (kind) {
     case 'confirm_cod':
       label = 'Order Confirmation & COD Verify';
-      message = `Hi ${firstName}! Thank you for ordering from BEE4 Studio (bee4.in). Your order ${order.orderNumber} (₹${order.total}) for ${order.customer.city} is received. Please reply YES to confirm dispatch${order.paymentMethod === 'cod' ? ' for Cash on Delivery' : ''}.`;
+      message = `Hi ${firstName}! Thank you for ordering from BEE4 Studio (bee4.in). Your order ${order.orderNumber} (₹${order.total}) for ${order.customer.city} is received. Please reply YES to confirm dispatch${isCod ? ' for Cash on Delivery' : ''}.`;
       break;
     case 'printing':
       label = 'Crafting & Packing Update';
@@ -466,6 +481,12 @@ export function buildAdminWhatsAppTemplate(
       label = 'Delivery Feedback & SMARTKID15 Invite';
       message = `Hi ${firstName}! Hope your family is loving your BEE4 screen-free toys from order ${order.orderNumber}. Enjoy 15% OFF your next brain-training puzzle with code SMARTKID15 at bee4.in!`;
       break;
+    case 'cancelled': {
+      const reasonText = order.cancellationReason || 'Requested cancellation';
+      label = 'Notify Customer on WhatsApp';
+      message = `Hi ${firstName}, your BEE4 order ${order.orderNumber} (₹${order.total}) has been cancelled (${reasonText}).${order.refundStatus === 'Refunded' && order.refundedAmount ? ` Store credit / refund of ₹${order.refundedAmount} has been issued to your BEE4 account.` : ''} Reply anytime if you need help re-ordering at bee4.in.`;
+      break;
+    }
   }
 
   return {
@@ -556,7 +577,7 @@ export function buildGstTaxInvoiceHtml(
   </div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;font-size:13px">
     <div><strong>Billed &amp; Shipped To:</strong><br/>${escapeHtml(order.customer.fullName)}<br/>${escapeHtml(order.customer.address)}<br/>${escapeHtml(order.customer.city)}, ${escapeHtml(order.customer.state)} - ${escapeHtml(order.customer.pinCode)}<br/>Ph: ${escapeHtml(order.customer.phone)}</div>
-    <div><strong>Payment &amp; Logistics:</strong><br/>Method: ${escapeHtml(order.paymentMethod.toUpperCase())}<br/>Courier: ${escapeHtml(order.courierPartner || 'Standard Dispatch')}<br/>AWB: ${escapeHtml(order.awbNumber || 'Pending')}</div>
+    <div><strong>Payment &amp; Logistics:</strong><br/>Method: ${escapeHtml(String(order.paymentMethod).toUpperCase())}<br/>Status: ${escapeHtml(order.paymentStatus || (String(order.paymentMethod).toLowerCase() === 'cod' ? 'Pending (Collect on Delivery)' : 'Paid'))}<br/>Courier: ${escapeHtml(order.courierPartner || 'Standard Dispatch')}<br/>AWB: ${escapeHtml(order.awbNumber || 'Pending')}</div>
   </div>
   <table>
     <thead><tr><th>#</th><th>Item</th><th>HSN</th><th style="text-align:right">Qty</th><th style="text-align:right">Taxable</th><th style="text-align:right">GST</th><th style="text-align:right">${totalTaxLines.isIntra ? 'CGST + SGST' : 'IGST'}</th><th style="text-align:right">Total</th></tr></thead>
@@ -571,6 +592,7 @@ export function buildGstTaxInvoiceHtml(
         : `<div style="display:flex;justify-content:space-between"><span>IGST (Inter-State):</span><span>₹${totalTaxLines.igst.toFixed(2)}</span></div>`
     }
     ${order.discount > 0 ? `<div style="display:flex;justify-content:space-between;color:#047857"><span>Discount (${escapeHtml(order.couponCode || 'PROMO')}):</span><span>-₹${order.discount}</span></div>` : ''}
+    ${(order.walletAmountUsed ?? 0) > 0 ? `<div style="display:flex;justify-content:space-between;color:#047857"><span>BEE4 Wallet Applied:</span><span>-₹${Math.round(order.walletAmountUsed ?? 0)}</span></div>` : ''}
     <div style="display:flex;justify-content:space-between"><span>Shipping &amp; Gift Wrap:</span><span>₹${order.shippingFee + order.giftWrapFee}</span></div>
     <div style="display:flex;justify-content:space-between;font-weight:800;font-size:16px;border-top:2px solid #18181b;padding-top:6px;margin-top:6px"><span>Grand Total:</span><span>₹${order.total}</span></div>
   </div>
@@ -579,7 +601,9 @@ export function buildGstTaxInvoiceHtml(
 }
 
 export function buildShippingLabelHtml(order: OrderRecord): string {
-  const isCod = order.paymentMethod === 'cod';
+  const payNorm = String(order.paymentMethod || '').trim().toLowerCase();
+  const isCod = payNorm === 'cod' || payNorm.includes('cash on delivery');
+  const collectAmount = Math.max(0, Math.round(order.total - (order.walletAmountUsed ?? 0)));
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"/>
 <title>Shipping Label ${escapeHtml(order.orderNumber)}</title>
@@ -599,7 +623,7 @@ export function buildShippingLabelHtml(order: OrderRecord): string {
     <strong style="font-size:18px">BEE4.IN</strong>
     <span style="font-family:monospace;font-size:14px;font-weight:700">${escapeHtml(order.orderNumber)}</span>
   </div>
-  <div class="banner">${isCod ? `CASH ON DELIVERY · COLLECT ₹${order.total}` : 'PREPAID · DO NOT COLLECT CASH'}</div>
+  <div class="banner">${isCod ? `COD — COLLECT ₹${collectAmount}` : 'PREPAID — DO NOT COLLECT'}</div>
   <div style="font-size:13px;line-height:1.45">
     <div style="font-size:11px;color:#52525b;font-weight:700">DELIVER TO:</div>
     <strong style="font-size:15px">${escapeHtml(order.customer.fullName)}</strong><br/>
@@ -674,8 +698,16 @@ export function buildCustomerCrmList(input: {
       totalOrders: 0,
       ltv: 0,
       lastOrderDate: cust.createdAt,
-      prepaidCount: cust.preferredPayment === 'cod' ? 0 : 1,
-      codCount: cust.preferredPayment === 'cod' ? 1 : 0,
+      prepaidCount:
+        String(cust.preferredPayment || '').trim().toLowerCase() === 'cod' ||
+        String(cust.preferredPayment || '').toLowerCase().includes('cash on delivery')
+          ? 0
+          : 1,
+      codCount:
+        String(cust.preferredPayment || '').trim().toLowerCase() === 'cod' ||
+        String(cust.preferredPayment || '').toLowerCase().includes('cash on delivery')
+          ? 1
+          : 0,
       rtoCount: 0,
       returnCount: 0,
       storedFlag: cust.crmFlag,
@@ -708,7 +740,8 @@ export function buildCustomerCrmList(input: {
     if (st === 'RTO / Return') {
       existing.rtoCount += 1;
     }
-    if (order.paymentMethod === 'cod') existing.codCount += 1;
+    const payNorm = String(order.paymentMethod || '').trim().toLowerCase();
+    if (payNorm === 'cod' || payNorm.includes('cash on delivery')) existing.codCount += 1;
     else existing.prepaidCount += 1;
 
     if (Date.parse(order.createdAt) > Date.parse(existing.lastOrderDate)) {

@@ -17,6 +17,7 @@ import {
   MessageCircle,
   ShieldCheck,
   Smartphone,
+  Wallet,
 } from 'lucide-react';
 import { INDIAN_STATES } from '../data/catalog';
 import {
@@ -37,8 +38,11 @@ import {
   calculateCartTotals,
   downloadOrderInvoice,
   formatINR,
+  formatPaymentMethodLabel,
   generateOrderNumber,
   getInvoiceFilename,
+  isCodPaymentMethod,
+  resolveCanonicalOrderPayment,
   validateCheckoutForm,
   WELCOME_PROMO_CODE,
 } from '../utils/storeLogic';
@@ -95,14 +99,19 @@ export function CheckoutView({
 
   const fallbackPayment: PaymentMethod = upiEnabled
     ? 'upi'
-    : 'card';
+    : 'cod';
   const initialPayment: PaymentMethod =
-    currentCustomer?.preferredPayment === 'cod' && !codEnabled
-      ? fallbackPayment
-      : currentCustomer?.preferredPayment === 'upi' && !upiEnabled
-        ? 'card'
-        : currentCustomer?.preferredPayment || fallbackPayment;
+    isCodPaymentMethod(currentCustomer?.preferredPayment) && codEnabled
+      ? 'cod'
+      : upiEnabled
+        ? 'upi'
+        : fallbackPayment;
 
+  const walletBalanceAvailable = Math.max(
+    0,
+    Math.round(Number(currentCustomer?.walletBalance ?? 0))
+  );
+  const [useWalletBalance, setUseWalletBalance] = useState<boolean>(false);
   const [selectedAddressId, setSelectedAddressId] = useState<string>(defaultAddress?.id ?? '');
   const [saveAddressToAccount, setSaveAddressToAccount] = useState<boolean>(
     Boolean(currentCustomer && currentCustomer.addresses.length === 0)
@@ -185,6 +194,8 @@ export function CheckoutView({
     coupons,
     expectedPromoCode,
     promoDiscountPercent,
+    walletBalanceAvailable,
+    useWalletBalance,
   });
 
   const handleSubmit = async (event: FormEvent) => {
@@ -199,6 +210,11 @@ export function CheckoutView({
     }
 
     const effectiveGiftWrap = giftWrapEnabled && form.giftWrap;
+    const canonicalPayment = resolveCanonicalOrderPayment({
+      selectedMethod: form.paymentMethod,
+      walletAmountUsed: totals.walletAmountApplied,
+      totalAmount: totals.total,
+    });
 
     const newOrder: OrderRecord = {
       orderNumber: generateOrderNumber(),
@@ -211,8 +227,10 @@ export function CheckoutView({
       giftWrapFee: totals.giftWrapFee,
       codFee: totals.codFee,
       total: totals.total,
-      paymentMethod: form.paymentMethod,
-      orderChannel: form.paymentMethod === 'cod' ? 'COD' : 'UPI / Prepaid',
+      walletAmountUsed: totals.walletAmountApplied,
+      paymentMethod: canonicalPayment.paymentMethod,
+      paymentStatus: canonicalPayment.paymentStatus,
+      orderChannel: canonicalPayment.orderChannel,
       couponCode: totals.promoApplied ? form.promoCode.trim().toUpperCase() : '',
       customer: {
         fullName: form.fullName.trim(),
@@ -227,6 +245,7 @@ export function CheckoutView({
       giftMessage: effectiveGiftWrap ? form.giftMessage.trim() : '',
       status: 'Pending',
       fulfillmentStage: 'New / Unverified',
+      operationalBucket: 'New / Upcoming',
     };
 
     const dispatchOrderNotifications = async (order: OrderRecord) => {
@@ -322,12 +341,7 @@ export function CheckoutView({
   };
 
   if (confirmedOrder) {
-    const paymentLabel =
-      confirmedOrder.paymentMethod === 'upi'
-        ? 'Razorpay / UPI (GPay / PhonePe / Paytm)'
-        : confirmedOrder.paymentMethod === 'card'
-          ? 'Credit / Debit Card (Razorpay)'
-          : 'Cash on Delivery (COD)';
+    const paymentLabel = formatPaymentMethodLabel(confirmedOrder.paymentMethod);
 
     const whatsAppConfirmUrl = buildWhatsAppUrl(
       `Hi BEE4! My order ${confirmedOrder.orderNumber} for ${formatINR(confirmedOrder.total)} (${paymentLabel}) is placed for ${confirmedOrder.customer.city}, PIN ${confirmedOrder.customer.pinCode}.`,
@@ -987,61 +1001,94 @@ export function CheckoutView({
               <h2 className="font-display text-lg font-bold text-zinc-900 dark:text-white">2. Payment Method</h2>
               {upiEnabled && upiVpa && (
                 <span className="text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
-                  Studio UPI: {upiVpa}
+                  Direct Studio VPA: {upiVpa}
                 </span>
               )}
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" role="radiogroup" aria-label="Payment method">
-              {(
-                [
-                  ...(upiEnabled
-                    ? [
-                        {
-                          id: 'upi' as PaymentMethod,
-                          label: 'Razorpay / UPI (GPay, PhonePe)',
-                          note: 'Zero extra fee · Instant',
-                        },
-                      ]
-                    : []),
-                  {
-                    id: 'card' as PaymentMethod,
-                    label: 'Card / Netbanking (Razorpay)',
-                    note: 'Visa, Mastercard, RuPay',
-                  },
-                  ...(codEnabled
-                    ? [
-                        {
-                          id: 'cod' as PaymentMethod,
-                          label: 'Cash on Delivery (COD)',
-                          note:
-                            codHandlingFee > 0
-                              ? `+${formatINR(codHandlingFee)} COD handling fee`
-                              : 'Pay at your doorstep',
-                        },
-                      ]
-                    : []),
-                ]
-              ).map((method) => {
-                const active = form.paymentMethod === method.id;
-                return (
-                  <button
-                    key={method.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={active}
-                    onClick={() => setForm({ ...form, paymentMethod: method.id })}
-                    className={`p-3.5 rounded-2xl border text-left transition-all ${
-                      active
-                        ? 'border-amber-600 bg-amber-50/75 dark:bg-amber-950/50 backdrop-blur-md shadow-sm'
-                        : 'border-white/75 dark:border-white/15 bg-white/55 dark:bg-slate-900/45 hover:bg-white/85 dark:hover:bg-slate-800/70'
-                    }`}
-                  >
-                    <p className="text-sm font-semibold text-zinc-900 dark:text-white">{method.label}</p>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-300 mt-0.5">{method.note}</p>
-                  </button>
-                );
-              })}
-            </div>
+
+            {currentCustomer && walletBalanceAvailable > 0 && (
+              <label className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-emerald-500/35 bg-emerald-500/10 px-4 py-3 text-sm transition hover:bg-emerald-500/15">
+                <span className="flex items-center gap-3">
+                  <input
+                    id="checkout-use-wallet"
+                    type="checkbox"
+                    checked={useWalletBalance}
+                    onChange={(e) => setUseWalletBalance(e.target.checked)}
+                    className="h-4 w-4 accent-emerald-600"
+                  />
+                  <span>
+                    <strong className="inline-flex items-center gap-1.5 text-zinc-900 dark:text-white">
+                      <Wallet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                      Use BEE4 Wallet Balance ({formatINR(walletBalanceAvailable)})
+                    </strong>
+                    <span className="block text-xs text-zinc-600 dark:text-zinc-300 mt-0.5">
+                      {useWalletBalance
+                        ? `${formatINR(totals.walletAmountApplied)} applied · Remaining due: ${formatINR(totals.remainingPayable)}`
+                        : 'Apply gift card & refund credits toward this order'}
+                    </span>
+                  </span>
+                </span>
+              </label>
+            )}
+
+            {totals.walletAmountApplied > 0 && totals.remainingPayable === 0 ? (
+              <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-sm font-semibold text-emerald-900 dark:text-emerald-200 flex items-center justify-between gap-2">
+                <span className="inline-flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                  100% Covered by BEE4 Wallet
+                </span>
+                <span className="tabular-nums">{formatINR(totals.walletAmountApplied)}</span>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" role="radiogroup" aria-label="Payment method">
+                {(
+                  [
+                    ...(upiEnabled
+                      ? [
+                          {
+                            id: 'upi' as PaymentMethod,
+                            label: 'Direct UPI / QR (GPay, PhonePe, Paytm)',
+                            note: upiVpa
+                              ? `Scan / Pay to ${upiVpa} · Instant confirmation`
+                              : 'Zero extra fee · Instant Prepaid',
+                          },
+                        ]
+                      : []),
+                    ...(codEnabled
+                      ? [
+                          {
+                            id: 'cod' as PaymentMethod,
+                            label: 'Cash on Delivery (COD)',
+                            note:
+                              codHandlingFee > 0
+                                ? `+${formatINR(codHandlingFee)} COD handling fee`
+                                : 'Pay in cash or UPI at your doorstep',
+                          },
+                        ]
+                      : []),
+                  ]
+                ).map((method) => {
+                  const active = form.paymentMethod === method.id;
+                  return (
+                    <button
+                      key={method.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      onClick={() => setForm({ ...form, paymentMethod: method.id })}
+                      className={`p-3.5 rounded-2xl border text-left transition-all ${
+                        active
+                          ? 'border-amber-600 bg-amber-50/75 dark:bg-amber-950/50 backdrop-blur-md shadow-sm'
+                          : 'border-white/75 dark:border-white/15 bg-white/55 dark:bg-slate-900/45 hover:bg-white/85 dark:hover:bg-slate-800/70'
+                      }`}
+                    >
+                      <p className="text-sm font-semibold text-zinc-900 dark:text-white">{method.label}</p>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-300 mt-0.5">{method.note}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
 
@@ -1131,9 +1178,15 @@ export function CheckoutView({
                 </span>
               </div>
             )}
+            {totals.walletAmountApplied > 0 && (
+              <div className="flex justify-between text-emerald-700 dark:text-emerald-300">
+                <span>BEE4 Wallet Applied</span>
+                <span className="tabular-nums font-medium">−{formatINR(totals.walletAmountApplied)}</span>
+              </div>
+            )}
             <div className="flex justify-between text-lg font-bold text-zinc-900 dark:text-white pt-3 border-t border-zinc-900/10 dark:border-white/10">
-              <span>Total Payable</span>
-              <span className="tabular-nums">{formatINR(totals.total)}</span>
+              <span>{totals.walletAmountApplied > 0 ? 'Net Payable' : 'Total Payable'}</span>
+              <span className="tabular-nums">{formatINR(totals.remainingPayable)}</span>
             </div>
           </div>
 
@@ -1161,7 +1214,11 @@ export function CheckoutView({
                 <span>Placing Order...</span>
               </>
             ) : (
-              <span>Place Order · {formatINR(totals.total)}</span>
+              <span>
+                {totals.remainingPayable === 0
+                  ? `Place Order · Paid with Wallet (${formatINR(totals.total)})`
+                  : `Place Order · ${formatINR(totals.remainingPayable)}`}
+              </span>
             )}
           </button>
 

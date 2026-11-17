@@ -13,6 +13,7 @@ export const TEST_STORAGE_KEYS_TO_PURGE: readonly string[] = [
   'bee4_print_jobs_v1',
   'bee4_admin_logs_v1',
   'bee4_coupons_v1',
+  'bee4_gift_cards_v1',
   'bee4_current_customer_id_v1',
   'bee4_customer_flags_v1',
   'bee4_ad_spend_v1',

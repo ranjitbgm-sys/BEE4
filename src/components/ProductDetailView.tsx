@@ -460,7 +460,7 @@ export function ProductDetailView({
             </div>
             <div className="flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0" />
-              <span>Razorpay, UPI &amp; Cash on Delivery · 7-day damage replacement</span>
+              <span>Direct UPI / QR, BEE4 Wallet &amp; Cash on Delivery · 7-day damage replacement</span>
             </div>
             <div className="flex items-center gap-2">
               <Check className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0" />

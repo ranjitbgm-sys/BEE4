@@ -269,7 +269,7 @@ export function AdminDashboardTab({
                 Revenue & Order Volume Trend
               </h3>
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                Daily net checkout volume across UPI, Card & COD
+                Daily net checkout volume across UPI, BEE4 Wallet &amp; COD
               </p>
             </div>
             {hoveredIdx !== null && chartPoints[hoveredIdx] && (

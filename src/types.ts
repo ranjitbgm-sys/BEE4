@@ -37,7 +37,21 @@ export type ThemeMode = 'daylight' | 'aurora';
 
 export type SortOption = 'featured' | 'price-asc' | 'price-desc';
 
-export type PaymentMethod = 'upi' | 'card' | 'cod';
+export type PaymentMethod =
+  | 'upi'
+  | 'card'
+  | 'cod'
+  | 'COD'
+  | 'UPI / Prepaid'
+  | 'BEE4 Wallet';
+
+export type PaymentStatus =
+  | 'Pending (Collect on Delivery)'
+  | 'Paid'
+  | 'Partially Paid'
+  | 'Refunded';
+
+export type CancelledByRole = 'Customer' | 'Admin';
 
 export type AdminModuleRoute =
   | 'dashboard'
@@ -249,7 +263,9 @@ export interface OrderRecord {
   giftWrapFee: number;
   codFee?: number;
   total: number;
+  walletAmountUsed?: number;
   paymentMethod: PaymentMethod;
+  paymentStatus?: PaymentStatus;
   orderChannel?: OrderChannel;
   sourceChannel?: MarketplaceChannel;
   externalOrderId?: string;
@@ -266,6 +282,9 @@ export interface OrderRecord {
   giftWrap: boolean;
   giftMessage: string;
   status: OrderStatus;
+  cancellationReason?: string;
+  cancelledBy?: CancelledByRole;
+  cancelledAt?: string;
   fulfillmentStage?: FulfillmentStage;
   operationalBucket?: OperationalOrderBucket;
   slaDispatchBy?: string;
@@ -413,6 +432,7 @@ export interface AdminAuditLog {
     | 'product'
     | 'inventory'
     | 'coupon'
+    | 'giftcard'
     | 'settings'
     | 'customer'
     | 'integration'
@@ -561,7 +581,7 @@ export interface InventoryAdjustmentRecord {
   productTitle: string;
   sku?: string;
   delta: number;
-  adjustmentType: 'rma_restock' | 'rma_scrap' | 'manual_adjust';
+  adjustmentType: 'rma_restock' | 'rma_scrap' | 'manual_adjust' | 'cancel_restock';
   referenceId: string;
   note: string;
 }
@@ -606,6 +626,48 @@ export interface SavedAddress {
   isDefault: boolean;
 }
 
+export interface GiftCardRecord {
+  id: string;
+  code: string;
+  pin: string;
+  initialAmount: number;
+  balance: number;
+  purchaserUserId?: string | null;
+  purchaserName: string;
+  purchaserEmail: string;
+  purchaserPhone?: string;
+  recipientName: string;
+  recipientEmail: string;
+  message?: string;
+  active: boolean;
+  issuedReason?: 'Purchased' | 'Admin Promo' | 'Cancellation Credit';
+  redeemedByUserId?: string | null;
+  redeemedAt?: string;
+  createdAt: string;
+  expiresAt?: string;
+}
+
+export interface WalletTransactionRecord {
+  id: string;
+  type: 'credit_gift_card' | 'credit_refund' | 'debit_order' | 'credit_admin_bonus';
+  amount: number;
+  balanceAfter: number;
+  referenceId: string;
+  note: string;
+  createdAt: string;
+}
+
+export interface CustomerCustomDesign {
+  id: string;
+  title: string;
+  productType: 'Lithophane' | 'Embosser' | 'Custom 3D Print';
+  imageUrl?: string;
+  engravingText?: string;
+  notes?: string;
+  orderNumber?: string;
+  createdAt: string;
+}
+
 export interface CustomerProfile {
   id: string;
   fullName: string;
@@ -617,6 +679,9 @@ export interface CustomerProfile {
   preferredPayment: PaymentMethod;
   celebrationMonth?: string;
   crmFlag?: CrmCustomerFlag;
+  walletBalance?: number;
+  walletTransactions?: WalletTransactionRecord[];
+  customDesigns?: CustomerCustomDesign[];
   createdAt: string;
   addresses: SavedAddress[];
   wishlistIds: string[];

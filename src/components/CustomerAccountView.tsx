@@ -4,11 +4,15 @@ import {
   ArrowLeft,
   BadgeCheck,
   Check,
+  Copy,
   Download,
   Eye,
   EyeOff,
+  Gift,
   Heart,
+  Image as ImageIcon,
   KeyRound,
+  LifeBuoy,
   LogOut,
   MailCheck,
   MapPin,
@@ -21,15 +25,22 @@ import {
   ShieldAlert,
   ShieldCheck,
   ShoppingBag,
+  Sparkles,
   Trash2,
+  Upload,
   User,
   UserCheck,
+  Wallet,
 } from 'lucide-react';
 import { INDIAN_STATES } from '../data/catalog';
 import {
   AddressLabel,
   CartItem,
+  CustomerCustomDesign,
+  CustomerMessageRecord,
+  CustomerMessageTopic,
   CustomerProfile,
+  GiftCardRecord,
   OrderRecord,
   PaymentMethod,
   Product,
@@ -45,6 +56,7 @@ import {
   signInCustomerWithEmailPasswordSupabase,
   signUpCustomerSupabase,
   updateSupabaseUserPassword,
+  uploadCustomDesignToSupabaseStorage,
   verifyCustomerEmailLoginOtpSupabase,
   verifyCustomerEmailOtpSupabase,
 } from '../services/supabaseStoreService';
@@ -55,25 +67,39 @@ import {
   isOrderEligibleForReturn,
   lookupGuestOrderByOrderAndPhone,
 } from '../utils/rmaLogic';
+import { canCustomerCancelOrder } from '../utils/giftCardWalletLogic';
 import {
   buildWhatsAppUrl,
   downloadOrderInvoice,
   formatINR,
+  formatPaymentMethodLabel,
   getCustomerOrders,
   getOrderTrackingStepIndex,
+  isCodPaymentMethod,
   normalizeIndianPhone10,
   ORDER_TRACKING_STEPS,
   validateSavedAddress,
 } from '../utils/storeLogic';
+import { CancelOrderModal } from './CancelOrderModal';
 import { CustomerReturnModal } from './CustomerReturnModal';
 import { ProductImage } from './ProductImage';
 
-export type CustomerAccountTab = 'overview' | 'orders' | 'wishlist' | 'addresses' | 'profile';
+export type CustomerAccountTab =
+  | 'overview'
+  | 'orders'
+  | 'wallet'
+  | 'uploads'
+  | 'wishlist'
+  | 'addresses'
+  | 'support'
+  | 'profile';
 
 interface CustomerAccountViewProps {
   currentCustomer: CustomerProfile | null;
   orders: OrderRecord[];
   returns?: ReturnRequestRecord[];
+  giftCards?: GiftCardRecord[];
+  customerMessages?: CustomerMessageRecord[];
   products: Product[];
   guestWishlistIds: string[];
   whatsappNumber: string;
@@ -93,8 +119,14 @@ interface CustomerAccountViewProps {
   onToggleWishlist: (productId: string) => void;
   onAddToCart: (product: Product, variant: string, quantity: number, openDrawer: boolean) => void;
   onReorderItems: (items: CartItem[]) => void;
-  onCancelOrder: (orderNumber: string) => void;
+  onCancelOrder: (orderNumber: string, reason?: string) => Promise<void> | void;
   onCreateReturnRequest?: (rma: ReturnRequestRecord) => void;
+  onOpenBuyGiftCardModal?: () => void;
+  onRedeemGiftCard?: (
+    code: string,
+    pin: string
+  ) => Promise<{ ok: boolean; creditedAmount?: number; error?: string }>;
+  onSubmitCustomerMessage?: (msg: CustomerMessageRecord) => void;
   onSelectProduct: (productId: string) => void;
   onContinueShopping: () => void;
   onRefreshOrders?: () => Promise<void>;
@@ -132,6 +164,8 @@ export function CustomerAccountView({
   currentCustomer,
   orders,
   returns = [],
+  giftCards = [],
+  customerMessages = [],
   products,
   guestWishlistIds,
   whatsappNumber,
@@ -150,11 +184,15 @@ export function CustomerAccountView({
   onReorderItems,
   onCancelOrder,
   onCreateReturnRequest,
+  onOpenBuyGiftCardModal,
+  onRedeemGiftCard,
+  onSubmitCustomerMessage,
   onSelectProduct,
   onContinueShopping,
   onRefreshOrders,
 }: CustomerAccountViewProps) {
   const [returnModalOrder, setReturnModalOrder] = useState<OrderRecord | null>(null);
+  const [cancelModalOrder, setCancelModalOrder] = useState<OrderRecord | null>(null);
   const [guestLookupOrderNo, setGuestLookupOrderNo] = useState('');
   const [guestLookupPhone, setGuestLookupPhone] = useState('');
   const [guestMatchedOrderNo, setGuestMatchedOrderNo] = useState<string | null>(null);
@@ -231,16 +269,44 @@ export function CustomerAccountView({
   const [orderFilter, setOrderFilter] = useState<'All' | 'Active' | 'Delivered' | 'Cancelled'>('All');
   const [orderSearch, setOrderSearch] = useState('');
 
+  // Gift Cards & Wallet Redeem state
+  const [redeemCodeInput, setRedeemCodeInput] = useState('');
+  const [redeemPinInput, setRedeemPinInput] = useState('');
+  const [redeemBusy, setRedeemBusy] = useState(false);
+  const [redeemError, setRedeemError] = useState('');
+  const [redeemSuccess, setRedeemSuccess] = useState('');
+  const [copiedGiftCardId, setCopiedGiftCardId] = useState<string | null>(null);
+
+  // Custom Uploads History state
+  const [designTitleInput, setDesignTitleInput] = useState('');
+  const [designTypeInput, setDesignTypeInput] =
+    useState<CustomerCustomDesign['productType']>('Lithophane');
+  const [designEngravingInput, setDesignEngravingInput] = useState('');
+  const [designNotesInput, setDesignNotesInput] = useState('');
+  const [designFilePreviewUrl, setDesignFilePreviewUrl] = useState('');
+  const [designUploading, setDesignUploading] = useState(false);
+  const [designError, setDesignError] = useState('');
+
+  // Support Tickets inline composer state
+  const [ticketTopic, setTicketTopic] = useState<CustomerMessageTopic>('Order Status Inquiry');
+  const [ticketBody, setTicketBody] = useState('');
+  const [ticketError, setTicketError] = useState('');
+
   // Address editor state
   const [editingAddress, setEditingAddress] = useState<SavedAddress | null>(null);
   const [addressErrors, setAddressErrors] = useState<SavedAddressErrors>({});
 
   // Profile editor state
+  const normalizeProfilePayment = (pm: PaymentMethod | undefined): PaymentMethod => {
+    if (isCodPaymentMethod(pm)) return 'COD';
+    if (pm === 'BEE4 Wallet') return 'BEE4 Wallet';
+    return 'UPI / Prepaid';
+  };
   const [profileName, setProfileName] = useState(currentCustomer?.fullName ?? '');
   const [profilePhone, setProfilePhone] = useState(currentCustomer?.phone ?? '');
   const [profileEmail, setProfileEmail] = useState(currentCustomer?.email ?? '');
-  const [profilePayment, setProfilePayment] = useState<PaymentMethod>(
-    currentCustomer?.preferredPayment ?? 'upi'
+  const [profilePayment, setProfilePayment] = useState<PaymentMethod>(() =>
+    normalizeProfilePayment(currentCustomer?.preferredPayment)
   );
   const [profileMonth, setProfileMonth] = useState(currentCustomer?.celebrationMonth ?? '');
   const [profileError, setProfileError] = useState('');
@@ -256,7 +322,7 @@ export function CustomerAccountView({
     setProfileName(cust.fullName);
     setProfilePhone(cust.phone);
     setProfileEmail(cust.email);
-    setProfilePayment(cust.preferredPayment);
+    setProfilePayment(normalizeProfilePayment(cust.preferredPayment));
     setProfileMonth(cust.celebrationMonth ?? '');
     setProfileError('');
     setCurrentPasswordInput('');
@@ -1480,10 +1546,7 @@ export function CustomerAccountView({
                             `Added items from ${matchedOrder.orderNumber} to your bag.`
                           );
                         }}
-                        onCancel={() => {
-                          onCancelOrder(matchedOrder.orderNumber);
-                          setGuestLookupNotice(`Cancelled order ${matchedOrder.orderNumber}.`);
-                        }}
+                        onCancel={() => setCancelModalOrder(matchedOrder)}
                         onOpenReturnModal={() => setReturnModalOrder(matchedOrder)}
                       />
                     </div>
@@ -1518,7 +1581,7 @@ export function CustomerAccountView({
                   <div className="w-7 h-7 rounded-full glass-orb flex items-center justify-center shrink-0">
                     <UserCheck className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400" />
                   </div>
-                  <span className="pt-0.5">Save your preferred payment mode (UPI, Card, or COD) and celebration month.</span>
+                  <span className="pt-0.5">Save your preferred payment mode (UPI, BEE4 Wallet, or COD) and celebration month.</span>
                 </li>
               </ul>
             </div>
@@ -1562,6 +1625,20 @@ export function CustomerAccountView({
               setReturnModalOrder(null);
               setGuestLookupNotice(
                 `Return request ${rma.rmaNumber} submitted! Track live progress below.`
+              );
+            }}
+          />
+        )}
+
+        {cancelModalOrder && (
+          <CancelOrderModal
+            order={cancelModalOrder}
+            mode="customer"
+            onClose={() => setCancelModalOrder(null)}
+            onConfirm={async ({ reason }) => {
+              await onCancelOrder(cancelModalOrder.orderNumber, reason);
+              setGuestLookupNotice(
+                `Cancelled order ${cancelModalOrder.orderNumber} (${reason}).`
               );
             }}
           />
@@ -1713,11 +1790,39 @@ export function CustomerAccountView({
     setNotice('Profile & preferences updated.');
   };
 
+  const customerWalletBalance = Math.max(
+    0,
+    Math.round(Number(currentCustomer.walletBalance ?? 0))
+  );
+  const myGiftCards = giftCards.filter((gc) => {
+    const custEmail = currentCustomer.email?.trim().toLowerCase();
+    return (
+      gc.purchaserUserId === currentCustomer.id ||
+      gc.redeemedByUserId === currentCustomer.id ||
+      (custEmail &&
+        (gc.purchaserEmail.toLowerCase() === custEmail ||
+          gc.recipientEmail.toLowerCase() === custEmail))
+    );
+  });
+  const mySupportTickets = customerMessages.filter((msg) => {
+    const custEmail = currentCustomer.email?.trim().toLowerCase();
+    const custPhone = currentCustomer.phone?.trim();
+    if (custEmail && msg.email && msg.email.trim().toLowerCase() === custEmail) return true;
+    if (custPhone && msg.phone && msg.phone.replace(/\D/g, '').endsWith(custPhone.slice(-10))) {
+      return true;
+    }
+    return false;
+  });
+  const myCustomDesigns = currentCustomer.customDesigns ?? [];
+
   const tabMeta: Record<CustomerAccountTab, string> = {
     overview: 'Account Overview',
     orders: 'My Orders & Tracking',
+    wallet: 'Gift Cards & BEE4 Wallet',
+    uploads: 'Custom Uploads History',
     wishlist: 'Saved Wishlist',
     addresses: 'Saved Addresses',
+    support: 'Support Tickets',
     profile: 'Profile & Preferences',
   };
 
@@ -1725,12 +1830,20 @@ export function CustomerAccountView({
     id: CustomerAccountTab;
     label: string;
     icon: typeof User;
-    count?: number;
+    count?: number | string;
   }[] = [
     { id: 'overview', label: 'Overview', icon: UserCheck },
     { id: 'orders', label: 'My Orders', icon: Package, count: customerOrders.length },
+    {
+      id: 'wallet',
+      label: 'Gift Cards & Wallet',
+      icon: Wallet,
+      count: formatINR(customerWalletBalance),
+    },
+    { id: 'uploads', label: 'Custom Uploads', icon: ImageIcon, count: myCustomDesigns.length },
     { id: 'wishlist', label: 'Wishlist', icon: Heart, count: wishlistProducts.length },
     { id: 'addresses', label: 'Addresses', icon: MapPin, count: currentCustomer.addresses.length },
+    { id: 'support', label: 'Support Tickets', icon: LifeBuoy, count: mySupportTickets.length },
     { id: 'profile', label: 'Profile', icon: User },
   ];
 
@@ -1863,17 +1976,23 @@ export function CustomerAccountView({
                 </div>
 
                 <div className="p-4 rounded-2xl glass-surface">
-                  <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Saved Addresses</p>
-                  <p className="mt-1.5 font-display text-2xl font-bold tabular-nums text-zinc-900 dark:text-white">
-                    {currentCustomer.addresses.length}
+                  <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">BEE4 Wallet Balance</p>
+                  <p className="mt-1.5 font-display text-2xl font-bold tabular-nums text-emerald-700 dark:text-emerald-300">
+                    {formatINR(customerWalletBalance)}
                   </p>
-                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Fast checkout ready</p>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('wallet')}
+                    className="mt-1 text-xs font-semibold text-amber-700 dark:text-amber-400 hover:underline"
+                  >
+                    Redeem / Buy Gift Card →
+                  </button>
                 </div>
 
                 <div className="p-4 rounded-2xl glass-surface">
                   <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Preferred Pay</p>
-                  <p className="mt-1.5 font-display text-2xl font-bold uppercase text-zinc-900 dark:text-white">
-                    {currentCustomer.preferredPayment}
+                  <p className="mt-1.5 font-display text-lg font-bold text-zinc-900 dark:text-white">
+                    {formatPaymentMethodLabel(currentCustomer.preferredPayment)}
                   </p>
                   <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Default at checkout</p>
                 </div>
@@ -1921,10 +2040,7 @@ export function CustomerAccountView({
                       onReorderItems(customerOrders[0].items);
                       setNotice(`Added items from ${customerOrders[0].orderNumber} to your bag.`);
                     }}
-                    onCancel={() => {
-                      onCancelOrder(customerOrders[0].orderNumber);
-                      setNotice(`Cancelled order ${customerOrders[0].orderNumber}.`);
-                    }}
+                    onCancel={() => setCancelModalOrder(customerOrders[0])}
                     onOpenReturnModal={() => setReturnModalOrder(customerOrders[0])}
                   />
                 )}
@@ -1934,33 +2050,27 @@ export function CustomerAccountView({
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <button
                   type="button"
-                  onClick={() => {
-                    setActiveTab('addresses');
-                    openNewAddressForm();
-                  }}
+                  onClick={() => setActiveTab('wallet')}
                   className="p-4 rounded-2xl glass-subtle hover:bg-white/75 dark:hover:bg-white/10 text-left transition-all"
                 >
-                  <p className="text-sm font-semibold text-zinc-900 dark:text-white">+ Add Delivery Address</p>
-                  <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-300">Save home or office PIN codes</p>
+                  <p className="text-sm font-semibold text-zinc-900 dark:text-white">Gift Cards &amp; Wallet</p>
+                  <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-300">Redeem 16-char code or buy E-Gift Cards</p>
                 </button>
                 <button
                   type="button"
-                  onClick={() => setActiveTab('wishlist')}
+                  onClick={() => setActiveTab('uploads')}
                   className="p-4 rounded-2xl glass-subtle hover:bg-white/75 dark:hover:bg-white/10 text-left transition-all"
                 >
-                  <p className="text-sm font-semibold text-zinc-900 dark:text-white">View Saved Wishlist</p>
-                  <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-300">Move favorites straight to bag</p>
+                  <p className="text-sm font-semibold text-zinc-900 dark:text-white">Custom Uploads History</p>
+                  <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-300">Save Lithophane photos &amp; engraving text</p>
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    syncProfileDrafts(currentCustomer);
-                    setActiveTab('profile');
-                  }}
+                  onClick={() => setActiveTab('support')}
                   className="p-4 rounded-2xl glass-subtle hover:bg-white/75 dark:hover:bg-white/10 text-left transition-all"
                 >
-                  <p className="text-sm font-semibold text-zinc-900 dark:text-white">Edit Profile &amp; Payment</p>
-                  <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-300">Update phone, email or UPI default</p>
+                  <p className="text-sm font-semibold text-zinc-900 dark:text-white">Support Tickets</p>
+                  <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-300">Track admin replies to your notes</p>
                 </button>
               </div>
             </div>
@@ -2052,16 +2162,475 @@ export function CustomerAccountView({
                           onReorderItems(order.items);
                           setNotice(`Added items from ${order.orderNumber} to your bag.`);
                         }}
-                        onCancel={() => {
-                          onCancelOrder(order.orderNumber);
-                          setNotice(`Cancelled order ${order.orderNumber}.`);
-                        }}
+                        onCancel={() => setCancelModalOrder(order)}
                         onOpenReturnModal={() => setReturnModalOrder(order)}
                       />
                     </div>
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* 2B. GIFT CARDS & BEE4 WALLET */}
+          {activeTab === 'wallet' && (
+            <div className="space-y-6">
+              <div className="glass-surface rounded-3xl p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-amber-500/25">
+                <div className="flex items-center gap-4">
+                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                    <Wallet className="w-6 h-6" />
+                  </span>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                      Available BEE4 Wallet Balance
+                    </p>
+                    <p className="font-display text-3xl font-extrabold tabular-nums text-zinc-900 dark:text-white">
+                      {formatINR(customerWalletBalance)}
+                    </p>
+                    <p className="text-xs text-zinc-600 dark:text-zinc-300 mt-0.5">
+                      Apply directly at checkout toward any 3D-printed toy, Lithophane, or gift order.
+                    </p>
+                  </div>
+                </div>
+                {onOpenBuyGiftCardModal && (
+                  <button
+                    type="button"
+                    onClick={onOpenBuyGiftCardModal}
+                    className="px-5 py-2.5 rounded-xl glass-btn-amber text-white text-xs font-semibold inline-flex items-center gap-2 shrink-0"
+                  >
+                    <Gift className="w-4 h-4" />
+                    <span>Buy Digital Gift Card</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Redeem Gift Card Form */}
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!onRedeemGiftCard) return;
+                  setRedeemError('');
+                  setRedeemSuccess('');
+                  setRedeemBusy(true);
+                  try {
+                    const res = await onRedeemGiftCard(redeemCodeInput, redeemPinInput);
+                    if (res.ok) {
+                      setRedeemSuccess(
+                        `Added ${formatINR(res.creditedAmount ?? 0)} to your BEE4 Wallet!`
+                      );
+                      setRedeemCodeInput('');
+                      setRedeemPinInput('');
+                    } else {
+                      setRedeemError(res.error || 'Unable to redeem gift card.');
+                    }
+                  } finally {
+                    setRedeemBusy(false);
+                  }
+                }}
+                className="glass-surface rounded-3xl p-5 sm:p-6 space-y-4"
+              >
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                  <h2 className="font-display text-base font-bold text-zinc-900 dark:text-white">
+                    Redeem a BEE4 Gift Card
+                  </h2>
+                </div>
+
+                {redeemError && (
+                  <div
+                    role="alert"
+                    className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/25 text-xs font-semibold text-rose-700 dark:text-rose-300"
+                  >
+                    {redeemError}
+                  </div>
+                )}
+                {redeemSuccess && (
+                  <div
+                    role="status"
+                    className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-xs font-semibold text-emerald-800 dark:text-emerald-200"
+                  >
+                    {redeemSuccess}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                  <div className="sm:col-span-6">
+                    <label
+                      htmlFor="redeem-gc-code"
+                      className="block text-xs font-semibold text-zinc-700 dark:text-zinc-200 mb-1.5"
+                    >
+                      16-Character Gift Card Code *
+                    </label>
+                    <input
+                      id="redeem-gc-code"
+                      type="text"
+                      value={redeemCodeInput}
+                      onChange={(e) => setRedeemCodeInput(e.target.value.toUpperCase())}
+                      placeholder="BEE4-XXXX-XXXX-XXXX"
+                      className="w-full h-11 px-3.5 rounded-xl glass-input text-sm font-mono uppercase focus:outline-none"
+                    />
+                  </div>
+                  <div className="sm:col-span-3">
+                    <label
+                      htmlFor="redeem-gc-pin"
+                      className="block text-xs font-semibold text-zinc-700 dark:text-zinc-200 mb-1.5"
+                    >
+                      4-Digit PIN *
+                    </label>
+                    <input
+                      id="redeem-gc-pin"
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={4}
+                      value={redeemPinInput}
+                      onChange={(e) => setRedeemPinInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                      placeholder="1234"
+                      className="w-full h-11 px-3.5 rounded-xl glass-input text-sm font-mono tabular-nums focus:outline-none"
+                    />
+                  </div>
+                  <div className="sm:col-span-3">
+                    <button
+                      type="submit"
+                      disabled={redeemBusy}
+                      className="w-full h-11 rounded-xl glass-btn-ink text-xs font-semibold disabled:opacity-60"
+                    >
+                      {redeemBusy ? 'Redeeming...' : 'Redeem to Wallet'}
+                    </button>
+                  </div>
+                </div>
+              </form>
+
+              {/* My Purchased / Received Gift Cards */}
+              <div className="glass-surface rounded-3xl p-5 sm:p-6 space-y-4">
+                <h3 className="font-display text-base font-bold text-zinc-900 dark:text-white">
+                  My Gift Cards ({myGiftCards.length})
+                </h3>
+                {myGiftCards.length === 0 ? (
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                    No gift cards purchased or received on this account yet.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {myGiftCards.map((card) => (
+                      <div key={card.id} className="glass-subtle rounded-2xl p-4 space-y-2 text-xs">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-mono font-bold text-zinc-900 dark:text-white">
+                            {card.code}
+                          </span>
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              card.balance > 0 && card.active
+                                ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                                : 'bg-zinc-500/15 text-zinc-600 dark:text-zinc-300'
+                            }`}
+                          >
+                            {card.balance > 0 ? 'Active' : 'Redeemed'}
+                          </span>
+                        </div>
+                        <p className="tabular-nums text-zinc-700 dark:text-zinc-200">
+                          Balance: <strong>{formatINR(card.balance)}</strong> /{' '}
+                          {formatINR(card.initialAmount)} · PIN: <strong className="font-mono">{card.pin}</strong>
+                        </p>
+                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                          For {card.recipientName} ({card.recipientEmail})
+                        </p>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(
+                                `Code: ${card.code} | PIN: ${card.pin}`
+                              );
+                              setCopiedGiftCardId(card.id);
+                              window.setTimeout(() => setCopiedGiftCardId(null), 1600);
+                            } catch {
+                              // ignore
+                            }
+                          }}
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 dark:text-amber-300 hover:underline"
+                        >
+                          {copiedGiftCardId === card.id ? (
+                            <>
+                              <Check className="w-3 h-3" />
+                              Copied!
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3 h-3" />
+                              Copy Code &amp; PIN
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Wallet Transaction Ledger */}
+              <div className="glass-surface rounded-3xl p-5 sm:p-6 space-y-4">
+                <h3 className="font-display text-base font-bold text-zinc-900 dark:text-white">
+                  Wallet Transaction History ({(currentCustomer.walletTransactions ?? []).length})
+                </h3>
+                {(currentCustomer.walletTransactions ?? []).length === 0 ? (
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                    Wallet credits from Gift Cards or cancellation refunds appear here automatically.
+                  </p>
+                ) : (
+                  <div className="divide-y divide-zinc-900/8 dark:divide-white/10">
+                    {(currentCustomer.walletTransactions ?? []).map((tx) => {
+                      const isCredit = tx.type !== 'debit_order';
+                      return (
+                        <div
+                          key={tx.id}
+                          className="py-3 flex items-center justify-between gap-3 text-xs"
+                        >
+                          <div>
+                            <p className="font-semibold text-zinc-900 dark:text-white">{tx.note}</p>
+                            <p className="text-[11px] text-zinc-500 dark:text-zinc-400 tabular-nums">
+                              {new Date(tx.createdAt).toLocaleString('en-IN')} · Ref: {tx.referenceId}
+                            </p>
+                          </div>
+                          <div className="text-right tabular-nums shrink-0">
+                            <p
+                              className={`font-bold ${
+                                isCredit
+                                  ? 'text-emerald-700 dark:text-emerald-300'
+                                  : 'text-rose-600 dark:text-rose-400'
+                              }`}
+                            >
+                              {isCredit ? '+' : '-'}
+                              {formatINR(tx.amount)}
+                            </p>
+                            <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                              Bal: {formatINR(tx.balanceAfter)}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* 2C. CUSTOM UPLOADS HISTORY */}
+          {activeTab === 'uploads' && (
+            <div className="space-y-6">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  setDesignError('');
+                  if (designTitleInput.trim().length < 2) {
+                    setDesignError('Enter a name for your custom Lithophane or Embosser design.');
+                    return;
+                  }
+                  const entry: CustomerCustomDesign = {
+                    id: `design-${Date.now()}`,
+                    title: designTitleInput.trim(),
+                    productType: designTypeInput,
+                    imageUrl: designFilePreviewUrl || undefined,
+                    engravingText: designEngravingInput.trim() || undefined,
+                    notes: designNotesInput.trim() || undefined,
+                    createdAt: new Date().toISOString(),
+                  };
+                  onUpdateCustomer({
+                    ...currentCustomer,
+                    customDesigns: [entry, ...(currentCustomer.customDesigns ?? [])],
+                  });
+                  setDesignTitleInput('');
+                  setDesignEngravingInput('');
+                  setDesignNotesInput('');
+                  setDesignFilePreviewUrl('');
+                  setNotice('Saved custom design to your account history.');
+                }}
+                className="glass-surface rounded-3xl p-5 sm:p-6 space-y-4"
+              >
+                <div className="flex items-center gap-2">
+                  <Upload className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                  <div>
+                    <h2 className="font-display text-base font-bold text-zinc-900 dark:text-white">
+                      Save Custom Lithophane Photo or Embosser Text
+                    </h2>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                      Store photo references and engraving presets for faster custom 3D orders.
+                    </p>
+                  </div>
+                </div>
+
+                {designError && (
+                  <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/25 text-xs font-semibold text-rose-700 dark:text-rose-300">
+                    {designError}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label
+                      htmlFor="custom-design-title"
+                      className="block text-xs font-semibold text-zinc-700 dark:text-zinc-200 mb-1"
+                    >
+                      Design Label *
+                    </label>
+                    <input
+                      id="custom-design-title"
+                      type="text"
+                      value={designTitleInput}
+                      onChange={(e) => setDesignTitleInput(e.target.value)}
+                      placeholder="e.g. Mom Birthday Moon Lamp"
+                      className="w-full h-10 px-3 rounded-xl glass-input text-sm focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="custom-design-type"
+                      className="block text-xs font-semibold text-zinc-700 dark:text-zinc-200 mb-1"
+                    >
+                      Product Type
+                    </label>
+                    <select
+                      id="custom-design-type"
+                      value={designTypeInput}
+                      onChange={(e) =>
+                        setDesignTypeInput(e.target.value as CustomerCustomDesign['productType'])
+                      }
+                      className="w-full h-10 px-3 rounded-xl glass-input text-sm focus:outline-none"
+                    >
+                      <option value="Lithophane">Lithophane Photo Lamp</option>
+                      <option value="Embosser">Clay / Biscuit Embosser Stamp</option>
+                      <option value="Custom 3D Print">Custom 3D Print / Gift</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label
+                      htmlFor="custom-design-engraving"
+                      className="block text-xs font-semibold text-zinc-700 dark:text-zinc-200 mb-1"
+                    >
+                      Engraving Text (optional)
+                    </label>
+                    <input
+                      id="custom-design-engraving"
+                      type="text"
+                      value={designEngravingInput}
+                      onChange={(e) => setDesignEngravingInput(e.target.value)}
+                      placeholder="e.g. Happy Anniversary 2026"
+                      className="w-full h-10 px-3 rounded-xl glass-input text-sm focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="custom-design-photo"
+                      className="block text-xs font-semibold text-zinc-700 dark:text-zinc-200 mb-1"
+                    >
+                      Upload Reference Photo (optional)
+                    </label>
+                    <input
+                      id="custom-design-photo"
+                      type="file"
+                      accept="image/*"
+                      disabled={designUploading}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        setDesignUploading(true);
+                        try {
+                          const uploaded = await uploadCustomDesignToSupabaseStorage(
+                            file,
+                            currentCustomer.id
+                          );
+                          setDesignFilePreviewUrl(uploaded.url);
+                        } catch {
+                          setDesignError('Unable to process photo file.');
+                        } finally {
+                          setDesignUploading(false);
+                        }
+                      }}
+                      className="w-full text-xs text-zinc-600 dark:text-zinc-300"
+                    />
+                  </div>
+                </div>
+
+                {designFilePreviewUrl && (
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={designFilePreviewUrl}
+                      alt="Uploaded custom preview"
+                      className="w-16 h-16 rounded-xl object-cover border border-white/60"
+                    />
+                    <span className="text-xs text-emerald-700 dark:text-emerald-300 font-medium">
+                      Photo attached &amp; ready to save
+                    </span>
+                  </div>
+                )}
+
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={designUploading}
+                    className="px-5 py-2 rounded-xl glass-btn-amber text-white text-xs font-semibold disabled:opacity-60"
+                  >
+                    {designUploading ? 'Uploading Photo...' : 'Save Custom Design'}
+                  </button>
+                </div>
+              </form>
+
+              <div className="glass-surface rounded-3xl p-5 sm:p-6 space-y-4">
+                <h3 className="font-display text-base font-bold text-zinc-900 dark:text-white">
+                  Saved Custom Uploads &amp; Past Gift Notes ({myCustomDesigns.length})
+                </h3>
+                {myCustomDesigns.length === 0 ? (
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                    No custom Lithophane photos or Embosser presets saved yet.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {myCustomDesigns.map((d) => (
+                      <div key={d.id} className="glass-subtle rounded-2xl p-4 flex gap-3 items-start text-xs">
+                        {d.imageUrl && (
+                          <img
+                            src={d.imageUrl}
+                            alt={d.title}
+                            className="w-16 h-16 rounded-xl object-cover shrink-0 border border-white/60"
+                          />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="font-bold text-zinc-900 dark:text-white truncate">{d.title}</p>
+                            <button
+                              type="button"
+                              aria-label={`Remove ${d.title}`}
+                              onClick={() =>
+                                onUpdateCustomer({
+                                  ...currentCustomer,
+                                  customDesigns: myCustomDesigns.filter((x) => x.id !== d.id),
+                                })
+                              }
+                              className="p-1 text-zinc-400 hover:text-rose-600"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          <p className="text-[11px] text-amber-700 dark:text-amber-300 font-semibold">
+                            {d.productType}
+                          </p>
+                          {d.engravingText && (
+                            <p className="mt-1 text-zinc-700 dark:text-zinc-200">
+                              Text: &ldquo;{d.engravingText}&rdquo;
+                            </p>
+                          )}
+                          <p className="mt-1 text-[10px] text-zinc-500 tabular-nums">
+                            Saved {d.createdAt.slice(0, 10)}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -2442,6 +3011,134 @@ export function CustomerAccountView({
             </div>
           )}
 
+          {/* 4B. SUPPORT TICKETS ('SEND US A NOTE' REPLIES) */}
+          {activeTab === 'support' && (
+            <div className="space-y-6">
+              {onSubmitCustomerMessage && (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    setTicketError('');
+                    if (ticketBody.trim().length < 5) {
+                      setTicketError('Please write a brief message (at least 5 characters).');
+                      return;
+                    }
+                    const now = new Date().toISOString();
+                    onSubmitCustomerMessage({
+                      id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                      customerName: currentCustomer.fullName,
+                      phone: currentCustomer.phone || '9800000000',
+                      email: currentCustomer.email,
+                      topic: ticketTopic,
+                      message: ticketBody.trim(),
+                      status: 'Unread',
+                      createdAt: now,
+                      updatedAt: now,
+                    });
+                    setTicketBody('');
+                    setNotice('Your support note has been sent to BEE4 Studio.');
+                  }}
+                  className="glass-surface rounded-3xl p-5 sm:p-6 space-y-4"
+                >
+                  <div className="flex items-center gap-2">
+                    <LifeBuoy className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                    <h2 className="font-display text-base font-bold text-zinc-900 dark:text-white">
+                      Send a Note to BEE4 Studio
+                    </h2>
+                  </div>
+
+                  {ticketError && (
+                    <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/25 text-xs font-semibold text-rose-700 dark:text-rose-300">
+                      {ticketError}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label htmlFor="ticket-topic" className="block text-xs font-semibold mb-1">
+                        Topic
+                      </label>
+                      <select
+                        id="ticket-topic"
+                        value={ticketTopic}
+                        onChange={(e) => setTicketTopic(e.target.value as CustomerMessageTopic)}
+                        className="w-full h-10 px-3 rounded-xl glass-input text-sm focus:outline-none"
+                      >
+                        <option value="Order Status Inquiry">Order Status Inquiry</option>
+                        <option value="Custom 3D Print / Gift Request">Custom 3D Print / Gift Request</option>
+                        <option value="Bulk / School Order">Bulk / School Order</option>
+                        <option value="Product Feedback">Product Feedback</option>
+                        <option value="General Note">General Note</option>
+                      </select>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label htmlFor="ticket-msg" className="block text-xs font-semibold mb-1">
+                        Message *
+                      </label>
+                      <textarea
+                        id="ticket-msg"
+                        rows={2}
+                        value={ticketBody}
+                        onChange={(e) => setTicketBody(e.target.value)}
+                        placeholder="Ask about an order, custom color, or school order..."
+                        className="w-full px-3 py-2 rounded-xl glass-input text-sm focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="submit"
+                      className="px-5 py-2 rounded-xl glass-btn-amber text-white text-xs font-semibold"
+                    >
+                      Submit Support Note
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              <div className="glass-surface rounded-3xl p-5 sm:p-6 space-y-4">
+                <h3 className="font-display text-base font-bold text-zinc-900 dark:text-white">
+                  My Support Tickets &amp; Studio Replies ({mySupportTickets.length})
+                </h3>
+                {mySupportTickets.length === 0 ? (
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                    No support messages found for {currentCustomer.email || currentCustomer.phone}. Notes submitted via &ldquo;Send Us a Note&rdquo; appear here with Studio replies.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {mySupportTickets.map((ticket) => (
+                      <div key={ticket.id} className="glass-subtle rounded-2xl p-4 space-y-2 text-xs">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-bold text-zinc-900 dark:text-white">
+                            {ticket.topic}
+                          </span>
+                          <span
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                              ticket.status === 'Replied / Resolved'
+                                ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                                : 'bg-amber-500/15 text-amber-800 dark:text-amber-300'
+                            }`}
+                          >
+                            {ticket.status}
+                          </span>
+                        </div>
+                        <p className="text-zinc-700 dark:text-zinc-200">{ticket.message}</p>
+                        {ticket.adminNote && (
+                          <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-900 dark:text-emerald-200">
+                            <span className="font-bold">BEE4 Studio Reply:</span> {ticket.adminNote}
+                          </div>
+                        )}
+                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 tabular-nums">
+                          Sent {new Date(ticket.createdAt).toLocaleString('en-IN')}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* 5. PROFILE & PREFERENCES */}
           {activeTab === 'profile' && (
             <div className="space-y-6">
@@ -2534,9 +3231,9 @@ export function CustomerAccountView({
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" role="radiogroup" aria-label="Preferred payment method">
                     {(
                       [
-                        { id: 'upi', label: 'Razorpay / UPI (GPay / PhonePe)' },
-                        { id: 'card', label: 'Credit / Debit Card (Razorpay)' },
-                        { id: 'cod', label: 'Cash on Delivery (COD)' },
+                        { id: 'UPI / Prepaid', label: 'Direct UPI / QR (GPay / PhonePe)' },
+                        { id: 'BEE4 Wallet', label: 'BEE4 Wallet Balance' },
+                        { id: 'COD', label: 'Cash on Delivery (COD)' },
                       ] as { id: PaymentMethod; label: string }[]
                     ).map((method) => (
                       <button
@@ -2702,6 +3399,20 @@ export function CustomerAccountView({
           }}
         />
       )}
+
+      {cancelModalOrder && (
+        <CancelOrderModal
+          order={cancelModalOrder}
+          mode="customer"
+          onClose={() => setCancelModalOrder(null)}
+          onConfirm={async ({ reason }) => {
+            await onCancelOrder(cancelModalOrder.orderNumber, reason);
+            setNotice(
+              `Cancelled order ${cancelModalOrder.orderNumber} (${reason}). Reserved stock released.`
+            );
+          }}
+        />
+      )}
     </section>
   );
 }
@@ -2728,10 +3439,8 @@ function OrderTrackingCard({
   onOpenReturnModal,
 }: OrderTrackingCardProps) {
   const stepIndex = getOrderTrackingStepIndex(order.status);
-  const canCancel =
-    order.status === 'Pending' ||
-    order.status === 'Confirmed' ||
-    order.status === 'Preparing Shipment';
+  const canCancel = canCustomerCancelOrder(order.status);
+  const isCod = isCodPaymentMethod(order.paymentMethod);
   const eligibility = isOrderEligibleForReturn(order, returns);
   const existingRma = eligibility.existingRma;
   const rmaBadge = getOrderRmaStatusBadge(order.orderNumber, returns);
@@ -2754,7 +3463,20 @@ function OrderTrackingCard({
             <span aria-hidden="true" className="text-zinc-400">
               ·
             </span>
-            <span className="text-xs text-zinc-500 dark:text-zinc-400 uppercase">{order.paymentMethod}</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                isCod
+                  ? 'bg-amber-500/15 text-amber-800 dark:text-amber-300'
+                  : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+              }`}
+            >
+              {formatPaymentMethodLabel(order.paymentMethod)}
+            </span>
+            {order.paymentStatus && (
+              <span className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                ({order.paymentStatus})
+              </span>
+            )}
           </div>
           <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
             Delivering to {order.customer.address}, {order.customer.city} (PIN{' '}
@@ -2762,15 +3484,30 @@ function OrderTrackingCard({
           </p>
         </div>
 
-        <p className="font-display text-lg font-bold tabular-nums text-zinc-900 dark:text-white">
-          {formatINR(order.total)}
-        </p>
+        <div className="text-left sm:text-right">
+          <p className="font-display text-lg font-bold tabular-nums text-zinc-900 dark:text-white">
+            {formatINR(order.total)}
+          </p>
+          {(order.walletAmountUsed ?? 0) > 0 && (
+            <p className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 tabular-nums">
+              Wallet Paid: -{formatINR(order.walletAmountUsed ?? 0)}
+            </p>
+          )}
+        </div>
       </div>
 
       {/* 5-step Visual Order Progress Bar */}
       {order.status === 'Cancelled' ? (
-        <div className="p-3 rounded-2xl bg-red-50/90 dark:bg-red-950/50 backdrop-blur-md border border-red-200 dark:border-red-500/30 text-xs text-red-700 dark:text-red-300 font-medium">
-          This order was cancelled before dispatch. You can reorder any item below.
+        <div className="p-3.5 rounded-2xl bg-red-50/90 dark:bg-red-950/50 backdrop-blur-md border border-red-200 dark:border-red-500/30 text-xs text-red-700 dark:text-red-300 font-medium space-y-1">
+          <p className="font-bold">
+            Cancelled by {order.cancelledBy || 'Customer'} — Reason:{' '}
+            {order.cancellationReason || 'Cancelled upon request'}
+          </p>
+          {order.cancelledAt && (
+            <p className="text-[11px] opacity-85 tabular-nums">
+              Cancelled on {new Date(order.cancelledAt).toLocaleString('en-IN')} · Reserved studio stock released.
+            </p>
+          )}
         </div>
       ) : (
         <div
@@ -2815,7 +3552,8 @@ function OrderTrackingCard({
             className="flex items-center justify-between gap-2"
           >
             <span>
-              {item.title} ({item.variant}) × {item.quantity}
+              {item.title}
+              {item.variant ? ` (${item.variant})` : ''} × {item.quantity}
             </span>
             <span className="font-semibold tabular-nums text-zinc-900 dark:text-white">
               {formatINR(item.price * item.quantity)}

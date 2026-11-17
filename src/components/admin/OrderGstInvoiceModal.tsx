@@ -7,7 +7,11 @@ import {
   buildShippingLabelHtml,
   calculateGstBreakdown,
 } from '../../utils/adminLogic';
-import { formatINR } from '../../utils/storeLogic';
+import {
+  formatINR,
+  formatPaymentMethodLabel,
+  isCodPaymentMethod,
+} from '../../utils/storeLogic';
 
 interface OrderGstInvoiceModalProps {
   order: OrderRecord | null;
@@ -28,6 +32,9 @@ export function OrderGstInvoiceModal({
   if (!order) return null;
 
   const isBihar = order.customer.state.trim().toLowerCase() === 'bihar';
+  const isCod = isCodPaymentMethod(order.paymentMethod);
+  const walletUsed = Math.max(0, Math.round(Number(order.walletAmountUsed ?? 0)));
+  const collectAmount = Math.max(0, Math.round(order.total - walletUsed));
   const prodMap = new Map(products.map((p) => [p.id, p]));
 
   const taxSummary = order.items.reduce(
@@ -187,7 +194,8 @@ export function OrderGstInvoiceModal({
               <div>
                 <p className="font-bold text-zinc-500 uppercase">Dispatch Details</p>
                 <p className="mt-1">
-                  Payment: <strong className="uppercase">{order.paymentMethod}</strong>
+                  Payment: <strong>{formatPaymentMethodLabel(order.paymentMethod)}</strong>
+                  {order.paymentStatus ? ` (${order.paymentStatus})` : ''}
                 </p>
                 <p>Courier: {order.courierPartner || 'Pending Assignment'}</p>
                 <p className="tabular-nums">AWB: {order.awbNumber || 'Assigning'}</p>
@@ -273,6 +281,18 @@ export function OrderGstInvoiceModal({
                 <span>Grand Total</span>
                 <span className="tabular-nums">{formatINR(order.total)}</span>
               </div>
+              {walletUsed > 0 && (
+                <>
+                  <div className="flex justify-between text-emerald-700 font-semibold">
+                    <span>BEE4 Wallet Applied</span>
+                    <span className="tabular-nums">-{formatINR(walletUsed)}</span>
+                  </div>
+                  <div className="flex justify-between font-bold text-xs text-zinc-700">
+                    <span>{isCod ? 'Cash to Collect' : 'Net Paid'}</span>
+                    <span className="tabular-nums">{formatINR(collectAmount)}</span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         ) : (
@@ -287,12 +307,12 @@ export function OrderGstInvoiceModal({
 
             <div
               className={`p-2.5 rounded-xl border-2 border-zinc-900 text-center text-xs font-extrabold ${
-                order.paymentMethod === 'cod' ? 'bg-amber-100' : 'bg-emerald-100'
+                isCod ? 'bg-amber-100' : 'bg-emerald-100'
               }`}
             >
-              {order.paymentMethod === 'cod'
-                ? `CASH ON DELIVERY · COLLECT ${formatINR(order.total)}`
-                : 'PREPAID ORDER · DO NOT COLLECT CASH'}
+              {isCod
+                ? `COD — COLLECT ${formatINR(collectAmount)}`
+                : 'PREPAID — DO NOT COLLECT'}
             </div>
 
             <div className="text-xs space-y-1">

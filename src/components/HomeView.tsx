@@ -204,7 +204,7 @@ export function HomeView({
                 Secure Checkout
               </p>
               <p className="text-xs text-zinc-600 dark:text-zinc-300 mt-0.5">
-                Cards, UPI, COD &amp; invoice
+                UPI, Wallet, COD &amp; invoice
               </p>
             </div>
           </div>

@@ -13,15 +13,18 @@ import {
   AutomationConditionField,
   AutomationRule,
   AutomationTrigger,
+  CancelledByRole,
   CartItem,
   CouponRecord,
   CrmCustomerFlag,
+  CustomerCustomDesign,
   CustomerInquiry,
   CustomerMessageRecord,
   CustomerMessageStatus,
   CustomerProfile,
   FilamentSpool,
   FulfillmentStage,
+  GiftCardRecord,
   GiftOccasion,
   HsnCode,
   InventoryAdjustmentRecord,
@@ -36,6 +39,7 @@ import {
   OrderStatus,
   PackingVerificationProof,
   PaymentMethod,
+  PaymentStatus,
   PrimaryStoreCategory,
   PrintJobRecord,
   Product,
@@ -53,6 +57,7 @@ import {
   SavedAddress,
   StoreSettings,
   Testimonial,
+  WalletTransactionRecord,
 } from '../types';
 import { sanitizeRichInput, sanitizeSingleLine } from '../utils/adminLogic';
 
@@ -1215,6 +1220,26 @@ function fromOrderRow(d: Record<string, unknown>): OrderRecord {
     category: String(it.category ?? ''),
   }));
 
+  const rawPayMethod = String(d.payment_method ?? d.paymentMethod ?? 'UPI / Prepaid');
+  const payNorm = rawPayMethod.trim().toLowerCase();
+  const isCodPay = payNorm === 'cod' || payNorm.includes('cash on delivery');
+  const canonicalPaymentMethod: PaymentMethod = isCodPay
+    ? 'COD'
+    : payNorm.includes('wallet')
+      ? 'BEE4 Wallet'
+      : 'UPI / Prepaid';
+  const walletAmountUsed = Math.max(0, Number(d.wallet_amount_used ?? d.walletAmountUsed ?? 0));
+  const rawPayStatus = d.payment_status ?? d.paymentStatus;
+  const paymentStatus: PaymentStatus =
+    rawPayStatus === 'Pending (Collect on Delivery)' ||
+    rawPayStatus === 'Paid' ||
+    rawPayStatus === 'Partially Paid' ||
+    rawPayStatus === 'Refunded'
+      ? (rawPayStatus as PaymentStatus)
+      : isCodPay
+        ? 'Pending (Collect on Delivery)'
+        : 'Paid';
+
   return {
     orderNumber: String(d.order_number ?? d.orderNumber ?? ''),
     userId: d.user_id ? String(d.user_id) : d.userId ? String(d.userId) : null,
@@ -1226,10 +1251,12 @@ function fromOrderRow(d: Record<string, unknown>): OrderRecord {
     giftWrapFee: Number(d.gift_wrap_fee ?? d.giftWrapFee ?? 0),
     codFee: Number(d.cod_fee ?? d.codFee ?? 0),
     total: Number(d.total ?? 0),
-    paymentMethod: (d.payment_method ?? d.paymentMethod ?? 'upi') as PaymentMethod,
+    walletAmountUsed,
+    paymentMethod: canonicalPaymentMethod,
+    paymentStatus,
     orderChannel:
       ((d.order_channel ?? d.orderChannel) as OrderChannel) ||
-      ((d.payment_method ?? d.paymentMethod) === 'cod' ? 'COD' : 'UPI / Prepaid'),
+      (isCodPay ? 'COD' : 'UPI / Prepaid'),
     couponCode: typeof (d.coupon_code ?? d.couponCode) === 'string'
       ? String(d.coupon_code ?? d.couponCode)
       : '',
@@ -1245,6 +1272,22 @@ function fromOrderRow(d: Record<string, unknown>): OrderRecord {
     giftWrap: Boolean(d.gift_wrap ?? d.giftWrap),
     giftMessage: String(d.gift_message ?? d.giftMessage ?? ''),
     status: (d.status as OrderStatus) || 'Pending',
+    cancellationReason:
+      typeof (d.cancellation_reason ?? d.cancellationReason) === 'string' &&
+      String(d.cancellation_reason ?? d.cancellationReason).trim()
+        ? String(d.cancellation_reason ?? d.cancellationReason)
+        : undefined,
+    cancelledBy:
+      d.cancelled_by === 'Customer' || d.cancelled_by === 'Admin'
+        ? (d.cancelled_by as CancelledByRole)
+        : d.cancelledBy === 'Customer' || d.cancelledBy === 'Admin'
+          ? (d.cancelledBy as CancelledByRole)
+          : undefined,
+    cancelledAt:
+      typeof (d.cancelled_at ?? d.cancelledAt) === 'string' &&
+      String(d.cancelled_at ?? d.cancelledAt)
+        ? String(d.cancelled_at ?? d.cancelledAt)
+        : undefined,
     fulfillmentStage: (d.fulfillment_stage ?? d.fulfillmentStage) as FulfillmentStage | undefined,
     sourceChannel:
       ((d.source_channel ?? d.sourceChannel) as MarketplaceChannel) ||
@@ -1452,9 +1495,16 @@ export async function createOrderInSupabase(
     gift_wrap_fee: Math.max(0, Number(order.giftWrapFee) || 0),
     cod_fee: Math.max(0, Number(order.codFee ?? 0) || 0),
     total: Math.max(0, Number(order.total) || 0),
+    wallet_amount_used: Math.max(0, Number(order.walletAmountUsed ?? 0) || 0),
     payment_method: order.paymentMethod,
+    payment_status:
+      order.paymentStatus ||
+      (String(order.paymentMethod).toLowerCase() === 'cod'
+        ? 'Pending (Collect on Delivery)'
+        : 'Paid'),
     order_channel:
-      order.orderChannel || (order.paymentMethod === 'cod' ? 'COD' : 'UPI / Prepaid'),
+      order.orderChannel ||
+      (String(order.paymentMethod).toLowerCase() === 'cod' ? 'COD' : 'UPI / Prepaid'),
     source_channel: order.sourceChannel || 'bee4.in',
     external_order_id: clampSingleLine(order.externalOrderId ?? '', 64),
     coupon_code: clampSingleLine(order.couponCode ?? '', 32),
@@ -1470,6 +1520,9 @@ export async function createOrderInSupabase(
     gift_wrap: Boolean(order.giftWrap),
     gift_message: clampStr(order.giftMessage, 300),
     status: order.status || 'Pending',
+    cancellation_reason: clampStr(order.cancellationReason ?? '', 300),
+    cancelled_by: order.cancelledBy ?? null,
+    cancelled_at: order.cancelledAt ?? null,
     fulfillment_stage: order.fulfillmentStage || 'New / Unverified',
     operational_bucket: order.operationalBucket || 'New / Upcoming',
     sla_dispatch_by: order.slaDispatchBy || null,
@@ -1500,10 +1553,15 @@ export async function createOrderInSupabase(
 
   if (error && isMissingSchemaError(error)) {
     console.warn(
-      '[BEE4 Checkout] Orders table missing newer omnichannel columns; retrying with core schema:',
+      '[BEE4 Checkout] Orders table missing newer columns; retrying with core schema:',
       error.message
     );
     const legacyRow = { ...fullRow };
+    delete legacyRow.wallet_amount_used;
+    delete legacyRow.payment_status;
+    delete legacyRow.cancellation_reason;
+    delete legacyRow.cancelled_by;
+    delete legacyRow.cancelled_at;
     delete legacyRow.source_channel;
     delete legacyRow.external_order_id;
     delete legacyRow.operational_bucket;
@@ -1527,6 +1585,7 @@ export async function createOrderInSupabase(
       customer: fullRow.customer,
       items: fullRow.items,
       total: fullRow.total,
+      payment_method: fullRow.payment_method,
       status: fullRow.status,
       created_at: fullRow.created_at,
     };
@@ -1559,6 +1618,97 @@ export async function updateOrderStatusInSupabase(
     .update({ status, updated_at: new Date().toISOString() })
     .eq('order_number', sanitizeId(orderNumber, 'BEE4'));
   if (error) console.error('Supabase updateOrderStatus error:', error.message);
+}
+
+export async function cancelOrderInSupabase(input: {
+  orderNumber: string;
+  reason: string;
+  cancelledBy: CancelledByRole;
+  autoRestock: boolean;
+  refundStatus?: OrderRecord['refundStatus'];
+  refundedAmount?: number;
+  paymentStatus?: PaymentStatus;
+  updatedProductsToRestock?: { id: string; stockQuantity: number; inStock: boolean }[];
+}): Promise<void> {
+  const client = supabase;
+  if (!client) return;
+
+  const cleanOrderNumber = sanitizeId(input.orderNumber, 'BEE4');
+  const cleanReason = clampStr(input.reason, 300, 'Cancelled upon request');
+  const nowIso = new Date().toISOString();
+
+  // Attempt atomic RPC first (handles customer RLS + automatic product restock under security definer)
+  let rpcSucceeded = false;
+  try {
+    const { error: rpcError } = await client.rpc('cancel_bee4_order_and_restock', {
+      p_order_number: cleanOrderNumber,
+      p_reason: cleanReason,
+      p_cancelled_by: input.cancelledBy,
+      p_auto_restock: input.autoRestock,
+    });
+    if (!rpcError) {
+      rpcSucceeded = true;
+    } else if (!isMissingSchemaError(rpcError) && !rpcError.message.toLowerCase().includes('function')) {
+      console.warn('[BEE4 Cancel] RPC returned error, attempting table update:', rpcError.message);
+    }
+  } catch {
+    // RPC not installed yet — fall back to direct table update
+  }
+
+  const updatePayload: Record<string, unknown> = {
+    status: 'Cancelled',
+    fulfillment_stage: 'Cancelled',
+    operational_bucket: 'Cancelled / RTO',
+    cancellation_reason: cleanReason,
+    cancelled_by: input.cancelledBy,
+    cancelled_at: nowIso,
+    updated_at: nowIso,
+  };
+  if (input.refundStatus !== undefined) updatePayload.refund_status = input.refundStatus;
+  if (input.refundedAmount !== undefined) updatePayload.refunded_amount = input.refundedAmount;
+  if (input.paymentStatus !== undefined) updatePayload.payment_status = input.paymentStatus;
+
+  if (!rpcSucceeded || input.refundStatus !== undefined || input.paymentStatus !== undefined) {
+    let { error } = await client
+      .from('orders')
+      .update(updatePayload)
+      .eq('order_number', cleanOrderNumber);
+
+    if (error && isMissingSchemaError(error)) {
+      const legacyUpdate = {
+        status: 'Cancelled',
+        fulfillment_stage: 'Cancelled',
+        internal_notes: `[${input.cancelledBy} Cancelled: ${cleanReason}]`,
+        updated_at: nowIso,
+      };
+      const retry = await client
+        .from('orders')
+        .update(legacyUpdate)
+        .eq('order_number', cleanOrderNumber);
+      error = retry.error;
+    }
+
+    if (error && !rpcSucceeded) {
+      console.error('[BEE4 Cancel] Supabase order cancellation failed:', error.message);
+      throw new Error(`Could not cancel order ${cleanOrderNumber} in Supabase: ${error.message}`);
+    }
+  }
+
+  // If RPC wasn't present and Admin triggered restock, update product quantities directly
+  if (!rpcSucceeded && input.autoRestock && input.updatedProductsToRestock?.length) {
+    await Promise.all(
+      input.updatedProductsToRestock.map((prod) =>
+        client
+          .from('products')
+          .update({
+            stock_quantity: prod.stockQuantity,
+            in_stock: prod.inStock,
+            updated_at: nowIso,
+          })
+          .eq('id', sanitizeId(prod.id, 'prod'))
+      )
+    );
+  }
 }
 
 export async function updateOrderLogisticsInSupabase(
@@ -1947,6 +2097,9 @@ async function syncCustomerRecordToSupabaseCustomersTable(
         ...baseRow,
         email_verified: Boolean(profile.emailVerified),
         email_confirmed_at: profile.emailConfirmedAt ?? null,
+        wallet_balance: Math.max(0, Number(profile.walletBalance ?? 0)),
+        wallet_transactions: (profile.walletTransactions ?? []).slice(0, 60),
+        custom_designs: (profile.customDesigns ?? []).slice(0, 30),
       },
       { onConflict: 'id' }
     );
@@ -1987,7 +2140,10 @@ export async function ensureSupabaseCustomerProfile(
     email: safeEmail,
     emailVerified,
     emailConfirmedAt,
-    preferredPayment: 'upi',
+    preferredPayment: 'UPI / Prepaid',
+    walletBalance: 0,
+    walletTransactions: [],
+    customDesigns: [],
     createdAt: sbUser.created_at || new Date().toISOString(),
     addresses: [],
     wishlistIds: boundedWishlist,
@@ -2043,6 +2199,12 @@ export async function ensureSupabaseCustomerProfile(
       const addresses = Array.isArray(existing.addresses)
         ? (existing.addresses as SavedAddress[])
         : [];
+      const walletTransactions = Array.isArray(existing.wallet_transactions)
+        ? (existing.wallet_transactions as WalletTransactionRecord[])
+        : [];
+      const customDesigns = Array.isArray(existing.custom_designs)
+        ? (existing.custom_designs as CustomerCustomDesign[])
+        : [];
 
       const hydratedProfile: CustomerProfile = {
         id: sbUser.id,
@@ -2051,11 +2213,14 @@ export async function ensureSupabaseCustomerProfile(
         email: String(existing.email || safeEmail),
         emailVerified,
         emailConfirmedAt,
-        preferredPayment: (existing.preferred_payment as PaymentMethod) || 'upi',
+        preferredPayment: (existing.preferred_payment as PaymentMethod) || 'UPI / Prepaid',
         celebrationMonth:
           typeof existing.celebration_month === 'string' && existing.celebration_month
             ? existing.celebration_month
             : undefined,
+        walletBalance: Math.max(0, Number(existing.wallet_balance ?? 0)),
+        walletTransactions,
+        customDesigns,
         createdAt: String(existing.created_at || new Date().toISOString()),
         addresses,
         wishlistIds: mergedWishlist,
@@ -2069,7 +2234,7 @@ export async function ensureSupabaseCustomerProfile(
       email: safeEmail,
       full_name: displayName,
       phone: metaPhone,
-      preferred_payment: 'upi',
+      preferred_payment: 'UPI / Prepaid',
       wishlist_ids: boundedWishlist,
       addresses: [],
       updated_at: new Date().toISOString(),
@@ -2079,6 +2244,9 @@ export async function ensureSupabaseCustomerProfile(
         ...baseInsert,
         email_verified: emailVerified,
         email_confirmed_at: emailConfirmedAt ?? null,
+        wallet_balance: 0,
+        wallet_transactions: [],
+        custom_designs: [],
       },
       { onConflict: 'id' }
     );
@@ -2111,6 +2279,9 @@ export async function updateSupabaseCustomerProfile(profile: CustomerProfile): P
       ...baseUpdate,
       email_verified: Boolean(profile.emailVerified),
       email_confirmed_at: profile.emailConfirmedAt ?? null,
+      wallet_balance: Math.max(0, Number(profile.walletBalance ?? 0)),
+      wallet_transactions: (profile.walletTransactions ?? []).slice(0, 60),
+      custom_designs: (profile.customDesigns ?? []).slice(0, 30),
     })
     .eq('id', profile.id);
   if (error && isMissingSchemaError(error)) {
@@ -2135,13 +2306,20 @@ export function subscribeAllCustomersAdmin(
       typeof (d.email_confirmed_at ?? d.emailConfirmedAt) === 'string'
         ? String(d.email_confirmed_at ?? d.emailConfirmedAt)
         : undefined,
-    preferredPayment: ((d.preferred_payment ?? d.preferredPayment) as PaymentMethod) || 'upi',
+    preferredPayment: ((d.preferred_payment ?? d.preferredPayment) as PaymentMethod) || 'UPI / Prepaid',
     celebrationMonth:
       typeof (d.celebration_month ?? d.celebrationMonth) === 'string' &&
       (d.celebration_month ?? d.celebrationMonth)
         ? String(d.celebration_month ?? d.celebrationMonth)
         : undefined,
     crmFlag: ((d.crm_flag ?? d.crmFlag) as CrmCustomerFlag) || 'Standard',
+    walletBalance: Math.max(0, Number(d.wallet_balance ?? d.walletBalance ?? 0)),
+    walletTransactions: Array.isArray(d.wallet_transactions ?? d.walletTransactions)
+      ? ((d.wallet_transactions ?? d.walletTransactions) as WalletTransactionRecord[])
+      : [],
+    customDesigns: Array.isArray(d.custom_designs ?? d.customDesigns)
+      ? ((d.custom_designs ?? d.customDesigns) as CustomerCustomDesign[])
+      : [],
     createdAt: String(d.created_at ?? d.createdAt ?? new Date().toISOString()),
     addresses: Array.isArray(d.addresses) ? (d.addresses as SavedAddress[]) : [],
     wishlistIds: Array.isArray(d.wishlist_ids) ? d.wishlist_ids.map(String) : [],
@@ -3163,3 +3341,248 @@ export async function saveAdSpendLogToSupabase(entry: MonthlyAdSpendRecord): Pro
     // Graceful localStorage fallback
   }
 }
+
+// ============================================================================
+// Digital Gift Cards, Customer Support Tickets & Custom Uploads Storage
+// ============================================================================
+
+function fromGiftCardRow(d: Record<string, unknown>): GiftCardRecord {
+  return {
+    id: String(d.id ?? ''),
+    code: String(d.code ?? '').toUpperCase(),
+    pin: String(d.pin ?? ''),
+    initialAmount: Number(d.initial_amount ?? d.initialAmount ?? 0),
+    balance: Number(d.balance ?? 0),
+    purchaserUserId: d.purchaser_user_id ? String(d.purchaser_user_id) : null,
+    purchaserName: String(d.purchaser_name ?? d.purchaserName ?? 'BEE4 Customer'),
+    purchaserEmail: String(d.purchaser_email ?? d.purchaserEmail ?? ''),
+    purchaserPhone: String(d.purchaser_phone ?? d.purchaserPhone ?? ''),
+    recipientName: String(d.recipient_name ?? d.recipientName ?? ''),
+    recipientEmail: String(d.recipient_email ?? d.recipientEmail ?? ''),
+    message: typeof d.message === 'string' ? d.message : '',
+    active: d.active !== false,
+    issuedReason:
+      (d.issued_reason ?? d.issuedReason ?? 'Purchased') as GiftCardRecord['issuedReason'],
+    redeemedByUserId: d.redeemed_by_user_id ? String(d.redeemed_by_user_id) : null,
+    redeemedAt:
+      typeof (d.redeemed_at ?? d.redeemedAt) === 'string'
+        ? String(d.redeemed_at ?? d.redeemedAt)
+        : undefined,
+    createdAt: String(d.created_at ?? d.createdAt ?? new Date().toISOString()),
+    expiresAt:
+      typeof (d.expires_at ?? d.expiresAt) === 'string'
+        ? String(d.expires_at ?? d.expiresAt)
+        : undefined,
+  };
+}
+
+export function subscribeGiftCards(
+  onData: (cards: GiftCardRecord[]) => void
+): () => void {
+  const client = supabase;
+  if (!client) return () => {};
+
+  const load = async () => {
+    try {
+      const { data, error } = await client
+        .from('gift_cards')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error || !data) return;
+      onData(data.map((r) => fromGiftCardRow(r as Record<string, unknown>)));
+    } catch {
+      // Optional table fallback
+    }
+  };
+
+  void load();
+
+  const channel = client
+    .channel('bee4-gift-cards')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'gift_cards' }, () => {
+      void load();
+    })
+    .subscribe();
+
+  return () => {
+    void client.removeChannel(channel);
+  };
+}
+
+export async function createGiftCardInSupabase(card: GiftCardRecord): Promise<void> {
+  const client = supabase;
+  if (!client) return;
+  try {
+    const { error } = await client.from('gift_cards').insert({
+      id: sanitizeId(card.id, 'gc'),
+      code: clampSingleLine(card.code, 32).toUpperCase(),
+      pin: clampSingleLine(card.pin, 8),
+      initial_amount: Math.max(1, Number(card.initialAmount) || 0),
+      balance: Math.max(0, Number(card.balance) || 0),
+      purchaser_user_id: card.purchaserUserId || null,
+      purchaser_name: clampSingleLine(card.purchaserName, 100, 'BEE4 Customer'),
+      purchaser_email: clampSingleLine(card.purchaserEmail, 160),
+      purchaser_phone: clampSingleLine(card.purchaserPhone ?? '', 20),
+      recipient_name: clampSingleLine(card.recipientName, 100, 'Recipient'),
+      recipient_email: clampSingleLine(card.recipientEmail, 160),
+      message: clampStr(card.message ?? '', 300),
+      active: Boolean(card.active),
+      issued_reason: card.issuedReason ?? 'Purchased',
+      redeemed_by_user_id: card.redeemedByUserId ?? null,
+      redeemed_at: card.redeemedAt ?? null,
+      expires_at: card.expiresAt ?? null,
+      created_at: card.createdAt || new Date().toISOString(),
+    });
+    if (error && !isMissingSchemaError(error)) {
+      console.error('[BEE4 GiftCard] Supabase insert error:', error.message);
+    }
+  } catch {
+    // Fallback to local state
+  }
+}
+
+export async function updateGiftCardInSupabase(card: GiftCardRecord): Promise<void> {
+  const client = supabase;
+  if (!client) return;
+  try {
+    const { error } = await client
+      .from('gift_cards')
+      .update({
+        balance: Math.max(0, Number(card.balance) || 0),
+        active: Boolean(card.active),
+        redeemed_by_user_id: card.redeemedByUserId ?? null,
+        redeemed_at: card.redeemedAt ?? null,
+      })
+      .eq('id', sanitizeId(card.id, 'gc'));
+    if (error && !isMissingSchemaError(error)) {
+      console.error('[BEE4 GiftCard] Supabase update error:', error.message);
+    }
+  } catch {
+    // Fallback to local state
+  }
+}
+
+export async function redeemGiftCardViaSupabaseRpc(
+  code: string,
+  pin: string
+): Promise<{ usedRpc: boolean; creditedAmount?: number; code?: string; redeemedAt?: string }> {
+  const client = supabase;
+  if (!client) return { usedRpc: false };
+
+  try {
+    const { data, error } = await client.rpc('redeem_bee4_gift_card', {
+      p_code: code.trim().toUpperCase(),
+      p_pin: pin.trim(),
+    });
+    if (!error && data && typeof data === 'object') {
+      const payload = data as Record<string, unknown>;
+      return {
+        usedRpc: true,
+        creditedAmount: Number(payload.credited_amount ?? 0),
+        code: String(payload.code ?? code).toUpperCase(),
+        redeemedAt: String(payload.redeemed_at ?? new Date().toISOString()),
+      };
+    }
+    if (
+      error &&
+      !isMissingSchemaError(error) &&
+      !error.message.toLowerCase().includes('function')
+    ) {
+      throw new Error(error.message);
+    }
+  } catch (err) {
+    if (
+      err instanceof Error &&
+      !err.message.toLowerCase().includes('function') &&
+      !err.message.toLowerCase().includes('schema')
+    ) {
+      throw err;
+    }
+  }
+  return { usedRpc: false };
+}
+
+export function subscribeUserCustomerMessages(
+  userId: string,
+  email: string | undefined,
+  onData: (messages: CustomerMessageRecord[]) => void
+): () => void {
+  const client = supabase;
+  if (!client || (!userId && !email)) return () => {};
+
+  const load = async () => {
+    try {
+      const cleanEmail = (email ?? '').trim().toLowerCase();
+      const query = client
+        .from('customer_messages')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      const { data, error } = cleanEmail
+        ? await query.or(`user_id.eq.${userId},email.ilike.${cleanEmail}`)
+        : await query.eq('user_id', userId);
+
+      if (error || !data) return;
+      onData(data.map((r) => fromCustomerMessageRow(r as Record<string, unknown>)));
+    } catch {
+      // Optional fallback
+    }
+  };
+
+  void load();
+
+  const channel = client
+    .channel(`bee4-user-messages-${userId}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'customer_messages' },
+      () => {
+        void load();
+      }
+    )
+    .subscribe();
+
+  return () => {
+    void client.removeChannel(channel);
+  };
+}
+
+export async function uploadCustomDesignToSupabaseStorage(
+  file: File,
+  userId: string
+): Promise<{ url: string; storageMode: 'supabase' | 'local-fallback' }> {
+  const compressedDataUrl = await compressImageToDataUrl(file);
+  const client = supabase;
+  if (!client) {
+    return { url: compressedDataUrl, storageMode: 'local-fallback' };
+  }
+  try {
+    const safeUid = sanitizeId(userId || 'guest', 'cust');
+    const filePath = `custom-uploads/${safeUid}/${Date.now()}-${Math.random().toString(36).slice(2, 6)}.jpg`;
+    const blob = await fetch(compressedDataUrl).then((r) => r.blob());
+
+    const { error: uploadError } = await client.storage
+      .from(SUPABASE_PRODUCT_BUCKET)
+      .upload(filePath, blob, {
+        contentType: 'image/jpeg',
+        cacheControl: '3600',
+        upsert: true,
+      });
+
+    if (uploadError) {
+      return { url: compressedDataUrl, storageMode: 'local-fallback' };
+    }
+
+    const { data: publicData } = client.storage
+      .from(SUPABASE_PRODUCT_BUCKET)
+      .getPublicUrl(filePath);
+
+    if (publicData?.publicUrl) {
+      return { url: publicData.publicUrl, storageMode: 'supabase' };
+    }
+    return { url: compressedDataUrl, storageMode: 'local-fallback' };
+  } catch {
+    return { url: compressedDataUrl, storageMode: 'local-fallback' };
+  }
+}
+

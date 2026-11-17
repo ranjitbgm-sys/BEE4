@@ -10,6 +10,7 @@ import type {
   CustomerProfile,
   FilamentSpool,
   FulfillmentStage,
+  GiftCardRecord,
   InventoryAdjustmentRecord,
   MarketplaceChannel,
   MarketplaceIntegrationConfig,
@@ -59,6 +60,7 @@ interface AdminPanelViewProps {
   productReviews?: ProductReviewRecord[];
   customers: CustomerProfile[];
   coupons: CouponRecord[];
+  giftCards?: GiftCardRecord[];
   printJobs: PrintJobRecord[];
   spools: FilamentSpool[];
   auditLogs: AdminAuditLog[];
@@ -95,6 +97,12 @@ interface AdminPanelViewProps {
     }
   ) => void;
   onBulkUpdateOrders?: (orders: OrderRecord[], label: string) => void;
+  onCancelOrderAdmin?: (payload: {
+    orderNumber: string;
+    reason: string;
+    autoRestock: boolean;
+    issueRefundCredit: boolean;
+  }) => Promise<void> | void;
   onUpdateOrderSettlement?: (orderNumber: string, settlement: OrderSettlementRecord) => void;
   onUpdateReturnRequest?: (
     prevReturn: ReturnRequestRecord,
@@ -109,6 +117,14 @@ interface AdminPanelViewProps {
   ) => string | void;
   onSaveCoupon: (coupon: CouponRecord) => void;
   onDeleteCoupon: (couponId: string) => void;
+  onCreateGiftCardAdmin?: (input: {
+    amount: number;
+    recipientName: string;
+    recipientEmail: string;
+    message: string;
+    issuedBy?: 'Customer' | 'Admin';
+  }) => Promise<GiftCardRecord> | GiftCardRecord;
+  onToggleGiftCardActive?: (card: GiftCardRecord) => void;
   onSavePrintJob: (job: PrintJobRecord) => void;
   onSaveFilamentSpool: (spool: FilamentSpool) => void;
   onSetCustomerFlag: (phoneOrKey: string, flag: CrmCustomerFlag) => void;
@@ -143,6 +159,7 @@ export function AdminPanelView({
   productReviews = [],
   customers,
   coupons,
+  giftCards = [],
   printJobs,
   spools,
   auditLogs,
@@ -166,10 +183,13 @@ export function AdminPanelView({
   onResetCatalog,
   onUpdateOrderLogistics,
   onBulkUpdateOrders,
+  onCancelOrderAdmin,
   onUpdateOrderSettlement,
   onUpdateReturnRequest,
   onSaveCoupon,
   onDeleteCoupon,
+  onCreateGiftCardAdmin,
+  onToggleGiftCardActive,
   onSavePrintJob,
   onSaveFilamentSpool,
   onSetCustomerFlag,
@@ -342,6 +362,14 @@ export function AdminPanelView({
               onBulkUpdateOrders?.(updatedOrders, label);
               notify(label);
             }}
+            onCancelOrderAdmin={
+              onCancelOrderAdmin
+                ? async (payload) => {
+                    await onCancelOrderAdmin(payload);
+                    notify(`Cancelled ${payload.orderNumber} (${payload.reason}).`);
+                  }
+                : undefined
+            }
           />
         )}
 
@@ -474,6 +502,7 @@ export function AdminPanelView({
         {activeModule === 'discounts' && (
           <AdminDiscountsTab
             coupons={coupons}
+            giftCards={giftCards}
             settings={settings}
             onSaveCoupon={(c) => {
               onSaveCoupon(c);
@@ -483,6 +512,25 @@ export function AdminPanelView({
               onDeleteCoupon(cid);
               notify('Coupon deleted.');
             }}
+            onCreateGiftCard={
+              onCreateGiftCardAdmin
+                ? async (input) => {
+                    const created = await onCreateGiftCardAdmin(input);
+                    notify(`Issued gift card ${created.code} (₹${created.initialAmount}).`);
+                    return created;
+                  }
+                : undefined
+            }
+            onToggleGiftCardActive={
+              onToggleGiftCardActive
+                ? (card) => {
+                    onToggleGiftCardActive(card);
+                    notify(
+                      `Gift card ${card.code} ${card.active ? 'disabled' : 'reactivated'}.`
+                    );
+                  }
+                : undefined
+            }
             onUpdateSettings={(next) => {
               onUpdateSettings(next);
               notify('Saved gift wrap fees and Gift Finder weights to storefront.');

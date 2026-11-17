@@ -102,6 +102,9 @@ create table if not exists public.profiles (
   celebration_month text,
   wishlist_ids jsonb not null default '[]'::jsonb,
   addresses jsonb not null default '[]'::jsonb,
+  wallet_balance numeric not null default 0,
+  wallet_transactions jsonb not null default '[]'::jsonb,
+  custom_designs jsonb not null default '[]'::jsonb,
   is_admin boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -109,6 +112,9 @@ create table if not exists public.profiles (
 
 alter table public.profiles add column if not exists email_verified boolean not null default false;
 alter table public.profiles add column if not exists email_confirmed_at timestamptz;
+alter table public.profiles add column if not exists wallet_balance numeric not null default 0;
+alter table public.profiles add column if not exists wallet_transactions jsonb not null default '[]'::jsonb;
+alter table public.profiles add column if not exists custom_designs jsonb not null default '[]'::jsonb;
 
 create table if not exists public.customers (
   id text primary key,
@@ -118,17 +124,23 @@ create table if not exists public.customers (
   email text not null default '',
   email_verified boolean not null default false,
   email_confirmed_at timestamptz,
-  preferred_payment text not null default 'upi',
+  preferred_payment text not null default 'UPI / Prepaid',
   celebration_month text,
   crm_flag text not null default 'Standard',
   addresses jsonb not null default '[]'::jsonb,
   wishlist_ids jsonb not null default '[]'::jsonb,
+  wallet_balance numeric not null default 0,
+  wallet_transactions jsonb not null default '[]'::jsonb,
+  custom_designs jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
 alter table public.customers add column if not exists email_verified boolean not null default false;
 alter table public.customers add column if not exists email_confirmed_at timestamptz;
+alter table public.customers add column if not exists wallet_balance numeric not null default 0;
+alter table public.customers add column if not exists wallet_transactions jsonb not null default '[]'::jsonb;
+alter table public.customers add column if not exists custom_designs jsonb not null default '[]'::jsonb;
 
 create or replace function public.is_bee4_admin()
 returns boolean
@@ -203,7 +215,9 @@ create table if not exists public.orders (
   gift_wrap_fee numeric not null default 0,
   cod_fee numeric not null default 0,
   total numeric not null default 0,
-  payment_method text not null default 'upi',
+  wallet_amount_used numeric not null default 0,
+  payment_method text not null default 'UPI / Prepaid',
+  payment_status text not null default 'Paid',
   order_channel text not null default 'UPI / Prepaid',
   source_channel text not null default 'bee4.in',
   external_order_id text not null default '',
@@ -212,6 +226,9 @@ create table if not exists public.orders (
   gift_wrap boolean not null default false,
   gift_message text not null default '',
   status text not null default 'Pending',
+  cancellation_reason text not null default '',
+  cancelled_by text,
+  cancelled_at timestamptz,
   fulfillment_stage text not null default 'New / Unverified',
   operational_bucket text not null default 'New / Upcoming',
   sla_dispatch_by timestamptz,
@@ -230,6 +247,11 @@ create table if not exists public.orders (
 );
 
 alter table public.orders alter column status set default 'Pending';
+alter table public.orders add column if not exists wallet_amount_used numeric not null default 0;
+alter table public.orders add column if not exists payment_status text not null default 'Paid';
+alter table public.orders add column if not exists cancellation_reason text not null default '';
+alter table public.orders add column if not exists cancelled_by text;
+alter table public.orders add column if not exists cancelled_at timestamptz;
 
 -- 4. Coupons Table (SMARTKID15)
 create table if not exists public.coupons (
@@ -460,6 +482,27 @@ create table if not exists public.ad_spend_logs (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.gift_cards (
+  id text primary key,
+  code text not null unique,
+  pin text not null,
+  initial_amount numeric not null check (initial_amount >= 1),
+  balance numeric not null default 0 check (balance >= 0),
+  purchaser_user_id uuid references auth.users(id) on delete set null,
+  purchaser_name text not null default 'BEE4 Customer',
+  purchaser_email text not null default '',
+  purchaser_phone text not null default '',
+  recipient_name text not null default '',
+  recipient_email text not null default '',
+  message text not null default '',
+  active boolean not null default true,
+  issued_reason text not null default 'Purchased',
+  redeemed_by_user_id uuid references auth.users(id) on delete set null,
+  redeemed_at timestamptz,
+  expires_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
 -- 7. Enable Row Level Security (RLS)
 alter table public.profiles enable row level security;
 alter table public.customers enable row level security;
@@ -479,6 +522,7 @@ alter table public.product_reviews enable row level security;
 alter table public.marketplace_integrations enable row level security;
 alter table public.automation_rules enable row level security;
 alter table public.ad_spend_logs enable row level security;
+alter table public.gift_cards enable row level security;
 
 -- Public Read Policies (Storefront Catalog, Coupons, Settings, Testimonials)
 drop policy if exists "Public read active products" on public.products;
@@ -525,6 +569,17 @@ create policy "Customers insert orders" on public.orders
 drop policy if exists "Customers read own orders or admins read all" on public.orders;
 create policy "Customers read own orders or admins read all" on public.orders
   for select using (auth.uid() = user_id or public.is_bee4_admin());
+
+drop policy if exists "Customers cancel own pending orders" on public.orders;
+create policy "Customers cancel own pending orders" on public.orders
+  for update using (
+    auth.uid() = user_id
+    and status in ('Pending', 'Confirmed', 'Preparing Shipment')
+  )
+  with check (
+    auth.uid() = user_id
+    and status = 'Cancelled'
+  );
 
 drop policy if exists "Admins update orders" on public.orders;
 create policy "Admins update orders" on public.orders
@@ -611,6 +666,15 @@ drop policy if exists "Anyone submit customer_message" on public.customer_messag
 create policy "Anyone submit customer_message" on public.customer_messages
   for insert with check (true);
 
+drop policy if exists "Customers read own submitted messages" on public.customer_messages;
+create policy "Customers read own submitted messages" on public.customer_messages
+  for select using (
+    auth.uid() = user_id
+    or (email <> '' and lower(email) = lower(coalesce(auth.jwt() ->> 'email', '')))
+    or public.is_bee4_admin()
+    or lower(coalesce(auth.jwt() ->> 'email', '')) = 'bee4official@gmail.com'
+  );
+
 drop policy if exists "Admins manage customer_messages" on public.customer_messages;
 create policy "Admins manage customer_messages" on public.customer_messages
   for all using (
@@ -666,7 +730,7 @@ create policy "Admins upload product-images" on storage.objects
     bucket_id = 'product-images'
     and (
       public.is_bee4_admin()
-      or (storage.foldername(name))[1] in ('returns', 'reviews')
+      or (storage.foldername(name))[1] in ('returns', 'reviews', 'custom-uploads')
     )
   );
 
@@ -756,5 +820,147 @@ begin
   alter publication supabase_realtime add table public.ad_spend_logs;
 exception when duplicate_object then null;
 end $$;
+
+-- 10. Gift Cards Policies & Atomic Cancellation / Redemption RPCs
+drop policy if exists "Anyone create gift_card" on public.gift_cards;
+create policy "Anyone create gift_card" on public.gift_cards
+  for insert with check (true);
+
+drop policy if exists "Users read related gift_cards or admins read all" on public.gift_cards;
+create policy "Users read related gift_cards or admins read all" on public.gift_cards
+  for select using (
+    public.is_bee4_admin()
+    or auth.uid() = purchaser_user_id
+    or auth.uid() = redeemed_by_user_id
+    or lower(recipient_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+    or lower(purchaser_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+
+drop policy if exists "Admins manage gift_cards" on public.gift_cards;
+create policy "Admins manage gift_cards" on public.gift_cards
+  for all using (public.is_bee4_admin()) with check (public.is_bee4_admin());
+
+do $$
+begin
+  alter publication supabase_realtime add table public.gift_cards;
+exception when duplicate_object then null;
+end $$;
+
+create or replace function public.cancel_bee4_order_and_restock(
+  p_order_number text,
+  p_reason text,
+  p_cancelled_by text default 'Customer',
+  p_auto_restock boolean default true
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_order public.orders%rowtype;
+  v_item jsonb;
+  v_qty integer;
+  v_prod_id text;
+  v_now timestamptz := now();
+begin
+  select * into v_order from public.orders where order_number = p_order_number for update;
+  if not found then
+    raise exception 'Order % not found', p_order_number;
+  end if;
+
+  if not (public.is_bee4_admin() or v_order.user_id = auth.uid()) then
+    raise exception 'Permission denied cancelling order %', p_order_number;
+  end if;
+
+  if not public.is_bee4_admin() and v_order.status not in ('Pending', 'Confirmed', 'Preparing Shipment') then
+    raise exception 'Order % cannot be cancelled after dispatch', p_order_number;
+  end if;
+
+  update public.orders
+  set
+    status = 'Cancelled',
+    fulfillment_stage = 'Cancelled',
+    operational_bucket = 'Cancelled / RTO',
+    cancellation_reason = coalesce(nullif(trim(p_reason), ''), 'Cancelled upon request'),
+    cancelled_by = coalesce(nullif(trim(p_cancelled_by), ''), 'Customer'),
+    cancelled_at = v_now,
+    updated_at = v_now
+  where order_number = p_order_number;
+
+  if p_auto_restock and v_order.status <> 'Cancelled' then
+    for v_item in select * from jsonb_array_elements(coalesce(v_order.items, '[]'::jsonb))
+    loop
+      v_prod_id := coalesce(v_item ->> 'productId', '');
+      v_qty := greatest(1, coalesce((v_item ->> 'quantity')::integer, 1));
+      if v_prod_id <> '' then
+        update public.products
+        set
+          stock_quantity = greatest(0, stock_quantity) + v_qty,
+          in_stock = true,
+          updated_at = v_now
+        where id = v_prod_id;
+      end if;
+    end loop;
+  end if;
+
+  return jsonb_build_object('ok', true, 'order_number', p_order_number, 'cancelled_at', v_now);
+end;
+$$;
+
+create or replace function public.redeem_bee4_gift_card(
+  p_code text,
+  p_pin text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_card public.gift_cards%rowtype;
+  v_now timestamptz := now();
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in to your BEE4 account to redeem a gift card.';
+  end if;
+
+  select * into v_card
+  from public.gift_cards
+  where upper(code) = upper(trim(p_code))
+  for update;
+
+  if not found then
+    raise exception 'Gift card code not found.';
+  end if;
+  if not v_card.active then
+    raise exception 'This gift card is currently disabled.';
+  end if;
+  if v_card.pin <> trim(p_pin) then
+    raise exception 'Incorrect 4-digit Gift Card PIN.';
+  end if;
+  if v_card.balance <= 0 or v_card.redeemed_at is not null then
+    raise exception 'This gift card has already been redeemed.';
+  end if;
+  if v_card.expires_at is not null and v_card.expires_at < v_now then
+    raise exception 'This gift card has expired.';
+  end if;
+
+  update public.gift_cards
+  set
+    balance = 0,
+    redeemed_by_user_id = auth.uid(),
+    redeemed_at = v_now
+  where id = v_card.id;
+
+  return jsonb_build_object(
+    'ok', true,
+    'id', v_card.id,
+    'code', v_card.code,
+    'credited_amount', v_card.balance,
+    'redeemed_at', v_now
+  );
+end;
+$$;
 `;
 }
