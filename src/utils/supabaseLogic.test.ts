@@ -70,5 +70,7 @@ test('buildSupabaseSetupSql generates required tables, customers CRM, product-im
   assert.match(sql, /enable row level security/i);
   assert.match(sql, /alter publication supabase_realtime add table public\.products/i);
   assert.match(sql, /alter publication supabase_realtime add table public\.customers/i);
+  assert.match(sql, /status text not null default 'Pending'/i);
+  assert.match(sql, /for insert with check \(user_id is null or auth\.uid\(\) = user_id or public\.is_bee4_admin\(\)\)/i);
   assert.match(sql, /ranjitbgm@gmail\.com/);
 });

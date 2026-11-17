@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
+  AlertCircle,
   ArrowLeft,
   Check,
   CheckCircle2,
@@ -62,7 +63,7 @@ interface CheckoutViewProps {
   expectedPromoCode: string;
   promoDiscountPercent: number;
   onBackToShop: () => void;
-  onOrderComplete: (order: OrderRecord) => void;
+  onOrderComplete: (order: OrderRecord) => Promise<void> | void;
   onSaveAddress?: (address: Omit<SavedAddress, 'id' | 'isDefault'>) => void;
   onNavigateToAccount?: () => void;
 }
@@ -120,6 +121,8 @@ export function CheckoutView({
     promoCode: '',
   });
   const [errors, setErrors] = useState<CheckoutErrors>({});
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState<boolean>(false);
+  const [orderSubmitError, setOrderSubmitError] = useState<string>('');
   const [confirmedOrder, setConfirmedOrder] = useState<OrderRecord | null>(null);
   const [downloadedFilename, setDownloadedFilename] = useState<string>('');
   const [notificationResult, setNotificationResult] =
@@ -184,13 +187,14 @@ export function CheckoutView({
     promoDiscountPercent,
   });
 
-  const handleSubmit = (event: FormEvent) => {
+  const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (items.length === 0) return;
+    if (items.length === 0 || isSubmittingOrder) return;
 
     const validationErrors = validateCheckoutForm(form);
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
+      setOrderSubmitError('');
       return;
     }
 
@@ -198,6 +202,7 @@ export function CheckoutView({
 
     const newOrder: OrderRecord = {
       orderNumber: generateOrderNumber(),
+      userId: currentCustomer?.id ?? null,
       createdAt: new Date().toISOString(),
       items: [...items],
       subtotal: totals.subtotal,
@@ -220,21 +225,9 @@ export function CheckoutView({
       },
       giftWrap: effectiveGiftWrap,
       giftMessage: effectiveGiftWrap ? form.giftMessage.trim() : '',
-      status: 'Confirmed',
-      fulfillmentStage: form.paymentMethod === 'cod' ? 'New / Unverified' : 'Confirmed',
+      status: 'Pending',
+      fulfillmentStage: 'New / Unverified',
     };
-
-    if (currentCustomer && onSaveAddress && saveAddressToAccount) {
-      onSaveAddress({
-        label: currentCustomer.addresses.length === 0 ? 'Home' : 'Other',
-        fullName: form.fullName.trim(),
-        phone: form.phone.trim(),
-        address: form.address.trim(),
-        city: form.city.trim(),
-        state: form.state.trim(),
-        pinCode: form.pinCode.trim(),
-      });
-    }
 
     const dispatchOrderNotifications = async (order: OrderRecord) => {
       setIsDispatchingNotifications(true);
@@ -299,9 +292,33 @@ export function CheckoutView({
       }
     };
 
-    setConfirmedOrder(newOrder);
-    onOrderComplete(newOrder);
-    void dispatchOrderNotifications(newOrder);
+    setIsSubmittingOrder(true);
+    setOrderSubmitError('');
+    try {
+      await onOrderComplete(newOrder);
+      if (currentCustomer && onSaveAddress && saveAddressToAccount) {
+        onSaveAddress({
+          label: currentCustomer.addresses.length === 0 ? 'Home' : 'Other',
+          fullName: form.fullName.trim(),
+          phone: form.phone.trim(),
+          address: form.address.trim(),
+          city: form.city.trim(),
+          state: form.state.trim(),
+          pinCode: form.pinCode.trim(),
+        });
+      }
+      setConfirmedOrder(newOrder);
+      void dispatchOrderNotifications(newOrder);
+    } catch (err) {
+      console.error('[BEE4 Checkout] Unable to place order:', err);
+      setOrderSubmitError(
+        err instanceof Error && err.message
+          ? err.message
+          : 'Unable to save your order right now. Please check your connection and try again.'
+      );
+    } finally {
+      setIsSubmittingOrder(false);
+    }
   };
 
   if (confirmedOrder) {
@@ -360,7 +377,7 @@ export function CheckoutView({
               <CheckCircle2 className="w-5 h-5 shrink-0" />
             </motion.div>
             <span className="text-xs font-semibold tracking-wide">
-              Order {confirmedOrder.orderNumber} Confirmed — Preparing Shipment
+              Order {confirmedOrder.orderNumber} Placed — Status: {confirmedOrder.status}
             </span>
           </div>
 
@@ -368,7 +385,7 @@ export function CheckoutView({
             Thank you, {confirmedOrder.customer.fullName}!
           </h1>
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
-            Your BEE4 order is confirmed. Expected pan-India delivery in 3–5 business days to{' '}
+            Your BEE4 order has been saved ({confirmedOrder.status}). Expected pan-India delivery in 3–5 business days to{' '}
             <span className="font-medium text-zinc-900 dark:text-white">
               {confirmedOrder.customer.city}, {confirmedOrder.customer.state} (PIN{' '}
               {confirmedOrder.customer.pinCode})
@@ -1120,11 +1137,32 @@ export function CheckoutView({
             </div>
           </div>
 
+          {orderSubmitError && (
+            <div
+              role="alert"
+              className="p-3.5 rounded-2xl bg-red-50/90 dark:bg-red-950/55 backdrop-blur-md border border-red-200 dark:border-red-500/35 text-xs text-red-700 dark:text-red-300 font-medium flex items-start gap-2.5"
+            >
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold">Could not place order</p>
+                <p className="mt-0.5 leading-relaxed">{orderSubmitError}</p>
+              </div>
+            </div>
+          )}
+
           <button
             type="submit"
-            className="w-full py-3.5 px-6 rounded-xl glass-btn-amber text-white text-sm font-semibold transition-all"
+            disabled={isSubmittingOrder}
+            className="w-full py-3.5 px-6 rounded-xl glass-btn-amber text-white text-sm font-semibold transition-all disabled:opacity-60 inline-flex items-center justify-center gap-2"
           >
-            Place Order · {formatINR(totals.total)}
+            {isSubmittingOrder ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Placing Order...</span>
+              </>
+            ) : (
+              <span>Place Order · {formatINR(totals.total)}</span>
+            )}
           </button>
 
           {whatsappOrderEnabled && (

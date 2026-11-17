@@ -418,6 +418,7 @@ test('customer signup, OTP login/reset, saved address validation, and order trac
     validateSavedAddress,
     getCustomerOrders,
     getOrderTrackingStepIndex,
+    calculateAdminMetrics,
     createSignupOtpChallenge,
     completeSignupWithOtp,
     createLoginOtpChallenge,
@@ -559,12 +560,41 @@ test('customer signup, OTP login/reset, saved address validation, and order trac
         giftMessage: '',
         status: 'Preparing Shipment' as const,
       },
+      {
+        orderNumber: 'BEE4-2099',
+        userId: 'c1',
+        createdAt: '2026-11-15T10:00:00.000Z',
+        items: [],
+        subtotal: 699,
+        discount: 0,
+        shippingFee: 0,
+        giftWrapFee: 0,
+        total: 699,
+        paymentMethod: 'upi' as const,
+        customer: {
+          fullName: 'Gift Recipient',
+          phone: '9911223344',
+          email: 'recipient@example.com',
+          address: 'Koramangala',
+          city: 'Bengaluru',
+          state: 'Karnataka',
+          pinCode: '560034',
+        },
+        giftWrap: true,
+        giftMessage: 'Happy Birthday!',
+        status: 'Pending' as const,
+      },
     ],
     customers[0]
   );
-  assert.equal(ananyaOrders.length, 1);
-  assert.equal(getOrderTrackingStepIndex('Confirmed'), 0);
+  assert.equal(ananyaOrders.length, 2);
+  assert.equal(getOrderTrackingStepIndex('Pending'), 0);
+  assert.equal(getOrderTrackingStepIndex('Confirmed'), 1);
   assert.equal(getOrderTrackingStepIndex('Cancelled'), -1);
+
+  const metrics = calculateAdminMetrics(INITIAL_PRODUCTS, ananyaOrders);
+  assert.equal(metrics.totalOrders, 2);
+  assert.equal(metrics.pendingOrders, 2);
 });
 
 test('getInvoiceFilename and order notification builders work properly', async () => {

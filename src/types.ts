@@ -190,6 +190,7 @@ export interface CheckoutErrors {
 }
 
 export type OrderStatus =
+  | 'Pending'
   | 'Confirmed'
   | 'Preparing Shipment'
   | 'Shipped'
@@ -239,6 +240,7 @@ export interface OrderSettlementRecord {
 
 export interface OrderRecord {
   orderNumber: string;
+  userId?: string | null;
   createdAt: string;
   items: CartItem[];
   subtotal: number;

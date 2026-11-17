@@ -126,6 +126,7 @@ interface AdminPanelViewProps {
   onSaveAdSpend?: (entry: MonthlyAdSpendRecord) => void;
   onChangeAdminPasswordHash: (nextHash: string) => void;
   onPurgeTestData?: () => Promise<{ clearedTables: string[]; errors: string[] }>;
+  onRefreshOrders?: () => Promise<void>;
   onLockAdmin: () => void;
   onBackToStore: () => void;
 }
@@ -186,6 +187,7 @@ export function AdminPanelView({
   onSaveAdSpend,
   onChangeAdminPasswordHash,
   onPurgeTestData,
+  onRefreshOrders,
   onLockAdmin,
   onBackToStore,
 }: AdminPanelViewProps) {
@@ -315,6 +317,17 @@ export function AdminPanelView({
             returns={returns}
             supportEmail={settings.supportEmail}
             whatsappNumber={settings.whatsappNumber}
+            cloudAdminEmail={cloudAdminEmail}
+            supabaseConfigured={supabaseConfigured}
+            onConnectCloudAdmin={onConnectCloudAdmin}
+            onRefreshOrders={
+              onRefreshOrders
+                ? async () => {
+                    await onRefreshOrders();
+                    notify('Synced live customer orders from Supabase.');
+                  }
+                : undefined
+            }
             initialSelectedOrderNumber={selectedOrderNo}
             onClearInitialSelection={() => setSelectedOrderNo(null)}
             onInspectRma={(rmaNumber) => {

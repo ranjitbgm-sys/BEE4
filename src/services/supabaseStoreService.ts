@@ -1217,6 +1217,7 @@ function fromOrderRow(d: Record<string, unknown>): OrderRecord {
 
   return {
     orderNumber: String(d.order_number ?? d.orderNumber ?? ''),
+    userId: d.user_id ? String(d.user_id) : d.userId ? String(d.userId) : null,
     createdAt: String(d.created_at ?? d.createdAt ?? new Date().toISOString()),
     items,
     subtotal: Number(d.subtotal ?? 0),
@@ -1243,7 +1244,7 @@ function fromOrderRow(d: Record<string, unknown>): OrderRecord {
     },
     giftWrap: Boolean(d.gift_wrap ?? d.giftWrap),
     giftMessage: String(d.gift_message ?? d.giftMessage ?? ''),
-    status: (d.status as OrderStatus) || 'Confirmed',
+    status: (d.status as OrderStatus) || 'Pending',
     fulfillmentStage: (d.fulfillment_stage ?? d.fulfillmentStage) as FulfillmentStage | undefined,
     sourceChannel:
       ((d.source_channel ?? d.sourceChannel) as MarketplaceChannel) ||
@@ -1289,6 +1290,55 @@ function fromOrderRow(d: Record<string, unknown>): OrderRecord {
   };
 }
 
+export async function fetchUserOrdersFromSupabase(userId: string): Promise<OrderRecord[]> {
+  const client = supabase;
+  if (!client) {
+    throw new Error('Supabase is not configured. Unable to load user orders.');
+  }
+  if (!userId) return [];
+
+  const { data, error } = await client
+    .from('orders')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('[BEE4 Supabase] Failed to fetch user orders:', {
+      userId,
+      code: error.code,
+      message: error.message,
+      details: error.details,
+    });
+    throw new Error(`Could not load your orders: ${error.message}`);
+  }
+
+  return (data ?? []).map((r) => fromOrderRow(r as Record<string, unknown>));
+}
+
+export async function fetchAllOrdersAdminFromSupabase(): Promise<OrderRecord[]> {
+  const client = supabase;
+  if (!client) {
+    throw new Error('Supabase is not configured. Unable to load admin orders.');
+  }
+
+  const { data, error } = await client
+    .from('orders')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('[BEE4 Supabase] Failed to fetch all orders for Admin Studio:', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+    });
+    throw new Error(`Could not load customer orders: ${error.message}`);
+  }
+
+  return (data ?? []).map((r) => fromOrderRow(r as Record<string, unknown>));
+}
+
 export function subscribeUserOrders(
   userId: string,
   onData: (orders: OrderRecord[]) => void
@@ -1298,15 +1348,10 @@ export function subscribeUserOrders(
 
   const fetchUserOrders = async () => {
     try {
-      const { data, error } = await client
-        .from('orders')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
-      if (error || !data) return;
-      onData(data.map((r) => fromOrderRow(r as Record<string, unknown>)));
-    } catch {
-      // Ignore fallback errors
+      const orders = await fetchUserOrdersFromSupabase(userId);
+      onData(orders);
+    } catch (err) {
+      console.error('[BEE4 Supabase] subscribeUserOrders fetch failed:', err);
     }
   };
 
@@ -1321,7 +1366,11 @@ export function subscribeUserOrders(
         void fetchUserOrders();
       }
     )
-    .subscribe();
+    .subscribe((status, err) => {
+      if (status === 'CHANNEL_ERROR' || err) {
+        console.error('[BEE4 Supabase] subscribeUserOrders realtime error:', status, err);
+      }
+    });
 
   return () => {
     void client.removeChannel(channel);
@@ -1334,14 +1383,10 @@ export function subscribeAllOrdersAdmin(onData: (orders: OrderRecord[]) => void)
 
   const fetchAllOrders = async () => {
     try {
-      const { data, error } = await client
-        .from('orders')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (error || !data) return;
-      onData(data.map((r) => fromOrderRow(r as Record<string, unknown>)));
-    } catch {
-      // Fallback safely
+      const orders = await fetchAllOrdersAdminFromSupabase();
+      onData(orders);
+    } catch (err) {
+      console.error('[BEE4 Supabase] subscribeAllOrdersAdmin fetch failed:', err);
     }
   };
 
@@ -1356,7 +1401,11 @@ export function subscribeAllOrdersAdmin(onData: (orders: OrderRecord[]) => void)
         void fetchAllOrders();
       }
     )
-    .subscribe();
+    .subscribe((status, err) => {
+      if (status === 'CHANNEL_ERROR' || err) {
+        console.error('[BEE4 Supabase] subscribeAllOrdersAdmin realtime error:', status, err);
+      }
+    });
 
   return () => {
     void client.removeChannel(channel);
@@ -1365,17 +1414,37 @@ export function subscribeAllOrdersAdmin(onData: (orders: OrderRecord[]) => void)
 
 export async function createOrderInSupabase(
   order: OrderRecord,
-  userId?: string | null
+  userId?: string | null,
+  options?: { allowUpsert?: boolean }
 ): Promise<void> {
-  if (!supabase) return;
+  const client = supabase;
+  if (!client) {
+    const err = new Error(
+      'Supabase is not configured (missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY). Your order could not be saved.'
+    );
+    console.error('[BEE4 Checkout] Supabase insert aborted:', err.message);
+    throw err;
+  }
+
+  let resolvedUserId = userId || order.userId || null;
+  if (!resolvedUserId) {
+    try {
+      const { data: sessionData } = await client.auth.getSession();
+      resolvedUserId = sessionData.session?.user?.id ?? null;
+    } catch (sessionErr) {
+      console.warn('[BEE4 Checkout] Could not inspect Supabase auth session:', sessionErr);
+    }
+  }
+
   const orderNumber = sanitizeId(order.orderNumber, 'BEE4');
   const pinCode = /^[1-9][0-9]{5}$/.test(order.customer.pinCode)
     ? order.customer.pinCode
     : '813103';
 
+  const nowIso = new Date().toISOString();
   const fullRow: Record<string, unknown> = {
     order_number: orderNumber,
-    user_id: userId || null,
+    user_id: resolvedUserId || null,
     items: order.items.slice(0, 50),
     subtotal: Math.max(0, Number(order.subtotal) || 0),
     discount: Math.max(0, Number(order.discount) || 0),
@@ -1400,7 +1469,7 @@ export async function createOrderInSupabase(
     },
     gift_wrap: Boolean(order.giftWrap),
     gift_message: clampStr(order.giftMessage, 300),
-    status: order.status || 'Confirmed',
+    status: order.status || 'Pending',
     fulfillment_stage: order.fulfillmentStage || 'New / Unverified',
     operational_bucket: order.operationalBucket || 'New / Upcoming',
     sla_dispatch_by: order.slaDispatchBy || null,
@@ -1414,12 +1483,26 @@ export async function createOrderInSupabase(
     refunded_amount: Number(order.refundedAmount ?? 0),
     packing_proof: order.packingProof ?? null,
     settlement: order.settlement ?? null,
-    created_at: order.createdAt || new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: order.createdAt || nowIso,
+    updated_at: nowIso,
   };
 
-  const { error } = await supabase.from('orders').upsert(fullRow, { onConflict: 'order_number' });
+  const writeRow = async (row: Record<string, unknown>) => {
+    if (options?.allowUpsert) {
+      return client.from('orders').upsert(row, { onConflict: 'order_number' });
+    }
+    // Use .insert() (without .select()) so guests & authenticated users satisfy INSERT RLS
+    // without triggering UPDATE or guest SELECT RLS checks.
+    return client.from('orders').insert(row);
+  };
+
+  let { error } = await writeRow(fullRow);
+
   if (error && isMissingSchemaError(error)) {
+    console.warn(
+      '[BEE4 Checkout] Orders table missing newer omnichannel columns; retrying with core schema:',
+      error.message
+    );
     const legacyRow = { ...fullRow };
     delete legacyRow.source_channel;
     delete legacyRow.external_order_id;
@@ -1429,9 +1512,40 @@ export async function createOrderInSupabase(
     delete legacyRow.picklist_generated_at;
     delete legacyRow.packing_proof;
     delete legacyRow.settlement;
-    await supabase.from('orders').upsert(legacyRow, { onConflict: 'order_number' });
-  } else if (error) {
-    console.error('Supabase createOrder error:', error.message);
+    const legacyRes = await writeRow(legacyRow);
+    error = legacyRes.error;
+  }
+
+  if (error && isMissingSchemaError(error)) {
+    console.warn(
+      '[BEE4 Checkout] Retrying order insert with minimal core columns:',
+      error.message
+    );
+    const minimalRow: Record<string, unknown> = {
+      order_number: fullRow.order_number,
+      user_id: fullRow.user_id,
+      customer: fullRow.customer,
+      items: fullRow.items,
+      total: fullRow.total,
+      status: fullRow.status,
+      created_at: fullRow.created_at,
+    };
+    const minimalRes = await writeRow(minimalRow);
+    error = minimalRes.error;
+  }
+
+  if (error) {
+    console.error('[BEE4 Checkout] Failed to insert order into Supabase orders table:', {
+      orderNumber,
+      userId: resolvedUserId,
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
+    throw new Error(
+      `Could not save your order (${orderNumber}) to the database: ${error.message}`
+    );
   }
 }
 
@@ -2772,7 +2886,11 @@ export async function seedSupabaseDataAsAdmin(input: {
       .upsert(input.products.map(toProductRow), { onConflict: 'id' }),
     saveStoreSettingsToSupabase(input.settings),
     Promise.all(input.coupons.map((c) => saveCouponToSupabase(c))),
-    Promise.all(input.orders.map((o) => createOrderInSupabase(o, null))),
+    Promise.all(
+      input.orders.map((o) =>
+        createOrderInSupabase(o, o.userId ?? null, { allowUpsert: true })
+      )
+    ),
     Promise.all(input.printJobs.map((j) => savePrintJobToSupabase(j))),
     Promise.all(input.spools.map((s) => saveFilamentSpoolToSupabase(s))),
     Promise.all(input.testimonials.map((t) => addTestimonialToSupabase(t, null))),

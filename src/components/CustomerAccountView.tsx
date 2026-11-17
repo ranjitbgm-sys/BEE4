@@ -97,6 +97,7 @@ interface CustomerAccountViewProps {
   onCreateReturnRequest?: (rma: ReturnRequestRecord) => void;
   onSelectProduct: (productId: string) => void;
   onContinueShopping: () => void;
+  onRefreshOrders?: () => Promise<void>;
 }
 
 const MONTHS = [
@@ -151,6 +152,7 @@ export function CustomerAccountView({
   onCreateReturnRequest,
   onSelectProduct,
   onContinueShopping,
+  onRefreshOrders,
 }: CustomerAccountViewProps) {
   const [returnModalOrder, setReturnModalOrder] = useState<OrderRecord | null>(null);
   const [guestLookupOrderNo, setGuestLookupOrderNo] = useState('');
@@ -222,6 +224,8 @@ export function CustomerAccountView({
 
   const [activeTab, setActiveTab] = useState<CustomerAccountTab>('overview');
   const [notice, setNotice] = useState('');
+  const [ordersRefreshing, setOrdersRefreshing] = useState(false);
+  const [ordersRefreshError, setOrdersRefreshError] = useState('');
 
   // Orders filter state
   const [orderFilter, setOrderFilter] = useState<'All' | 'Active' | 'Delivered' | 'Cancelled'>('All');
@@ -266,6 +270,33 @@ export function CustomerAccountView({
       syncProfileDrafts(currentCustomer);
     }
   }, [currentCustomer?.id, currentCustomer?.emailVerified]);
+
+  const handleRefreshOrdersClick = async (showSuccessNotice = false) => {
+    if (!onRefreshOrders) return;
+    setOrdersRefreshing(true);
+    setOrdersRefreshError('');
+    try {
+      await onRefreshOrders();
+      if (showSuccessNotice) {
+        setNotice('Synced latest orders from Supabase.');
+      }
+    } catch (err) {
+      console.error('[BEE4 My Orders] Failed to fetch live orders:', err);
+      setOrdersRefreshError(
+        err instanceof Error && err.message
+          ? err.message
+          : 'Unable to fetch your live orders from Supabase right now.'
+      );
+    } finally {
+      setOrdersRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!currentCustomer || activeTab !== 'orders' || !onRefreshOrders) return;
+    void handleRefreshOrdersClick(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, currentCustomer?.id]);
 
   const handleGoogleAuthClick = async () => {
     if (!onGoogleSignIn) return;
@@ -1542,7 +1573,11 @@ export function CustomerAccountView({
   // Signed-in Customer Panel Data
   const customerOrders = getCustomerOrders(orders, currentCustomer);
   const activeShipmentsCount = customerOrders.filter(
-    (o) => o.status === 'Confirmed' || o.status === 'Preparing Shipment' || o.status === 'Shipped'
+    (o) =>
+      o.status === 'Pending' ||
+      o.status === 'Confirmed' ||
+      o.status === 'Preparing Shipment' ||
+      o.status === 'Shipped'
   ).length;
   const wishlistProducts = products.filter((p) => currentCustomer.wishlistIds.includes(p.id));
 
@@ -1944,7 +1979,7 @@ export function CustomerAccountView({
                   className="w-full md:w-72 px-3.5 py-2 rounded-xl glass-input text-sm focus:outline-none"
                 />
 
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap items-center gap-1.5">
                   {(['All', 'Active', 'Delivered', 'Cancelled'] as const).map((filter) => (
                     <button
                       key={filter}
@@ -1959,8 +1994,28 @@ export function CustomerAccountView({
                       {filter}
                     </button>
                   ))}
+                  {onRefreshOrders && (
+                    <button
+                      type="button"
+                      disabled={ordersRefreshing}
+                      onClick={() => void handleRefreshOrdersClick(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl glass-btn-secondary text-xs font-semibold text-zinc-800 dark:text-zinc-100 disabled:opacity-60 whitespace-nowrap"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${ordersRefreshing ? 'animate-spin' : ''}`} />
+                      <span>{ordersRefreshing ? 'Syncing...' : 'Refresh'}</span>
+                    </button>
+                  )}
                 </div>
               </div>
+
+              {ordersRefreshError && (
+                <div
+                  role="alert"
+                  className="p-3.5 rounded-2xl bg-red-50/90 dark:bg-red-950/50 backdrop-blur-md border border-red-200 dark:border-red-500/30 text-xs text-red-700 dark:text-red-300 font-medium"
+                >
+                  {ordersRefreshError}
+                </div>
+              )}
 
               {filteredCustomerOrders.length === 0 ? (
                 <div className="glass-surface rounded-3xl p-10 text-center">
@@ -2673,7 +2728,10 @@ function OrderTrackingCard({
   onOpenReturnModal,
 }: OrderTrackingCardProps) {
   const stepIndex = getOrderTrackingStepIndex(order.status);
-  const canCancel = order.status === 'Confirmed' || order.status === 'Preparing Shipment';
+  const canCancel =
+    order.status === 'Pending' ||
+    order.status === 'Confirmed' ||
+    order.status === 'Preparing Shipment';
   const eligibility = isOrderEligibleForReturn(order, returns);
   const existingRma = eligibility.existingRma;
   const rmaBadge = getOrderRmaStatusBadge(order.orderNumber, returns);
@@ -2709,14 +2767,14 @@ function OrderTrackingCard({
         </p>
       </div>
 
-      {/* 4-step Visual Order Progress Bar */}
+      {/* 5-step Visual Order Progress Bar */}
       {order.status === 'Cancelled' ? (
         <div className="p-3 rounded-2xl bg-red-50/90 dark:bg-red-950/50 backdrop-blur-md border border-red-200 dark:border-red-500/30 text-xs text-red-700 dark:text-red-300 font-medium">
           This order was cancelled before dispatch. You can reorder any item below.
         </div>
       ) : (
         <div
-          className={`grid gap-2 ${compact ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-4'}`}
+          className={`grid gap-2 ${compact ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-5'}`}
           aria-label={`Tracking steps for ${order.orderNumber}`}
         >
           {ORDER_TRACKING_STEPS.map((step, idx) => {

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  AlertTriangle,
   CheckSquare,
   Clock,
   Download,
@@ -7,6 +8,7 @@ import {
   Gift,
   MessageCircle,
   Printer,
+  RefreshCw,
   RotateCcw,
   Search,
   ShieldCheck,
@@ -49,6 +51,10 @@ interface AdminOrdersTabProps {
   returns?: ReturnRequestRecord[];
   supportEmail: string;
   whatsappNumber: string;
+  cloudAdminEmail?: string | null;
+  supabaseConfigured?: boolean;
+  onConnectCloudAdmin?: () => Promise<void>;
+  onRefreshOrders?: () => Promise<void>;
   initialSelectedOrderNumber?: string | null;
   onClearInitialSelection?: () => void;
   onInspectRma?: (rmaNumber: string) => void;
@@ -104,6 +110,10 @@ export function AdminOrdersTab({
   returns = [],
   supportEmail,
   whatsappNumber,
+  cloudAdminEmail = null,
+  supabaseConfigured = false,
+  onConnectCloudAdmin,
+  onRefreshOrders,
   initialSelectedOrderNumber,
   onClearInitialSelection,
   onInspectRma,
@@ -120,6 +130,32 @@ export function AdminOrdersTab({
   );
   const [invoiceOrder, setInvoiceOrder] = useState<OrderRecord | null>(null);
   const [bulkPaperSize, setBulkPaperSize] = useState<'4x6' | 'A5'>('4x6');
+  const [isRefreshingOrders, setIsRefreshingOrders] = useState(false);
+  const [refreshOrdersError, setRefreshOrdersError] = useState('');
+
+  const handleSyncLiveOrders = async () => {
+    if (!onRefreshOrders) return;
+    setIsRefreshingOrders(true);
+    setRefreshOrdersError('');
+    try {
+      await onRefreshOrders();
+    } catch (err) {
+      console.error('[BEE4 Admin Orders] Failed to fetch orders from Supabase:', err);
+      setRefreshOrdersError(
+        err instanceof Error && err.message
+          ? err.message
+          : 'Failed to sync orders from Supabase. Verify your Supabase Admin session and RLS rules.'
+      );
+    } finally {
+      setIsRefreshingOrders(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!supabaseConfigured || !cloudAdminEmail || !onRefreshOrders) return;
+    void handleSyncLiveOrders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabaseConfigured, cloudAdminEmail]);
 
   const selectedOrder = useMemo(
     () => orders.find((o) => o.orderNumber === selectedOrderNumber) ?? null,
@@ -343,6 +379,41 @@ export function AdminOrdersTab({
 
   return (
     <div className="space-y-5">
+      {supabaseConfigured && !cloudAdminEmail && (
+        <div
+          role="status"
+          className="glass-surface rounded-2xl p-4 border border-amber-500/35 bg-amber-50/75 dark:bg-amber-950/35 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+        >
+          <div className="flex items-start gap-2.5 text-xs text-amber-950 dark:text-amber-200">
+            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold">Supabase Admin Session Not Connected</p>
+              <p className="mt-0.5 text-amber-900/85 dark:text-amber-200/85">
+                Row-Level Security protects customer orders on Supabase. Connect your admin Google account to view and manage all live checkout orders across customers.
+              </p>
+            </div>
+          </div>
+          {onConnectCloudAdmin && (
+            <button
+              type="button"
+              onClick={() => void onConnectCloudAdmin()}
+              className="px-3.5 py-2 rounded-xl glass-btn-amber text-white text-xs font-semibold whitespace-nowrap shrink-0"
+            >
+              Connect Supabase Admin
+            </button>
+          )}
+        </div>
+      )}
+
+      {refreshOrdersError && (
+        <div
+          role="alert"
+          className="p-3.5 rounded-2xl bg-red-50/90 dark:bg-red-950/50 backdrop-blur-md border border-red-200 dark:border-red-500/30 text-xs text-red-700 dark:text-red-300 font-medium"
+        >
+          {refreshOrdersError}
+        </div>
+      )}
+
       {/* Filter Toolbar */}
       <div className="glass-surface rounded-3xl p-4 space-y-3">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -371,6 +442,18 @@ export function AdminOrdersTab({
                 </option>
               ))}
             </select>
+
+            {onRefreshOrders && (
+              <button
+                type="button"
+                disabled={isRefreshingOrders}
+                onClick={() => void handleSyncLiveOrders()}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl glass-btn-secondary text-xs font-semibold text-zinc-800 dark:text-zinc-100 disabled:opacity-60 whitespace-nowrap"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingOrders ? 'animate-spin' : ''}`} />
+                <span>{isRefreshingOrders ? 'Syncing...' : 'Sync Live Orders'}</span>
+              </button>
+            )}
 
             <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 tabular-nums px-2">
               {filteredOrders.length} orders
@@ -564,7 +647,7 @@ export function AdminOrdersTab({
                         <span
                           className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-bold ${stageBadgeClass(stage)}`}
                         >
-                          {bucket}
+                          {order.status} · {bucket}
                         </span>
                         {rmaBadge && (
                           <button
@@ -652,7 +735,7 @@ export function AdminOrdersTab({
                 </div>
                 <div className="flex flex-col items-end gap-1">
                   <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${stageBadgeClass(stage)}`}>
-                    {stage}
+                    {order.status} · {stage}
                   </span>
                   {rmaBadge && (
                     <button
@@ -716,7 +799,7 @@ export function AdminOrdersTab({
             <div className="flex items-start justify-between gap-3 border-b border-zinc-900/10 dark:border-white/10 pb-4">
               <div>
                 <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
-                  Order Command Drawer · {getEffectiveOrderChannel(selectedOrder)}
+                  Order Command Drawer · {getEffectiveOrderChannel(selectedOrder)} · {selectedOrder.status}
                 </p>
                 <h2 className="mt-0.5 font-display text-xl font-bold text-zinc-900 dark:text-white tabular-nums">
                   {selectedOrder.orderNumber}

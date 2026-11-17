@@ -211,7 +211,7 @@ create table if not exists public.orders (
   customer jsonb not null,
   gift_wrap boolean not null default false,
   gift_message text not null default '',
-  status text not null default 'Confirmed',
+  status text not null default 'Pending',
   fulfillment_stage text not null default 'New / Unverified',
   operational_bucket text not null default 'New / Upcoming',
   sla_dispatch_by timestamptz,
@@ -228,6 +228,8 @@ create table if not exists public.orders (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.orders alter column status set default 'Pending';
 
 -- 4. Coupons Table (SMARTKID15)
 create table if not exists public.coupons (
@@ -518,7 +520,7 @@ create policy "Admins delete testimonials" on public.testimonials
 -- Orders Policies (Guests & Customers can place orders; Customers read own; Admins manage all)
 drop policy if exists "Customers insert orders" on public.orders;
 create policy "Customers insert orders" on public.orders
-  for insert with check (true);
+  for insert with check (user_id is null or auth.uid() = user_id or public.is_bee4_admin());
 
 drop policy if exists "Customers read own orders or admins read all" on public.orders;
 create policy "Customers read own orders or admins read all" on public.orders

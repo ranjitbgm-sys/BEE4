@@ -17,6 +17,8 @@ import {
   deleteProductFromSupabase,
   deleteProductReviewFromSupabase,
   ensureSupabaseCustomerProfile,
+  fetchAllOrdersAdminFromSupabase,
+  fetchUserOrdersFromSupabase,
   onSupabaseAuthChange,
   onSupabaseAuthEvent,
   purgeTestDataInSupabase,
@@ -488,6 +490,14 @@ export default function App() {
         console.error(err);
       });
 
+    // When signed in as Admin, subscribeAllOrdersAdmin/subscribeAllReturnsAdmin handle fetching
+    // ALL customer records without racing against user-scoped subscriptions.
+    if (isSupabaseAdmin) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
     const unsubUserOrders = subscribeUserOrders(supabaseUser.id, (cloudOrders) => {
       setOrders(cloudOrders);
     });
@@ -501,7 +511,7 @@ export default function App() {
       unsubUserOrders();
       unsubUserReturns();
     };
-  }, [supabaseAuthReady, supabaseUser]);
+  }, [supabaseAuthReady, supabaseUser, isSupabaseAdmin]);
 
   // Verified Admin Supabase Realtime sync (orders, returns, customers, messages, reviews, spools, audit logs)
   useEffect(() => {
@@ -1041,10 +1051,28 @@ export default function App() {
     );
   };
 
-  const handleOrderComplete = (order: OrderRecord) => {
+  const handleRefreshUserOrders = useCallback(async () => {
+    if (!supabaseUser || !supabaseDiagnostics.isConfigured) return;
+    if (isSupabaseAdmin) {
+      const allOrders = await fetchAllOrdersAdminFromSupabase();
+      setOrders(allOrders);
+      return;
+    }
+    const cloudOrders = await fetchUserOrdersFromSupabase(supabaseUser.id);
+    setOrders(cloudOrders);
+  }, [supabaseUser, isSupabaseAdmin]);
+
+  const handleRefreshAdminOrders = useCallback(async () => {
+    if (!supabaseDiagnostics.isConfigured) return;
+    const cloudOrders = await fetchAllOrdersAdminFromSupabase();
+    setOrders(cloudOrders);
+  }, []);
+
+  const handleOrderComplete = async (order: OrderRecord): Promise<void> => {
     const channel: MarketplaceChannel = order.sourceChannel ?? 'bee4.in';
     const orderWithChannel: OrderRecord = {
       ...order,
+      userId: order.userId ?? supabaseUser?.id ?? null,
       sourceChannel: channel,
       operationalBucket: order.operationalBucket ?? 'New / Upcoming',
     };
@@ -1054,7 +1082,13 @@ export default function App() {
       automationRules,
       'new_order_placed'
     );
-    const finalOrder = autoRes.updatedOrder;
+    const finalOrder: OrderRecord = {
+      ...autoRes.updatedOrder,
+      userId: orderWithChannel.userId,
+    };
+
+    // Persist directly to Supabase `orders` before confirming or clearing cart
+    await createOrderInSupabase(finalOrder, supabaseUser?.id ?? null);
 
     const { updatedProducts, deductions } = deductMasterInventoryForItems(
       products,
@@ -1090,7 +1124,10 @@ export default function App() {
       }
     }
 
-    setOrders((prev) => [finalOrder, ...prev]);
+    setOrders((prev) => [
+      finalOrder,
+      ...prev.filter((o) => o.orderNumber !== finalOrder.orderNumber),
+    ]);
     setCart([]);
     if (finalOrder.couponCode) {
       setCoupons((prev) =>
@@ -1099,11 +1136,6 @@ export default function App() {
             ? { ...c, usedCount: c.usedCount + 1 }
             : c
         )
-      );
-    }
-    if (supabaseDiagnostics.isConfigured) {
-      void createOrderInSupabase(finalOrder, supabaseUser?.id ?? null).catch((err) =>
-        console.error(err)
       );
     }
   };
@@ -2228,6 +2260,7 @@ export default function App() {
             onCreateReturnRequest={handleCreateReturnRequest}
             onSelectProduct={handleSelectProduct}
             onContinueShopping={() => navigateTo('shop')}
+            onRefreshOrders={handleRefreshUserOrders}
           />
         )}
 
@@ -2312,6 +2345,7 @@ export default function App() {
               onSaveAdSpend={handleSaveAdSpend}
               onChangeAdminPasswordHash={handleChangeAdminPasswordHash}
               onPurgeTestData={handlePurgeTestData}
+              onRefreshOrders={handleRefreshAdminOrders}
               onLockAdmin={handleLockAdmin}
               onBackToStore={() => navigateTo('home')}
             />

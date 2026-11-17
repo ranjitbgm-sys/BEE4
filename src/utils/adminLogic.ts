@@ -193,6 +193,8 @@ export function validateAndApplyCoupon(input: {
 export function getEffectiveFulfillmentStage(order: OrderRecord): FulfillmentStage {
   if (order.fulfillmentStage) return order.fulfillmentStage;
   switch (order.status) {
+    case 'Pending':
+      return 'New / Unverified';
     case 'Confirmed':
       return 'Confirmed';
     case 'Preparing Shipment':
@@ -211,6 +213,7 @@ export function getEffectiveFulfillmentStage(order: OrderRecord): FulfillmentSta
 export function mapFulfillmentStageToOrderStatus(stage: FulfillmentStage): OrderStatus {
   switch (stage) {
     case 'New / Unverified':
+      return 'Pending';
     case 'Confirmed':
       return 'Confirmed';
     case 'Printing / Packing':

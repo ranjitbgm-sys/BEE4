@@ -348,7 +348,10 @@ export function calculateAdminMetrics(
   const totalRevenue = validOrders.reduce((sum, o) => sum + o.total, 0);
   const totalOrders = orders.length;
   const pendingOrders = orders.filter(
-    (o) => o.status === 'Confirmed' || o.status === 'Preparing Shipment'
+    (o) =>
+      o.status === 'Pending' ||
+      o.status === 'Confirmed' ||
+      o.status === 'Preparing Shipment'
   ).length;
   const averageOrderValue =
     validOrders.length > 0 ? Math.round(totalRevenue / validOrders.length) : 0;
@@ -870,6 +873,9 @@ export function getCustomerOrders(
   const customerEmail = customer.email.trim().toLowerCase();
 
   return orders.filter((order) => {
+    if (order.userId && customer.id && order.userId === customer.id) {
+      return true;
+    }
     const orderPhone10 = normalizeIndianPhone10(order.customer.phone);
     const orderEmail = order.customer.email.trim().toLowerCase();
     const phoneMatch = customerPhone10.length === 10 && orderPhone10 === customerPhone10;
@@ -879,6 +885,7 @@ export function getCustomerOrders(
 }
 
 export const ORDER_TRACKING_STEPS: Exclude<OrderStatus, 'Cancelled'>[] = [
+  'Pending',
   'Confirmed',
   'Preparing Shipment',
   'Shipped',
