@@ -41,8 +41,12 @@ export type PaymentMethod = 'upi' | 'card' | 'cod';
 
 export type AdminModuleRoute =
   | 'dashboard'
+  | 'integrations'
   | 'orders'
   | 'returns'
+  | 'automations'
+  | 'reconciliation'
+  | 'analytics'
   | 'messages-reviews'
   | 'products'
   | 'inventory'
@@ -103,9 +107,52 @@ export interface Product {
   madeToOrder?: boolean;
   status?: ProductVisibilityStatus;
   damagedScrapCount?: number;
+  cogsCost?: number;
+  reserveForWebsite?: number;
+  marketplaceListings?: MarketplaceListingMap[];
   inStock: boolean;
   featured?: boolean;
   tag?: string;
+}
+
+export type MarketplaceChannel =
+  | 'bee4.in'
+  | 'Flipkart'
+  | 'Amazon'
+  | 'Meesho'
+  | 'Myntra'
+  | 'Ajio'
+  | 'Snapdeal'
+  | 'WhatsApp';
+
+export type CourierPartnerId =
+  | 'Shiprocket'
+  | 'Delhivery'
+  | 'BlueDart'
+  | 'India Post'
+  | 'Xpressbees';
+
+export interface MarketplaceListingMap {
+  id: string;
+  channel: MarketplaceChannel;
+  remoteSkuOrAsin: string;
+  listingId?: string;
+  packMultiplier: number;
+  channelStockOverride?: number | null;
+  active: boolean;
+}
+
+export interface MarketplaceIntegrationConfig {
+  id: string;
+  key: string;
+  name: string;
+  category: 'website' | 'marketplace' | 'courier';
+  active: boolean;
+  sellerId: string;
+  apiKey: string;
+  webhookUrl: string;
+  notes?: string;
+  lastSyncedAt?: string;
 }
 
 export interface CartItem {
@@ -160,6 +207,36 @@ export type FulfillmentStage =
 
 export type OrderChannel = 'UPI / Prepaid' | 'COD' | 'WhatsApp Order';
 
+export type OperationalOrderBucket =
+  | 'New / Upcoming'
+  | 'Ready for Process'
+  | 'Pending Label Generation'
+  | 'Pending Courier Handover'
+  | 'Shipped / In Transit'
+  | 'Delivered'
+  | 'Cancelled / RTO';
+
+export interface PackingVerificationProof {
+  verifiedSku: string;
+  verifiedAwb: string;
+  photoUrl?: string;
+  verifiedAt: string;
+  verifiedBy: string;
+  weightGramsActual?: number;
+}
+
+export interface OrderSettlementRecord {
+  commissionFee: number;
+  paymentGatewayFee: number;
+  shippingCharged: number;
+  chargedWeightGrams?: number;
+  expectedPayout: number;
+  actualSettlementReceived: number;
+  settledAt?: string;
+  utrNumber?: string;
+  bankDeposited?: boolean;
+}
+
 export interface OrderRecord {
   orderNumber: string;
   createdAt: string;
@@ -172,6 +249,8 @@ export interface OrderRecord {
   total: number;
   paymentMethod: PaymentMethod;
   orderChannel?: OrderChannel;
+  sourceChannel?: MarketplaceChannel;
+  externalOrderId?: string;
   couponCode?: string;
   customer: {
     fullName: string;
@@ -186,12 +265,18 @@ export interface OrderRecord {
   giftMessage: string;
   status: OrderStatus;
   fulfillmentStage?: FulfillmentStage;
+  operationalBucket?: OperationalOrderBucket;
+  slaDispatchBy?: string;
+  labelGeneratedAt?: string;
+  picklistGeneratedAt?: string;
   courierPartner?: string;
   awbNumber?: string;
   trackingUrl?: string;
   internalNotes?: string;
   refundStatus?: 'None' | 'Partially Refunded' | 'Refunded';
   refundedAmount?: number;
+  packingProof?: PackingVerificationProof;
+  settlement?: OrderSettlementRecord;
 }
 
 export interface CustomerInquiry {
@@ -328,9 +413,58 @@ export interface AdminAuditLog {
     | 'coupon'
     | 'settings'
     | 'customer'
+    | 'integration'
+    | 'automation'
+    | 'settlement'
     | 'auth';
   entityId: string;
   summary: string;
+}
+
+export type AutomationTrigger =
+  | 'new_order_placed'
+  | 'marketplace_csv_imported'
+  | 'order_status_changed'
+  | 'return_initiated'
+  | 'stock_below_threshold';
+
+export type AutomationConditionField =
+  | 'always'
+  | 'payment_method_eq'
+  | 'source_channel_eq'
+  | 'order_total_gte'
+  | 'reason_contains'
+  | 'state_eq';
+
+export type AutomationActionType =
+  | 'auto_accept_order'
+  | 'assign_courier'
+  | 'flag_crm_vip_or_rto'
+  | 'send_to_print_queue'
+  | 'generate_gst_label_ready'
+  | 'file_spf_alert';
+
+export interface AutomationRule {
+  id: string;
+  name: string;
+  enabled: boolean;
+  trigger: AutomationTrigger;
+  conditionField: AutomationConditionField;
+  conditionValue: string;
+  actionType: AutomationActionType;
+  actionValue: string;
+  executionCount: number;
+  lastExecutedAt?: string;
+  createdAt: string;
+}
+
+export interface MonthlyAdSpendRecord {
+  id: string;
+  month: string; // YYYY-MM
+  channel: MarketplaceChannel | 'All Channels';
+  amount: number;
+  notes?: string;
+  updatedAt: string;
 }
 
 export type ReturnReason =
@@ -398,9 +532,25 @@ export interface ReturnRequestRecord {
   refundMode?: RefundMode;
   refundUtr?: string;
   issuedCouponCode?: string;
+  sourceChannel?: MarketplaceChannel;
+  receivedAtHub?: boolean;
+  receivedAtHubDate?: string;
+  claimFiled?: boolean;
+  claimFiledAt?: string;
+  claimReferenceId?: string;
+  qcOutcome?: 'Pending' | 'OK_Sellable' | 'Damaged_Unsellable';
+  cancelledAfterLabel?: boolean;
   createdAt: string;
   updatedAt: string;
 }
+
+export type ReturnBucket =
+  | 'New Returns'
+  | 'In Transit to Warehouse'
+  | 'Cancelled Returns'
+  | 'Cancelled After Label Print'
+  | 'Received & QC Done'
+  | 'Claim Filed (SPF)';
 
 export interface InventoryAdjustmentRecord {
   id: string;

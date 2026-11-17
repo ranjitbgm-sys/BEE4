@@ -4,12 +4,14 @@ import {
   ArrowUpRight,
   CheckCircle2,
   Clock,
+  Download,
   IndianRupee,
   MessageCircle,
   PackageCheck,
   Printer,
   RotateCcw,
   Search,
+  ShieldAlert,
   Sparkles,
   Truck,
   X,
@@ -18,14 +20,24 @@ import {
 import type {
   CrmCustomerFlag,
   FilamentSpool,
+  MarketplaceChannel,
   OrderRecord,
   Product,
   RefundMode,
+  ReturnBucket,
   ReturnRequestRecord,
   ReturnRequestStatus,
   ReturnResolutionType,
 } from '../../types';
 import type { CrmCustomerSummary } from '../../utils/adminLogic';
+import {
+  buildSpfClaimDossierCsv,
+  calculateReturnOverdueDays,
+  getReturnBucket,
+  isReturnOverdueUnreceived,
+  MARKETPLACE_CHANNELS,
+  RETURN_BUCKETS,
+} from '../../utils/omnichannelLogic';
 import {
   buildRmaWhatsAppTemplate,
   calculateReturnKpis,
@@ -51,7 +63,7 @@ interface AdminReturnsTabProps {
   onUpdateReturnRequest: (
     prevReturn: ReturnRequestRecord,
     nextUpdates: RmaTransitionUpdates,
-    options?: { forceQueuePrint?: boolean }
+    options?: { forceQueuePrint?: boolean; receivedAtHub?: boolean; claimFiled?: boolean; claimReferenceId?: string; qcOutcome?: ReturnRequestRecord['qcOutcome'] }
   ) => void;
   onInspectOrder: (orderNumber: string) => void;
 }
@@ -80,6 +92,11 @@ export function AdminReturnsTab({
 }: AdminReturnsTabProps) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<ReturnRequestStatus | 'All'>('All');
+  const [bucketFilter, setBucketFilter] = useState<ReturnBucket | 'All'>('All');
+  const [channelFilter, setChannelFilter] = useState<MarketplaceChannel | 'All'>('All');
+  const [overdueFilter, setOverdueFilter] = useState<'all' | 10 | 20 | 30>('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [resolutionFilter, setResolutionFilter] = useState<ReturnResolutionType | 'All'>('All');
   const [selectedRmaNumber, setSelectedRmaNumber] = useState<string | null>(
     initialSelectedRmaNumber || null
@@ -156,10 +173,28 @@ export function AdminReturnsTab({
     setAdminNoteDraft(selectedRma.adminNote ?? '');
   }, [selectedRma]);
 
+  const overdue10Count = useMemo(
+    () => returns.filter((r) => isReturnOverdueUnreceived(r, 10)).length,
+    [returns]
+  );
+  const overdue20Count = useMemo(
+    () => returns.filter((r) => isReturnOverdueUnreceived(r, 20)).length,
+    [returns]
+  );
+  const overdue30Count = useMemo(
+    () => returns.filter((r) => isReturnOverdueUnreceived(r, 30)).length,
+    [returns]
+  );
+
   const filteredReturns = useMemo(() => {
     const q = search.trim().toLowerCase();
     return returns.filter((r) => {
       if (statusFilter !== 'All' && r.status !== statusFilter) return false;
+      if (bucketFilter !== 'All' && getReturnBucket(r) !== bucketFilter) return false;
+      if (channelFilter !== 'All' && (r.sourceChannel || 'bee4.in') !== channelFilter) return false;
+      if (overdueFilter !== 'all' && !isReturnOverdueUnreceived(r, overdueFilter)) return false;
+      if (dateFrom && r.createdAt.slice(0, 10) < dateFrom) return false;
+      if (dateTo && r.createdAt.slice(0, 10) > dateTo) return false;
       if (resolutionFilter !== 'All' && r.resolutionType !== resolutionFilter) return false;
       if (!q) return true;
       return [
@@ -175,7 +210,34 @@ export function AdminReturnsTab({
         .toLowerCase()
         .includes(q);
     });
-  }, [returns, search, statusFilter, resolutionFilter]);
+  }, [
+    returns,
+    search,
+    statusFilter,
+    bucketFilter,
+    channelFilter,
+    overdueFilter,
+    dateFrom,
+    dateTo,
+    resolutionFilter,
+  ]);
+
+  const handleExportSpfDossier = () => {
+    const targetList =
+      overdueFilter !== 'all'
+        ? filteredReturns
+        : returns.filter((r) => !r.receivedAtHub || r.qcOutcome === 'Damaged_Unsellable');
+    const csv = buildSpfClaimDossierCsv(targetList, orders);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `BEE4-SPF-Claim-Dossier-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
 
   const buildDraftUpdates = (): RmaTransitionUpdates => ({
     status: statusDraft,
@@ -193,6 +255,36 @@ export function AdminReturnsTab({
   const handleSaveRma = () => {
     if (!selectedRma) return;
     onUpdateReturnRequest(selectedRma, buildDraftUpdates());
+  };
+
+  const handleQuickQcDecision = (outcome: 'ok' | 'damaged') => {
+    if (!selectedRma) return;
+    const base = buildDraftUpdates();
+    if (outcome === 'ok') {
+      onUpdateReturnRequest(
+        selectedRma,
+        {
+          ...base,
+          status: 'QC Passed — Restocked to Inventory',
+          autoRestockEnabled: true,
+        },
+        { receivedAtHub: true, qcOutcome: 'OK_Sellable' }
+      );
+      setStatusDraft('QC Passed — Restocked to Inventory');
+      setAutoRestockDraft(true);
+    } else {
+      onUpdateReturnRequest(
+        selectedRma,
+        {
+          ...base,
+          status: 'QC Failed — Damaged / Scrap PLA (Do Not Restock)',
+          autoRestockEnabled: false,
+        },
+        { receivedAtHub: true, qcOutcome: 'Damaged_Unsellable' }
+      );
+      setStatusDraft('QC Failed — Damaged / Scrap PLA (Do Not Restock)');
+      setAutoRestockDraft(false);
+    }
   };
 
   const handleSendTo3dPrintQueue = () => {
@@ -291,6 +383,20 @@ export function AdminReturnsTab({
 
           <div className="flex flex-wrap items-center gap-2">
             <select
+              aria-label="Filter returns by channel"
+              value={channelFilter}
+              onChange={(e) => setChannelFilter(e.target.value as MarketplaceChannel | 'All')}
+              className="px-3 py-2 rounded-xl glass-input text-xs font-semibold focus:outline-none"
+            >
+              <option value="All">All Channels</option>
+              {MARKETPLACE_CHANNELS.map((ch) => (
+                <option key={ch} value={ch}>
+                  {ch}
+                </option>
+              ))}
+            </select>
+
+            <select
               aria-label="Filter by preferred resolution"
               value={resolutionFilter}
               onChange={(e) =>
@@ -306,13 +412,106 @@ export function AdminReturnsTab({
               <option value="Refund to Original Payment / UPI ID">Refund to UPI / Original</option>
             </select>
 
+            <button
+              type="button"
+              onClick={handleExportSpfDossier}
+              className="px-3.5 py-2 rounded-xl glass-btn-amber text-white text-xs font-semibold inline-flex items-center gap-1.5"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Export SPF Claim Dossier</span>
+            </button>
+
             <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 tabular-nums px-2">
               {filteredReturns.length} RMAs
             </span>
           </div>
         </div>
 
-        {/* Status Pills */}
+        {/* 10/20/30-Day Unreceived Overdue Pills + Custom Date Range */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pb-1 border-b border-zinc-900/8 dark:border-white/10">
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => setOverdueFilter('all')}
+              className={`px-3 py-1 rounded-full text-[11px] font-semibold ${
+                overdueFilter === 'all' ? 'glass-btn-ink' : 'glass-subtle text-zinc-700 dark:text-zinc-300'
+              }`}
+            >
+              All Ages
+            </button>
+            <button
+              type="button"
+              onClick={() => setOverdueFilter(10)}
+              className={`px-3 py-1 rounded-full text-[11px] font-semibold tabular-nums ${
+                overdueFilter === 10
+                  ? 'bg-amber-500 text-zinc-950 font-bold'
+                  : 'bg-amber-500/12 text-amber-800 dark:text-amber-300'
+              }`}
+            >
+              10+ Days Overdue ({overdue10Count})
+            </button>
+            <button
+              type="button"
+              onClick={() => setOverdueFilter(20)}
+              className={`px-3 py-1 rounded-full text-[11px] font-semibold tabular-nums ${
+                overdueFilter === 20
+                  ? 'bg-orange-500 text-white font-bold'
+                  : 'bg-orange-500/12 text-orange-800 dark:text-orange-300'
+              }`}
+            >
+              20+ Days Overdue ({overdue20Count})
+            </button>
+            <button
+              type="button"
+              onClick={() => setOverdueFilter(30)}
+              className={`px-3 py-1 rounded-full text-[11px] font-semibold tabular-nums ${
+                overdueFilter === 30
+                  ? 'bg-red-600 text-white font-bold'
+                  : 'bg-red-500/15 text-red-700 dark:text-red-300'
+              }`}
+            >
+              30+ Days Overdue ({overdue30Count})
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1.5 text-xs">
+            <input
+              type="date"
+              aria-label="Returns from date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="px-2.5 py-1 rounded-xl glass-input text-[11px]"
+            />
+            <span className="text-zinc-400">to</span>
+            <input
+              type="date"
+              aria-label="Returns to date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="px-2.5 py-1 rounded-xl glass-input text-[11px]"
+            />
+          </div>
+        </div>
+
+        {/* 6 Base.com Operational Return Buckets */}
+        <div className="flex flex-wrap gap-1.5">
+          {(['All', ...RETURN_BUCKETS] as const).map((bkt) => (
+            <button
+              key={bkt}
+              type="button"
+              onClick={() => setBucketFilter(bkt)}
+              className={`px-3 py-1 rounded-full text-[11px] font-semibold transition-all whitespace-nowrap ${
+                bucketFilter === bkt
+                  ? 'bg-amber-500 text-zinc-950 font-bold'
+                  : 'glass-subtle text-zinc-700 dark:text-zinc-300 hover:bg-white/80 dark:hover:bg-white/10'
+              }`}
+            >
+              {bkt}
+            </button>
+          ))}
+        </div>
+
+        {/* Detailed Workflow Status Pills */}
         <div className="flex flex-wrap gap-1.5">
           {(['All', ...RMA_WORKFLOW_STATUSES] as const).map((st) => (
             <button
@@ -414,6 +613,17 @@ export function AdminReturnsTab({
                           {badge.shortLabel}
                         </span>
                       )}
+                      {(() => {
+                        const overdueDays = calculateReturnOverdueDays(rma);
+                        if (!rma.receivedAtHub && overdueDays >= 10) {
+                          return (
+                            <div className="text-[10px] font-bold text-red-600 dark:text-red-400 mt-1 tabular-nums">
+                              {overdueDays}d Overdue (Not Recvd)
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
                       {rma.isRestocked && (
                         <div className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 mt-1">
                           Restocked ✓
@@ -673,6 +883,39 @@ export function AdminReturnsTab({
                     </span>
                   )}
                 </div>
+              </div>
+
+              {/* 1-Click Hub Receipt & QC Resolution Controls */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleQuickQcDecision('ok')}
+                  className="px-3 py-2 rounded-xl glass-btn-emerald text-white text-xs font-semibold inline-flex items-center justify-center gap-1.5"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Mark OK (Sellable)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickQcDecision('damaged')}
+                  className="px-3 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-semibold inline-flex items-center justify-center gap-1.5"
+                >
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span>Mark Damaged (P&amp;L)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    onUpdateReturnRequest(selectedRma, buildDraftUpdates(), {
+                      claimFiled: true,
+                      claimReferenceId: `SPF-${selectedRma.rmaNumber}`,
+                    })
+                  }
+                  className="px-3 py-2 rounded-xl glass-btn-secondary text-xs font-semibold inline-flex items-center justify-center gap-1.5"
+                >
+                  <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
+                  <span>{selectedRma.claimFiled ? 'SPF Filed ✓' : 'File SPF Claim'}</span>
+                </button>
               </div>
 
               <div>

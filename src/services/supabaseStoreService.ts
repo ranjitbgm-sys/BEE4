@@ -9,6 +9,10 @@ import { DEFAULT_STORE_SETTINGS, hydrateProductAdminFields, INITIAL_PRODUCTS } f
 import {
   AdminAuditLog,
   AgeGroup,
+  AutomationActionType,
+  AutomationConditionField,
+  AutomationRule,
+  AutomationTrigger,
   CartItem,
   CouponRecord,
   CrmCustomerFlag,
@@ -21,9 +25,16 @@ import {
   GiftOccasion,
   HsnCode,
   InventoryAdjustmentRecord,
+  MarketplaceChannel,
+  MarketplaceIntegrationConfig,
+  MarketplaceListingMap,
+  MonthlyAdSpendRecord,
+  OperationalOrderBucket,
   OrderChannel,
   OrderRecord,
+  OrderSettlementRecord,
   OrderStatus,
+  PackingVerificationProof,
   PaymentMethod,
   PrimaryStoreCategory,
   PrintJobRecord,
@@ -545,6 +556,12 @@ function toProductRow(product: Product): Record<string, unknown> {
     made_to_order: Boolean(product.madeToOrder ?? false),
     status: VALID_VISIBILITY.has(product.status || '') ? product.status : 'Active',
     damaged_scrap_count: Math.max(0, Number(product.damagedScrapCount ?? 0)),
+    cogs_cost:
+      typeof product.cogsCost === 'number' && product.cogsCost >= 0 ? product.cogsCost : null,
+    reserve_for_website: Math.max(0, Math.round(Number(product.reserveForWebsite ?? 0))),
+    marketplace_listings: Array.isArray(product.marketplaceListings)
+      ? product.marketplaceListings
+      : [],
     in_stock: Boolean(product.inStock),
     featured: Boolean(product.featured),
     tag: product.tag && product.tag.trim() ? clampSingleLine(product.tag, 40) : null,
@@ -664,6 +681,17 @@ function fromProductRow(data: Record<string, unknown>, idx: number): Product | n
       typeof (data.damaged_scrap_count ?? data.damagedScrapCount) === 'number'
         ? Number(data.damaged_scrap_count ?? data.damagedScrapCount)
         : 0,
+    cogsCost:
+      typeof (data.cogs_cost ?? data.cogsCost) === 'number'
+        ? Number(data.cogs_cost ?? data.cogsCost)
+        : undefined,
+    reserveForWebsite:
+      typeof (data.reserve_for_website ?? data.reserveForWebsite) === 'number'
+        ? Number(data.reserve_for_website ?? data.reserveForWebsite)
+        : 0,
+    marketplaceListings: Array.isArray(data.marketplace_listings ?? data.marketplaceListings)
+      ? ((data.marketplace_listings ?? data.marketplaceListings) as MarketplaceListingMap[])
+      : undefined,
     inStock: Boolean(data.in_stock ?? data.inStock),
     featured: Boolean(data.featured),
     tag: typeof data.tag === 'string' && data.tag ? data.tag : undefined,
@@ -712,7 +740,15 @@ export async function saveProductToSupabase(product: Product): Promise<void> {
   if (!supabase) return;
   const row = toProductRow(product);
   const { error } = await supabase.from('products').upsert(row, { onConflict: 'id' });
-  if (error) console.error('Supabase saveProduct error:', error.message);
+  if (error && isMissingSchemaError(error)) {
+    const legacyRow = { ...row };
+    delete legacyRow.cogs_cost;
+    delete legacyRow.reserve_for_website;
+    delete legacyRow.marketplace_listings;
+    await supabase.from('products').upsert(legacyRow, { onConflict: 'id' });
+  } else if (error) {
+    console.error('Supabase saveProduct error:', error.message);
+  }
 }
 
 export async function deleteProductFromSupabase(productId: string): Promise<void> {
@@ -1209,6 +1245,27 @@ function fromOrderRow(d: Record<string, unknown>): OrderRecord {
     giftMessage: String(d.gift_message ?? d.giftMessage ?? ''),
     status: (d.status as OrderStatus) || 'Confirmed',
     fulfillmentStage: (d.fulfillment_stage ?? d.fulfillmentStage) as FulfillmentStage | undefined,
+    sourceChannel:
+      ((d.source_channel ?? d.sourceChannel) as MarketplaceChannel) ||
+      ((d.order_channel ?? d.orderChannel) === 'WhatsApp Order' ? 'WhatsApp' : 'bee4.in'),
+    externalOrderId: typeof (d.external_order_id ?? d.externalOrderId) === 'string'
+      ? String(d.external_order_id ?? d.externalOrderId)
+      : undefined,
+    operationalBucket: (d.operational_bucket ?? d.operationalBucket) as
+      | OperationalOrderBucket
+      | undefined,
+    slaDispatchBy:
+      typeof (d.sla_dispatch_by ?? d.slaDispatchBy) === 'string'
+        ? String(d.sla_dispatch_by ?? d.slaDispatchBy)
+        : undefined,
+    labelGeneratedAt:
+      typeof (d.label_generated_at ?? d.labelGeneratedAt) === 'string'
+        ? String(d.label_generated_at ?? d.labelGeneratedAt)
+        : undefined,
+    picklistGeneratedAt:
+      typeof (d.picklist_generated_at ?? d.picklistGeneratedAt) === 'string'
+        ? String(d.picklist_generated_at ?? d.picklistGeneratedAt)
+        : undefined,
     courierPartner: String(d.courier_partner ?? d.courierPartner ?? ''),
     awbNumber: String(d.awb_number ?? d.awbNumber ?? ''),
     trackingUrl: String(d.tracking_url ?? d.trackingUrl ?? ''),
@@ -1220,6 +1277,15 @@ function fromOrderRow(d: Record<string, unknown>): OrderRecord {
           ? (d.refundStatus as OrderRecord['refundStatus'])
           : 'None',
     refundedAmount: Number(d.refunded_amount ?? d.refundedAmount ?? 0),
+    packingProof:
+      (d.packing_proof ?? d.packingProof) &&
+      typeof (d.packing_proof ?? d.packingProof) === 'object'
+        ? ((d.packing_proof ?? d.packingProof) as PackingVerificationProof)
+        : undefined,
+    settlement:
+      d.settlement && typeof d.settlement === 'object'
+        ? (d.settlement as OrderSettlementRecord)
+        : undefined,
   };
 }
 
@@ -1307,46 +1373,66 @@ export async function createOrderInSupabase(
     ? order.customer.pinCode
     : '813103';
 
-  const { error } = await supabase.from('orders').upsert(
-    {
-      order_number: orderNumber,
-      user_id: userId || null,
-      items: order.items.slice(0, 50),
-      subtotal: Math.max(0, Number(order.subtotal) || 0),
-      discount: Math.max(0, Number(order.discount) || 0),
-      shipping_fee: Math.max(0, Number(order.shippingFee) || 0),
-      gift_wrap_fee: Math.max(0, Number(order.giftWrapFee) || 0),
-      cod_fee: Math.max(0, Number(order.codFee ?? 0) || 0),
-      total: Math.max(0, Number(order.total) || 0),
-      payment_method: order.paymentMethod,
-      order_channel:
-        order.orderChannel || (order.paymentMethod === 'cod' ? 'COD' : 'UPI / Prepaid'),
-      coupon_code: clampSingleLine(order.couponCode ?? '', 32),
-      customer: {
-        fullName: clampSingleLine(order.customer.fullName, 100, 'Customer'),
-        phone: clampSingleLine(order.customer.phone, 15, '9800000000'),
-        email: clampSingleLine(order.customer.email, 160),
-        address: clampSingleLine(order.customer.address, 300, 'India'),
-        city: clampSingleLine(order.customer.city, 80, 'Banka'),
-        state: clampSingleLine(order.customer.state, 80, 'Bihar'),
-        pinCode,
-      },
-      gift_wrap: Boolean(order.giftWrap),
-      gift_message: clampStr(order.giftMessage, 300),
-      status: order.status || 'Confirmed',
-      fulfillment_stage: order.fulfillmentStage || 'New / Unverified',
-      courier_partner: '',
-      awb_number: '',
-      tracking_url: '',
-      internal_notes: '',
-      refund_status: order.refundStatus || 'None',
-      refunded_amount: Number(order.refundedAmount ?? 0),
-      created_at: order.createdAt || new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+  const fullRow: Record<string, unknown> = {
+    order_number: orderNumber,
+    user_id: userId || null,
+    items: order.items.slice(0, 50),
+    subtotal: Math.max(0, Number(order.subtotal) || 0),
+    discount: Math.max(0, Number(order.discount) || 0),
+    shipping_fee: Math.max(0, Number(order.shippingFee) || 0),
+    gift_wrap_fee: Math.max(0, Number(order.giftWrapFee) || 0),
+    cod_fee: Math.max(0, Number(order.codFee ?? 0) || 0),
+    total: Math.max(0, Number(order.total) || 0),
+    payment_method: order.paymentMethod,
+    order_channel:
+      order.orderChannel || (order.paymentMethod === 'cod' ? 'COD' : 'UPI / Prepaid'),
+    source_channel: order.sourceChannel || 'bee4.in',
+    external_order_id: clampSingleLine(order.externalOrderId ?? '', 64),
+    coupon_code: clampSingleLine(order.couponCode ?? '', 32),
+    customer: {
+      fullName: clampSingleLine(order.customer.fullName, 100, 'Customer'),
+      phone: clampSingleLine(order.customer.phone, 15, '9800000000'),
+      email: clampSingleLine(order.customer.email, 160),
+      address: clampSingleLine(order.customer.address, 300, 'India'),
+      city: clampSingleLine(order.customer.city, 80, 'Banka'),
+      state: clampSingleLine(order.customer.state, 80, 'Bihar'),
+      pinCode,
     },
-    { onConflict: 'order_number' }
-  );
-  if (error) console.error('Supabase createOrder error:', error.message);
+    gift_wrap: Boolean(order.giftWrap),
+    gift_message: clampStr(order.giftMessage, 300),
+    status: order.status || 'Confirmed',
+    fulfillment_stage: order.fulfillmentStage || 'New / Unverified',
+    operational_bucket: order.operationalBucket || 'New / Upcoming',
+    sla_dispatch_by: order.slaDispatchBy || null,
+    label_generated_at: order.labelGeneratedAt || null,
+    picklist_generated_at: order.picklistGeneratedAt || null,
+    courier_partner: sanitizeSingleLine(order.courierPartner ?? '', 64),
+    awb_number: sanitizeSingleLine(order.awbNumber ?? '', 64),
+    tracking_url: sanitizeSingleLine(order.trackingUrl ?? '', 300),
+    internal_notes: sanitizeRichInput(order.internalNotes ?? '', 500),
+    refund_status: order.refundStatus || 'None',
+    refunded_amount: Number(order.refundedAmount ?? 0),
+    packing_proof: order.packingProof ?? null,
+    settlement: order.settlement ?? null,
+    created_at: order.createdAt || new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error } = await supabase.from('orders').upsert(fullRow, { onConflict: 'order_number' });
+  if (error && isMissingSchemaError(error)) {
+    const legacyRow = { ...fullRow };
+    delete legacyRow.source_channel;
+    delete legacyRow.external_order_id;
+    delete legacyRow.operational_bucket;
+    delete legacyRow.sla_dispatch_by;
+    delete legacyRow.label_generated_at;
+    delete legacyRow.picklist_generated_at;
+    delete legacyRow.packing_proof;
+    delete legacyRow.settlement;
+    await supabase.from('orders').upsert(legacyRow, { onConflict: 'order_number' });
+  } else if (error) {
+    console.error('Supabase createOrder error:', error.message);
+  }
 }
 
 export async function updateOrderStatusInSupabase(
@@ -1370,22 +1456,52 @@ export async function updateOrderLogisticsInSupabase(
     awbNumber?: string;
     trackingUrl?: string;
     internalNotes?: string;
+    operationalBucket?: OperationalOrderBucket;
+    labelGeneratedAt?: string;
+    picklistGeneratedAt?: string;
+    packingProof?: PackingVerificationProof;
+    settlement?: OrderSettlementRecord;
   }
 ): Promise<void> {
   if (!supabase) return;
-  const { error } = await supabase
-    .from('orders')
-    .update({
-      status: updates.status,
-      fulfillment_stage: updates.fulfillmentStage,
-      courier_partner: sanitizeSingleLine(updates.courierPartner ?? '', 64),
-      awb_number: sanitizeSingleLine(updates.awbNumber ?? '', 64),
-      tracking_url: sanitizeSingleLine(updates.trackingUrl ?? '', 300),
-      internal_notes: sanitizeRichInput(updates.internalNotes ?? '', 500),
-      updated_at: new Date().toISOString(),
-    })
-    .eq('order_number', sanitizeId(orderNumber, 'BEE4'));
-  if (error) console.error('Supabase updateOrderLogistics error:', error.message);
+  const payload: Record<string, unknown> = {
+    status: updates.status,
+    fulfillment_stage: updates.fulfillmentStage,
+    courier_partner: sanitizeSingleLine(updates.courierPartner ?? '', 64),
+    awb_number: sanitizeSingleLine(updates.awbNumber ?? '', 64),
+    tracking_url: sanitizeSingleLine(updates.trackingUrl ?? '', 300),
+    internal_notes: sanitizeRichInput(updates.internalNotes ?? '', 500),
+    updated_at: new Date().toISOString(),
+  };
+  if (updates.operationalBucket !== undefined) {
+    payload.operational_bucket = updates.operationalBucket;
+  }
+  if (updates.labelGeneratedAt !== undefined) {
+    payload.label_generated_at = updates.labelGeneratedAt;
+  }
+  if (updates.picklistGeneratedAt !== undefined) {
+    payload.picklist_generated_at = updates.picklistGeneratedAt;
+  }
+  if (updates.packingProof !== undefined) {
+    payload.packing_proof = updates.packingProof;
+  }
+  if (updates.settlement !== undefined) {
+    payload.settlement = updates.settlement;
+  }
+
+  const cleanNo = sanitizeId(orderNumber, 'BEE4');
+  const { error } = await supabase.from('orders').update(payload).eq('order_number', cleanNo);
+  if (error && isMissingSchemaError(error)) {
+    const legacy = { ...payload };
+    delete legacy.operational_bucket;
+    delete legacy.label_generated_at;
+    delete legacy.picklist_generated_at;
+    delete legacy.packing_proof;
+    delete legacy.settlement;
+    await supabase.from('orders').update(legacy).eq('order_number', cleanNo);
+  } else if (error) {
+    console.error('Supabase updateOrderLogistics error:', error.message);
+  }
 }
 
 // ============================================================================
@@ -1730,17 +1846,21 @@ async function syncCustomerRecordToSupabaseCustomersTable(
 
 export async function ensureSupabaseCustomerProfile(
   sbUser: User,
-  guestWishlistIds: string[]
+  guestWishlistIds: string[],
+  hints?: { fullName?: string; phone?: string }
 ): Promise<{ profile: CustomerProfile }> {
   const displayName = clampStr(
-    (sbUser.user_metadata?.full_name as string | undefined) ?? sbUser.email?.split('@')[0],
+    (sbUser.user_metadata?.full_name as string | undefined) ||
+      hints?.fullName ||
+      sbUser.email?.split('@')[0],
     100,
     'BEE4 Shopper'
   );
-  const metaPhone =
+  const rawHintPhone =
     typeof sbUser.user_metadata?.phone === 'string'
-      ? sbUser.user_metadata.phone.replace(/\D/g, '').slice(-10)
-      : '';
+      ? sbUser.user_metadata.phone
+      : hints?.phone || '';
+  const metaPhone = rawHintPhone.replace(/\D/g, '').slice(-10);
   const safeEmail = clampStr(sbUser.email, 160);
   const emailVerified = Boolean(sbUser.email_confirmed_at);
   const emailConfirmedAt = sbUser.email_confirmed_at ?? undefined;
@@ -2008,6 +2128,20 @@ function fromReturnRow(d: Record<string, unknown>): ReturnRequestRecord {
     refundMode: (d.refund_mode ?? d.refundMode) as RefundMode | undefined,
     refundUtr: String(d.refund_utr ?? d.refundUtr ?? ''),
     issuedCouponCode: String(d.issued_coupon_code ?? d.issuedCouponCode ?? ''),
+    sourceChannel: ((d.source_channel ?? d.sourceChannel) as MarketplaceChannel) || 'bee4.in',
+    receivedAtHub: Boolean(d.received_at_hub ?? d.receivedAtHub),
+    receivedAtHubDate:
+      typeof (d.received_at_hub_date ?? d.receivedAtHubDate) === 'string'
+        ? String(d.received_at_hub_date ?? d.receivedAtHubDate)
+        : undefined,
+    claimFiled: Boolean(d.claim_filed ?? d.claimFiled),
+    claimFiledAt:
+      typeof (d.claim_filed_at ?? d.claimFiledAt) === 'string'
+        ? String(d.claim_filed_at ?? d.claimFiledAt)
+        : undefined,
+    claimReferenceId: String(d.claim_reference_id ?? d.claimReferenceId ?? ''),
+    qcOutcome: (d.qc_outcome ?? d.qcOutcome) as ReturnRequestRecord['qcOutcome'] | undefined,
+    cancelledAfterLabel: Boolean(d.cancelled_after_label ?? d.cancelledAfterLabel),
     createdAt: String(d.created_at ?? d.createdAt ?? new Date().toISOString()),
     updatedAt: String(d.updated_at ?? d.updatedAt ?? new Date().toISOString()),
   };
@@ -2046,6 +2180,14 @@ function toReturnRow(rma: ReturnRequestRecord, userId?: string | null): Record<s
     refund_mode: rma.refundMode ?? null,
     refund_utr: clampSingleLine(rma.refundUtr ?? '', 80),
     issued_coupon_code: clampSingleLine(rma.issuedCouponCode ?? '', 40),
+    source_channel: rma.sourceChannel || 'bee4.in',
+    received_at_hub: Boolean(rma.receivedAtHub),
+    received_at_hub_date: rma.receivedAtHubDate || null,
+    claim_filed: Boolean(rma.claimFiled),
+    claim_filed_at: rma.claimFiledAt || null,
+    claim_reference_id: clampSingleLine(rma.claimReferenceId ?? '', 64),
+    qc_outcome: rma.qcOutcome || 'Pending',
+    cancelled_after_label: Boolean(rma.cancelledAfterLabel),
     created_at: rma.createdAt || new Date().toISOString(),
     updated_at: rma.updatedAt || new Date().toISOString(),
   };
@@ -2669,6 +2811,7 @@ export async function purgeTestDataInSupabase(): Promise<{
     { table: 'inventory_adjustments', pk: 'id' },
     { table: 'admin_logs', pk: 'id' },
     { table: 'customers', pk: 'id' },
+    { table: 'ad_spend_logs', pk: 'id' },
   ];
 
   const clearedTables: string[] = [];
@@ -2690,4 +2833,215 @@ export async function purgeTestDataInSupabase(): Promise<{
   );
 
   return { clearedTables, errors };
+}
+
+// ============================================================================
+// Omnichannel Marketplace Integrations, Automation Rules & Ad Spend Logs
+// ============================================================================
+
+export function subscribeMarketplaceIntegrationsAdmin(
+  onData: (configs: MarketplaceIntegrationConfig[]) => void
+): () => void {
+  const client = supabase;
+  if (!client) return () => {};
+  const load = async () => {
+    try {
+      const { data, error } = await client.from('marketplace_integrations').select('*');
+      if (error || !data || data.length === 0) return;
+      onData(
+        data.map((d) => ({
+          id: String(d.id ?? ''),
+          key: String(d.key ?? ''),
+          name: String(d.name ?? ''),
+          category: ((d.category as MarketplaceIntegrationConfig['category']) || 'marketplace'),
+          active: Boolean(d.active),
+          sellerId: String(d.seller_id ?? ''),
+          apiKey: String(d.api_key ?? ''),
+          webhookUrl: String(d.webhook_url ?? ''),
+          notes: typeof d.notes === 'string' ? d.notes : '',
+          lastSyncedAt: typeof d.last_synced_at === 'string' ? d.last_synced_at : undefined,
+        }))
+      );
+    } catch {
+      // Optional table fallback
+    }
+  };
+  void load();
+  const channel = client
+    .channel('bee4-admin-marketplace-integrations')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'marketplace_integrations' },
+      () => {
+        void load();
+      }
+    )
+    .subscribe();
+  return () => {
+    void client.removeChannel(channel);
+  };
+}
+
+export async function saveMarketplaceIntegrationToSupabase(
+  config: MarketplaceIntegrationConfig
+): Promise<void> {
+  const client = supabase;
+  if (!client) return;
+  try {
+    await client.from('marketplace_integrations').upsert(
+      {
+        id: sanitizeId(config.id, 'conn'),
+        key: sanitizeSingleLine(config.key, 64),
+        name: sanitizeSingleLine(config.name, 120),
+        category: config.category,
+        active: Boolean(config.active),
+        seller_id: sanitizeSingleLine(config.sellerId, 120),
+        api_key: sanitizeSingleLine(config.apiKey, 240),
+        webhook_url: sanitizeSingleLine(config.webhookUrl, 300),
+        notes: sanitizeRichInput(config.notes ?? '', 400),
+        last_synced_at: config.lastSyncedAt || null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'id' }
+    );
+  } catch {
+    // Graceful localStorage fallback
+  }
+}
+
+export function subscribeAutomationRulesAdmin(
+  onData: (rules: AutomationRule[]) => void
+): () => void {
+  const client = supabase;
+  if (!client) return () => {};
+  const load = async () => {
+    try {
+      const { data, error } = await client
+        .from('automation_rules')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error || !data || data.length === 0) return;
+      onData(
+        data.map((d) => ({
+          id: String(d.id ?? ''),
+          name: String(d.name ?? ''),
+          enabled: Boolean(d.enabled),
+          trigger: (d.trigger as AutomationTrigger) || 'new_order_placed',
+          conditionField: (d.condition_field as AutomationConditionField) || 'always',
+          conditionValue: String(d.condition_value ?? ''),
+          actionType: (d.action_type as AutomationActionType) || 'auto_accept_order',
+          actionValue: String(d.action_value ?? ''),
+          executionCount: Number(d.execution_count ?? 0),
+          lastExecutedAt: typeof d.last_executed_at === 'string' ? d.last_executed_at : undefined,
+          createdAt: String(d.created_at ?? new Date().toISOString()),
+        }))
+      );
+    } catch {
+      // Optional table fallback
+    }
+  };
+  void load();
+  const channel = client
+    .channel('bee4-admin-automation-rules')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'automation_rules' }, () => {
+      void load();
+    })
+    .subscribe();
+  return () => {
+    void client.removeChannel(channel);
+  };
+}
+
+export async function saveAutomationRuleToSupabase(rule: AutomationRule): Promise<void> {
+  const client = supabase;
+  if (!client) return;
+  try {
+    await client.from('automation_rules').upsert(
+      {
+        id: sanitizeId(rule.id, 'rule'),
+        name: sanitizeSingleLine(rule.name, 140),
+        enabled: Boolean(rule.enabled),
+        trigger: rule.trigger,
+        condition_field: rule.conditionField,
+        condition_value: sanitizeSingleLine(rule.conditionValue, 120),
+        action_type: rule.actionType,
+        action_value: sanitizeSingleLine(rule.actionValue, 120),
+        execution_count: Math.max(0, Number(rule.executionCount) || 0),
+        last_executed_at: rule.lastExecutedAt || null,
+        created_at: rule.createdAt || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'id' }
+    );
+  } catch {
+    // Graceful localStorage fallback
+  }
+}
+
+export async function deleteAutomationRuleFromSupabase(ruleId: string): Promise<void> {
+  const client = supabase;
+  if (!client) return;
+  try {
+    await client.from('automation_rules').delete().eq('id', sanitizeId(ruleId, 'rule'));
+  } catch {
+    // Ignore
+  }
+}
+
+export function subscribeAdSpendLogsAdmin(
+  onData: (logs: MonthlyAdSpendRecord[]) => void
+): () => void {
+  const client = supabase;
+  if (!client) return () => {};
+  const load = async () => {
+    try {
+      const { data, error } = await client
+        .from('ad_spend_logs')
+        .select('*')
+        .order('month', { ascending: false });
+      if (error || !data) return;
+      onData(
+        data.map((d) => ({
+          id: String(d.id ?? ''),
+          month: String(d.month ?? ''),
+          channel: ((d.channel as MonthlyAdSpendRecord['channel']) || 'All Channels'),
+          amount: Number(d.amount ?? 0),
+          notes: typeof d.notes === 'string' ? d.notes : '',
+          updatedAt: String(d.updated_at ?? new Date().toISOString()),
+        }))
+      );
+    } catch {
+      // Optional table fallback
+    }
+  };
+  void load();
+  const channel = client
+    .channel('bee4-admin-ad-spend')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'ad_spend_logs' }, () => {
+      void load();
+    })
+    .subscribe();
+  return () => {
+    void client.removeChannel(channel);
+  };
+}
+
+export async function saveAdSpendLogToSupabase(entry: MonthlyAdSpendRecord): Promise<void> {
+  const client = supabase;
+  if (!client) return;
+  try {
+    await client.from('ad_spend_logs').upsert(
+      {
+        id: sanitizeId(entry.id, 'ad'),
+        month: sanitizeSingleLine(entry.month, 20),
+        channel: entry.channel,
+        amount: Math.max(0, Number(entry.amount) || 0),
+        notes: sanitizeRichInput(entry.notes ?? '', 240),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'id' }
+    );
+  } catch {
+    // Graceful localStorage fallback
+  }
 }

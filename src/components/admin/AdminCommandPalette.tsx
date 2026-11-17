@@ -110,10 +110,14 @@ export function AdminCommandPalette({
 
   const quickRoutes: { id: AdminModuleRoute; label: string; hint: string }[] = [
     { id: 'dashboard', label: 'Executive Dashboard', hint: 'KPIs & revenue trends' },
-    { id: 'orders', label: 'Orders & GST Fulfillment', hint: 'Courier, AWB, WhatsApp & Invoices' },
-    { id: 'returns', label: 'Returns & Refunds (RMA)', hint: 'RMAs, Reverse Pickups, QC & Refunds' },
+    { id: 'orders', label: 'Omnichannel Orders & SLA', hint: 'Channels, Buckets, 4x6 Labels & SPF Proof' },
+    { id: 'returns', label: 'Returns, Overdue & SPF Claims', hint: '10/20/30d Unreceived, QC & SPF Dossier' },
+    { id: 'inventory', label: 'Master Inventory & 3D Lab', hint: 'Stock, COGS, Website Reserve & Combo SKUs' },
+    { id: 'integrations', label: 'Integrations Hub', hint: '13 Marketplaces/Couriers & CSV Bridge' },
+    { id: 'automations', label: 'Automatic Actions Engine', hint: 'IF Trigger + Condition -> THEN Rules' },
+    { id: 'reconciliation', label: 'Reconciliation & P&L', hint: '8-Step Profit Waterfall, Ad Spend & UTR' },
+    { id: 'analytics', label: 'Region & GSTR-1 Analytics', hint: 'Pan-India States, Jan–Dec & HSN GST' },
     { id: 'products', label: 'Product Catalog Manager', hint: 'Edit SKUs, Margins & 3-Angle Media' },
-    { id: 'inventory', label: 'Inventory & 3D Print Lab', hint: 'Stock, Print Queue & Spools' },
     { id: 'discounts', label: 'Discounts & Gifting', hint: 'Coupons & Gift Wrap fee' },
     { id: 'customers', label: 'Customers & CRM', hint: 'LTV, RTO flags & CSV export' },
     {

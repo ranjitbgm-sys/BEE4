@@ -1,16 +1,19 @@
 import { useState } from 'react';
 import {
   ArrowUpRight,
+  BarChart3,
   Box,
   ChevronLeft,
   ChevronRight,
   Cloud,
+  IndianRupee,
   LayoutDashboard,
   Lock,
   Menu,
   MessageSquareText,
   Moon,
   PackageCheck,
+  PlugZap,
   Plus,
   RefreshCw,
   RotateCcw,
@@ -22,6 +25,7 @@ import {
   Tag,
   Users,
   X,
+  Zap,
 } from 'lucide-react';
 import type { AdminModuleRoute, ThemeMode } from '../../types';
 
@@ -52,14 +56,18 @@ interface AdminShellProps {
 
 const MODULE_META: Record<AdminModuleRoute, { title: string; group: string }> = {
   dashboard: { title: 'Executive Dashboard', group: 'Command' },
-  orders: { title: 'Orders & Fulfillment', group: 'Operations' },
-  returns: { title: 'Returns & Refunds (RMA)', group: 'Operations' },
-  products: { title: 'Product Catalog', group: 'Catalog' },
-  inventory: { title: 'Inventory & 3D Print Lab', group: 'Operations' },
-  discounts: { title: 'Discounts & Gifting', group: 'Growth' },
-  customers: { title: 'Customers & CRM', group: 'Growth' },
-  'messages-reviews': { title: 'Messages & Reviews', group: 'Growth' },
-  settings: { title: 'Storefront CMS & Security', group: 'System' },
+  orders: { title: 'Omnichannel Orders & Fulfillment', group: 'Operations' },
+  returns: { title: 'Returns, Overdue & SPF Claims', group: 'Operations' },
+  inventory: { title: 'Master Inventory & 3D Lab', group: 'Operations' },
+  integrations: { title: 'Marketplace & Courier Hub', group: 'Automation & Channels' },
+  automations: { title: 'Automatic Actions Engine', group: 'Automation & Channels' },
+  reconciliation: { title: 'Payment Reconciliation & P&L', group: 'Finance & Analytics' },
+  analytics: { title: 'Region, Monthly & GSTR-1 Analytics', group: 'Finance & Analytics' },
+  products: { title: 'Product Catalog', group: 'Merchandising' },
+  discounts: { title: 'Discounts & Gifting', group: 'Merchandising' },
+  customers: { title: 'Customers & CRM', group: 'Merchandising' },
+  'messages-reviews': { title: 'Messages & Reviews', group: 'Merchandising' },
+  settings: { title: 'Storefront CMS & Security', group: 'Storefront & System' },
 };
 
 export function AdminShell({
@@ -115,7 +123,7 @@ export function AdminShell({
         },
         {
           id: 'returns',
-          label: 'Returns & Refunds',
+          label: 'Returns & SPF',
           icon: RotateCcw,
           badge: pendingReturnsCount > 0 ? pendingReturnsCount : undefined,
           badgeTone: pendingReturnsCount > 0 ? 'amber' : 'neutral',
@@ -127,6 +135,20 @@ export function AdminShell({
           badge: lowStockCount > 0 ? lowStockCount : undefined,
           badgeTone: lowStockCount > 0 ? 'red' : 'neutral',
         },
+      ],
+    },
+    {
+      group: 'Automation & Channels',
+      items: [
+        { id: 'integrations', label: 'Integrations Hub', icon: PlugZap },
+        { id: 'automations', label: 'Auto Actions', icon: Zap },
+      ],
+    },
+    {
+      group: 'Finance & Analytics',
+      items: [
+        { id: 'reconciliation', label: 'P&L & Payouts', icon: IndianRupee },
+        { id: 'analytics', label: 'Region & GSTR-1', icon: BarChart3 },
       ],
     },
     {

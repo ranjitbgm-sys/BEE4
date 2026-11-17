@@ -1,17 +1,25 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  CheckSquare,
+  Clock,
+  Download,
   FileText,
   Gift,
   MessageCircle,
+  Printer,
   RotateCcw,
   Search,
+  ShieldCheck,
   Truck,
   X,
 } from 'lucide-react';
 import type {
   FulfillmentStage,
+  MarketplaceChannel,
+  OperationalOrderBucket,
   OrderChannel,
   OrderRecord,
+  PackingVerificationProof,
   Product,
   ReturnRequestRecord,
 } from '../../types';
@@ -22,6 +30,15 @@ import {
   mapFulfillmentStageToOrderStatus,
   WhatsAppTemplateKind,
 } from '../../utils/adminLogic';
+import {
+  generateBulkPicklistCsv,
+  generateBulkThermalLabelsHtml,
+  getEffectiveSourceChannel,
+  getOperationalOrderBucket,
+  getOrderSlaStatus,
+  MARKETPLACE_CHANNELS,
+  OPERATIONAL_ORDER_BUCKETS,
+} from '../../utils/omnichannelLogic';
 import { getOrderRmaStatusBadge } from '../../utils/rmaLogic';
 import { formatINR } from '../../utils/storeLogic';
 import { OrderGstInvoiceModal } from './OrderGstInvoiceModal';
@@ -43,8 +60,13 @@ interface AdminOrdersTabProps {
       awbNumber?: string;
       trackingUrl?: string;
       internalNotes?: string;
+      operationalBucket?: OperationalOrderBucket;
+      labelGeneratedAt?: string;
+      picklistGeneratedAt?: string;
+      packingProof?: PackingVerificationProof;
     }
   ) => void;
+  onBulkUpdateOrders?: (orders: OrderRecord[], label: string) => void;
 }
 
 const STAGES: FulfillmentStage[] = [
@@ -86,26 +108,35 @@ export function AdminOrdersTab({
   onClearInitialSelection,
   onInspectRma,
   onUpdateOrderLogistics,
+  onBulkUpdateOrders,
 }: AdminOrdersTabProps) {
   const [search, setSearch] = useState('');
-  const [stageFilter, setStageFilter] = useState<FulfillmentStage | 'All'>('All');
+  const [stageFilter, setStageFilter] = useState<OperationalOrderBucket | 'All'>('All');
+  const [sourceChannelFilter, setSourceChannelFilter] = useState<MarketplaceChannel | 'All'>('All');
   const [channelFilter, setChannelFilter] = useState<OrderChannel | 'All'>('All');
+  const [selectedOrderNumbers, setSelectedOrderNumbers] = useState<string[]>([]);
   const [selectedOrderNumber, setSelectedOrderNumber] = useState<string | null>(
     initialSelectedOrderNumber || null
   );
   const [invoiceOrder, setInvoiceOrder] = useState<OrderRecord | null>(null);
+  const [bulkPaperSize, setBulkPaperSize] = useState<'4x6' | 'A5'>('4x6');
 
   const selectedOrder = useMemo(
     () => orders.find((o) => o.orderNumber === selectedOrderNumber) ?? null,
     [orders, selectedOrderNumber]
   );
 
-  // Logistics form draft synced when selecting an order
+  // Logistics & Pack/Verify SPF Proof form drafts
   const [stageDraft, setStageDraft] = useState<FulfillmentStage>('Confirmed');
   const [courierDraft, setCourierDraft] = useState('');
   const [awbDraft, setAwbDraft] = useState('');
   const [trackingUrlDraft, setTrackingUrlDraft] = useState('');
   const [notesDraft, setNotesDraft] = useState('');
+  const [verifySkuDraft, setVerifySkuDraft] = useState('');
+  const [verifyAwbDraft, setVerifyAwbDraft] = useState('');
+  const [verifyPhotoDraft, setVerifyPhotoDraft] = useState('');
+  const [verifyWeightDraft, setVerifyWeightDraft] = useState('');
+  const [verifyNotice, setVerifyNotice] = useState('');
 
   useEffect(() => {
     if (initialSelectedOrderNumber) {
@@ -121,18 +152,48 @@ export function AdminOrdersTab({
     setAwbDraft(selectedOrder.awbNumber ?? '');
     setTrackingUrlDraft(selectedOrder.trackingUrl ?? '');
     setNotesDraft(selectedOrder.internalNotes ?? '');
+    setVerifySkuDraft(selectedOrder.packingProof?.verifiedSku ?? '');
+    setVerifyAwbDraft(selectedOrder.packingProof?.verifiedAwb ?? selectedOrder.awbNumber ?? '');
+    setVerifyPhotoDraft(selectedOrder.packingProof?.photoUrl ?? '');
+    setVerifyWeightDraft(
+      selectedOrder.packingProof?.weightGramsActual
+        ? String(selectedOrder.packingProof.weightGramsActual)
+        : ''
+    );
+    setVerifyNotice('');
   }, [selectedOrder]);
+
+  const channelCounts = useMemo(() => {
+    const counts: Record<string, number> = { All: orders.length };
+    for (const o of orders) {
+      const ch = getEffectiveSourceChannel(o);
+      counts[ch] = (counts[ch] || 0) + 1;
+    }
+    return counts;
+  }, [orders]);
+
+  const bucketCounts = useMemo(() => {
+    const counts: Record<string, number> = { All: orders.length };
+    for (const o of orders) {
+      const b = getOperationalOrderBucket(o);
+      counts[b] = (counts[b] || 0) + 1;
+    }
+    return counts;
+  }, [orders]);
 
   const filteredOrders = useMemo(() => {
     const q = search.trim().toLowerCase();
     return orders.filter((order) => {
-      const stage = getEffectiveFulfillmentStage(order);
+      const bucket = getOperationalOrderBucket(order);
       const channel = getEffectiveOrderChannel(order);
-      if (stageFilter !== 'All' && stage !== stageFilter) return false;
+      const src = getEffectiveSourceChannel(order);
+      if (stageFilter !== 'All' && bucket !== stageFilter) return false;
+      if (sourceChannelFilter !== 'All' && src !== sourceChannelFilter) return false;
       if (channelFilter !== 'All' && channel !== channelFilter) return false;
       if (!q) return true;
       return [
         order.orderNumber,
+        order.externalOrderId || '',
         order.customer.fullName,
         order.customer.phone,
         order.customer.city,
@@ -143,7 +204,91 @@ export function AdminOrdersTab({
         .toLowerCase()
         .includes(q);
     });
-  }, [orders, search, stageFilter, channelFilter]);
+  }, [orders, search, stageFilter, sourceChannelFilter, channelFilter]);
+
+  const toggleOrderSelection = (orderNo: string) => {
+    setSelectedOrderNumbers((prev) =>
+      prev.includes(orderNo) ? prev.filter((id) => id !== orderNo) : [...prev, orderNo]
+    );
+  };
+
+  const toggleSelectAllFiltered = () => {
+    const allNos = filteredOrders.map((o) => o.orderNumber);
+    const allSelected = allNos.length > 0 && allNos.every((n) => selectedOrderNumbers.includes(n));
+    setSelectedOrderNumbers(allSelected ? [] : allNos);
+  };
+
+  const selectedBatchOrders = useMemo(
+    () => orders.filter((o) => selectedOrderNumbers.includes(o.orderNumber)),
+    [orders, selectedOrderNumbers]
+  );
+
+  const downloadBlobFile = (filename: string, content: string, mime: string) => {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleBulkAction = (
+    kind: 'accept' | 'labels' | 'picklist' | 'handover'
+  ) => {
+    if (selectedBatchOrders.length === 0) return;
+    const nowIso = new Date().toISOString();
+    if (kind === 'labels') {
+      const html = generateBulkThermalLabelsHtml(selectedBatchOrders, bulkPaperSize);
+      downloadBlobFile(
+        `BEE4-Thermal-Labels-${bulkPaperSize}-${nowIso.slice(0, 10)}.html`,
+        html,
+        'text/html;charset=utf-8;'
+      );
+      const updated = selectedBatchOrders.map((o) => ({
+        ...o,
+        labelGeneratedAt: nowIso,
+        operationalBucket: 'Pending Courier Handover' as OperationalOrderBucket,
+      }));
+      onBulkUpdateOrders?.(updated, `Generated ${bulkPaperSize} thermal labels for ${updated.length} orders`);
+      return;
+    }
+    if (kind === 'picklist') {
+      const csv = generateBulkPicklistCsv(selectedBatchOrders, products);
+      downloadBlobFile(
+        `BEE4-Bulk-Picklist-${nowIso.slice(0, 10)}.csv`,
+        csv,
+        'text/csv;charset=utf-8;'
+      );
+      const updated = selectedBatchOrders.map((o) => ({
+        ...o,
+        picklistGeneratedAt: nowIso,
+      }));
+      onBulkUpdateOrders?.(updated, `Downloaded Picklist CSV for ${updated.length} orders`);
+      return;
+    }
+    if (kind === 'accept') {
+      const updated = selectedBatchOrders.map((o) => ({
+        ...o,
+        status: 'Confirmed' as const,
+        fulfillmentStage: 'Confirmed' as const,
+        operationalBucket: 'Ready for Process' as OperationalOrderBucket,
+      }));
+      onBulkUpdateOrders?.(updated, `Bulk accepted ${updated.length} orders to Ready for Process`);
+      return;
+    }
+    if (kind === 'handover') {
+      const updated = selectedBatchOrders.map((o) => ({
+        ...o,
+        status: 'Preparing Shipment' as const,
+        fulfillmentStage: 'Printing / Packing' as const,
+        operationalBucket: 'Pending Courier Handover' as OperationalOrderBucket,
+      }));
+      onBulkUpdateOrders?.(updated, `Marked ${updated.length} orders Pending Courier Handover`);
+    }
+  };
 
   const handleSaveLogistics = () => {
     if (!selectedOrder) return;
@@ -154,6 +299,39 @@ export function AdminOrdersTab({
       trackingUrl: trackingUrlDraft.trim(),
       internalNotes: notesDraft.trim(),
     });
+  };
+
+  const handleSavePackingProof = () => {
+    if (!selectedOrder) return;
+    const matchedSku = selectedOrder.items.some((it) => {
+      const p = products.find((x) => x.id === it.productId);
+      const q = verifySkuDraft.trim().toLowerCase();
+      return (
+        q &&
+        (it.productId.toLowerCase() === q || (p?.sku && p.sku.toLowerCase() === q))
+      );
+    });
+    const proof: PackingVerificationProof = {
+      verifiedSku: verifySkuDraft.trim() || selectedOrder.items[0]?.productId || 'VERIFIED',
+      verifiedAwb: verifyAwbDraft.trim() || awbDraft.trim() || 'PENDING-AWB',
+      photoUrl: verifyPhotoDraft.trim() || undefined,
+      verifiedAt: new Date().toISOString(),
+      verifiedBy: 'Banka Dispatch Desk',
+      weightGramsActual: Math.max(0, Number(verifyWeightDraft) || 0) || undefined,
+    };
+    onUpdateOrderLogistics(selectedOrder.orderNumber, {
+      fulfillmentStage: stageDraft,
+      courierPartner: courierDraft.trim(),
+      awbNumber: awbDraft.trim(),
+      trackingUrl: trackingUrlDraft.trim(),
+      internalNotes: notesDraft.trim(),
+      packingProof: proof,
+    });
+    setVerifyNotice(
+      matchedSku
+        ? 'SKU + AWB Packing Proof logged with timestamp for SPF fraud protection.'
+        : 'Packing Proof logged (check scanned SKU vs itemized SKU if warning expected).'
+    );
   };
 
   const whatsappTemplates: { kind: WhatsAppTemplateKind; label: string }[] = [
@@ -186,7 +364,7 @@ export function AdminOrdersTab({
               onChange={(e) => setChannelFilter(e.target.value as OrderChannel | 'All')}
               className="px-3 py-2 rounded-xl glass-input text-xs font-semibold focus:outline-none"
             >
-              <option value="All">All Channels</option>
+              <option value="All">All Payment Modes</option>
               {CHANNELS.map((ch) => (
                 <option key={ch} value={ch}>
                   {ch}
@@ -200,24 +378,93 @@ export function AdminOrdersTab({
           </div>
         </div>
 
-        {/* Status Pills */}
+        {/* Channel Filter Bar with Live Counts */}
+        <div className="flex flex-wrap gap-1.5 pb-1 border-b border-zinc-900/8 dark:border-white/10">
+          {(['All', ...MARKETPLACE_CHANNELS] as const).map((ch) => (
+            <button
+              key={ch}
+              type="button"
+              onClick={() => setSourceChannelFilter(ch)}
+              className={`px-3 py-1 rounded-full text-[11px] font-semibold transition-all whitespace-nowrap tabular-nums ${
+                sourceChannelFilter === ch
+                  ? 'bg-amber-500 text-zinc-950 font-bold'
+                  : 'glass-subtle text-zinc-700 dark:text-zinc-300 hover:bg-white/80 dark:hover:bg-white/10'
+              }`}
+            >
+              {ch === 'All' ? 'All Channels' : ch} ({channelCounts[ch] ?? 0})
+            </button>
+          ))}
+        </div>
+
+        {/* 7 Base.com Operational Status Buckets */}
         <div className="flex flex-wrap gap-1.5">
-          {(['All', ...STAGES] as const).map((st) => (
+          {(['All', ...OPERATIONAL_ORDER_BUCKETS] as const).map((st) => (
             <button
               key={st}
               type="button"
               onClick={() => setStageFilter(st)}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap ${
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap tabular-nums ${
                 stageFilter === st
                   ? 'glass-btn-ink'
                   : 'glass-subtle text-zinc-700 dark:text-zinc-300 hover:bg-white/80 dark:hover:bg-white/10'
               }`}
             >
-              {st}
+              {st} ({bucketCounts[st] ?? 0})
             </button>
           ))}
         </div>
       </div>
+
+      {/* Multi-Select Bulk Action Bar */}
+      {selectedBatchOrders.length > 0 && (
+        <div className="glass-surface rounded-2xl px-4 py-3 flex flex-wrap items-center justify-between gap-3 border border-amber-500/35">
+          <div className="flex items-center gap-2 text-xs font-bold text-zinc-900 dark:text-white">
+            <CheckSquare className="w-4 h-4 text-amber-600" />
+            <span>{selectedBatchOrders.length} selected for bulk action</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              aria-label="Bulk thermal label paper size"
+              value={bulkPaperSize}
+              onChange={(e) => setBulkPaperSize(e.target.value as '4x6' | 'A5')}
+              className="px-2.5 py-1.5 rounded-xl glass-input text-xs font-semibold"
+            >
+              <option value="4x6">4x6 Thermal</option>
+              <option value="A5">A5 Label</option>
+            </select>
+            <button
+              type="button"
+              onClick={() => handleBulkAction('accept')}
+              className="px-3 py-1.5 rounded-xl glass-btn-secondary text-xs font-semibold"
+            >
+              Bulk Accept
+            </button>
+            <button
+              type="button"
+              onClick={() => handleBulkAction('labels')}
+              className="px-3 py-1.5 rounded-xl glass-btn-amber text-white text-xs font-semibold inline-flex items-center gap-1"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>Thermal Labels</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleBulkAction('picklist')}
+              className="px-3 py-1.5 rounded-xl glass-btn-secondary text-xs font-semibold inline-flex items-center gap-1"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Picklist CSV</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleBulkAction('handover')}
+              className="px-3 py-1.5 rounded-xl glass-btn-ink text-xs font-semibold"
+            >
+              Ready for Handover
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Desktop Orders Table */}
       <div className="hidden md:block glass-surface rounded-3xl overflow-hidden">
@@ -225,10 +472,22 @@ export function AdminOrdersTab({
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-white/45 dark:bg-white/5 text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-400 border-b border-zinc-900/10 dark:border-white/10">
-                <th className="py-3 px-4">Order</th>
-                <th className="py-3 px-4">Customer & Location</th>
+                <th className="py-3 px-3 w-8">
+                  <input
+                    type="checkbox"
+                    aria-label="Select all visible orders"
+                    checked={
+                      filteredOrders.length > 0 &&
+                      filteredOrders.every((o) => selectedOrderNumbers.includes(o.orderNumber))
+                    }
+                    onChange={toggleSelectAllFiltered}
+                    className="accent-amber-600"
+                  />
+                </th>
+                <th className="py-3 px-4">Order &amp; SLA</th>
+                <th className="py-3 px-4">Customer &amp; Location</th>
                 <th className="py-3 px-4">Channel</th>
-                <th className="py-3 px-4">Stage</th>
+                <th className="py-3 px-4">Bucket / Stage</th>
                 <th className="py-3 px-4">Courier / AWB</th>
                 <th className="py-3 px-4 text-right">Total</th>
                 <th className="py-3 px-4 text-right">Actions</th>
@@ -237,13 +496,24 @@ export function AdminOrdersTab({
             <tbody className="divide-y divide-zinc-900/6 dark:divide-white/8 text-xs">
               {filteredOrders.map((order) => {
                 const stage = getEffectiveFulfillmentStage(order);
-                const channel = getEffectiveOrderChannel(order);
+                const bucket = getOperationalOrderBucket(order);
+                const srcChannel = getEffectiveSourceChannel(order);
+                const sla = getOrderSlaStatus(order);
                 const rmaBadge = getOrderRmaStatusBadge(order.orderNumber, returns);
                 return (
                   <tr
                     key={order.orderNumber}
                     className="hover:bg-white/45 dark:hover:bg-white/5 transition-colors"
                   >
+                    <td className="py-3.5 px-3">
+                      <input
+                        type="checkbox"
+                        aria-label={`Select order ${order.orderNumber}`}
+                        checked={selectedOrderNumbers.includes(order.orderNumber)}
+                        onChange={() => toggleOrderSelection(order.orderNumber)}
+                        className="accent-amber-600"
+                      />
+                    </td>
                     <td className="py-3.5 px-4 whitespace-nowrap">
                       <button
                         type="button"
@@ -252,8 +522,22 @@ export function AdminOrdersTab({
                       >
                         {order.orderNumber}
                       </button>
-                      <div className="text-[11px] text-zinc-500 dark:text-zinc-400 tabular-nums">
-                        {order.createdAt.slice(0, 10)}
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="text-[11px] text-zinc-500 dark:text-zinc-400 tabular-nums">
+                          {order.createdAt.slice(0, 10)}
+                        </span>
+                        <span
+                          className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                            sla.tone === 'breached'
+                              ? 'bg-red-500/15 text-red-700 dark:text-red-300'
+                              : sla.tone === 'warning'
+                                ? 'bg-amber-500/15 text-amber-800 dark:text-amber-300'
+                                : 'bg-zinc-900/6 dark:bg-white/10 text-zinc-600 dark:text-zinc-300'
+                          }`}
+                        >
+                          <Clock className="w-2.5 h-2.5" />
+                          <span>{sla.label}</span>
+                        </span>
                       </div>
                     </td>
                     <td className="py-3.5 px-4">
@@ -270,14 +554,17 @@ export function AdminOrdersTab({
                       </div>
                     </td>
                     <td className="py-3.5 px-4 whitespace-nowrap font-medium text-zinc-700 dark:text-zinc-300">
-                      {channel}
+                      <span className="font-bold text-zinc-900 dark:text-white">{srcChannel}</span>
+                      <div className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                        {getEffectiveOrderChannel(order)}
+                      </div>
                     </td>
                     <td className="py-3.5 px-4 whitespace-nowrap">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span
                           className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-bold ${stageBadgeClass(stage)}`}
                         >
-                          {stage}
+                          {bucket}
                         </span>
                         {rmaBadge && (
                           <button
@@ -330,7 +617,7 @@ export function AdminOrdersTab({
               })}
               {filteredOrders.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-12 px-6 text-center text-zinc-500 dark:text-zinc-400">
+                  <td colSpan={8} className="py-12 px-6 text-center text-zinc-500 dark:text-zinc-400">
                     <p className="font-display text-sm font-bold text-zinc-800 dark:text-zinc-200">
                       {orders.length === 0
                         ? '0 Live Orders Yet — Waiting for your first checkout on bee4.in'
@@ -645,6 +932,74 @@ export function AdminOrdersTab({
               >
                 Save Fulfillment &amp; Tracking ({mapFulfillmentStageToOrderStatus(stageDraft)})
               </button>
+            </div>
+
+            {/* Pack & Verify (SPF Fraud Protection) */}
+            <div className="space-y-3 glass-subtle rounded-2xl p-4">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-200">
+                    Pack &amp; Verify (SPF Claim Proof)
+                  </h3>
+                </div>
+                {selectedOrder.packingProof?.verifiedAt && (
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold">
+                    Verified ✓
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                <input
+                  type="text"
+                  value={verifySkuDraft}
+                  onChange={(e) => setVerifySkuDraft(e.target.value)}
+                  placeholder="Scan / Enter Packed SKU"
+                  className="px-3 py-2 rounded-xl glass-input font-mono focus:outline-none"
+                />
+                <input
+                  type="text"
+                  value={verifyAwbDraft}
+                  onChange={(e) => setVerifyAwbDraft(e.target.value)}
+                  placeholder="Scan / Verify AWB Barcode"
+                  className="px-3 py-2 rounded-xl glass-input font-mono focus:outline-none"
+                />
+                <input
+                  type="url"
+                  value={verifyPhotoDraft}
+                  onChange={(e) => setVerifyPhotoDraft(e.target.value)}
+                  placeholder="Packing Video / Photo Evidence URL"
+                  className="px-3 py-2 rounded-xl glass-input focus:outline-none"
+                />
+                <input
+                  type="number"
+                  value={verifyWeightDraft}
+                  onChange={(e) => setVerifyWeightDraft(e.target.value)}
+                  placeholder="Actual Parcel Weight (grams)"
+                  className="px-3 py-2 rounded-xl glass-input tabular-nums focus:outline-none"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSavePackingProof}
+                className="w-full py-2 rounded-xl glass-btn-amber text-white text-xs font-semibold"
+              >
+                Verify &amp; Timestamp Packing Proof
+              </button>
+
+              {verifyNotice && (
+                <p className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+                  {verifyNotice}
+                </p>
+              )}
+              {selectedOrder.packingProof?.verifiedAt && (
+                <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                  Last Verified: {new Date(selectedOrder.packingProof.verifiedAt).toLocaleString('en-IN')} · SKU{' '}
+                  <span className="font-mono">{selectedOrder.packingProof.verifiedSku}</span>
+                </p>
+              )}
             </div>
 
             {/* 1-Click WhatsApp Customer Notification Generator */}

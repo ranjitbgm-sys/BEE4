@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type {
   AdminAuditLog,
   AdminModuleRoute,
+  AutomationRule,
   CouponRecord,
   CrmCustomerFlag,
   CustomerInquiry,
@@ -10,7 +11,13 @@ import type {
   FilamentSpool,
   FulfillmentStage,
   InventoryAdjustmentRecord,
+  MarketplaceChannel,
+  MarketplaceIntegrationConfig,
+  MonthlyAdSpendRecord,
+  OperationalOrderBucket,
   OrderRecord,
+  OrderSettlementRecord,
+  PackingVerificationProof,
   PrintJobRecord,
   Product,
   ProductReviewRecord,
@@ -34,6 +41,10 @@ import { AdminInventoryTab } from './admin/AdminInventoryTab';
 import { AdminDiscountsTab } from './admin/AdminDiscountsTab';
 import { AdminCustomersTab } from './admin/AdminCustomersTab';
 import { AdminMessagesReviewsTab } from './admin/AdminMessagesReviewsTab';
+import { AdminIntegrationsTab } from './admin/AdminIntegrationsTab';
+import { AdminAutomationsTab } from './admin/AdminAutomationsTab';
+import { AdminReconciliationTab } from './admin/AdminReconciliationTab';
+import { AdminAnalyticsTab } from './admin/AdminAnalyticsTab';
 import { AdminSettingsTab } from './admin/AdminSettingsTab';
 
 interface AdminPanelViewProps {
@@ -52,6 +63,9 @@ interface AdminPanelViewProps {
   spools: FilamentSpool[];
   auditLogs: AdminAuditLog[];
   crmFlagsByPhone: Record<string, CrmCustomerFlag>;
+  integrations?: MarketplaceIntegrationConfig[];
+  automationRules?: AutomationRule[];
+  adSpendLogs?: MonthlyAdSpendRecord[];
   settings: StoreSettings;
   adminPasswordHash: string;
   cloudAdminEmail?: string | null;
@@ -74,12 +88,24 @@ interface AdminPanelViewProps {
       awbNumber?: string;
       trackingUrl?: string;
       internalNotes?: string;
+      operationalBucket?: OperationalOrderBucket;
+      labelGeneratedAt?: string;
+      picklistGeneratedAt?: string;
+      packingProof?: PackingVerificationProof;
     }
   ) => void;
+  onBulkUpdateOrders?: (orders: OrderRecord[], label: string) => void;
+  onUpdateOrderSettlement?: (orderNumber: string, settlement: OrderSettlementRecord) => void;
   onUpdateReturnRequest?: (
     prevReturn: ReturnRequestRecord,
     nextUpdates: RmaTransitionUpdates,
-    options?: { forceQueuePrint?: boolean }
+    options?: {
+      forceQueuePrint?: boolean;
+      receivedAtHub?: boolean;
+      claimFiled?: boolean;
+      claimReferenceId?: string;
+      qcOutcome?: ReturnRequestRecord['qcOutcome'];
+    }
   ) => string | void;
   onSaveCoupon: (coupon: CouponRecord) => void;
   onDeleteCoupon: (couponId: string) => void;
@@ -92,6 +118,12 @@ interface AdminPanelViewProps {
   onBulkDeleteCustomerMessages?: (ids: string[]) => void;
   onSaveProductReview?: (review: ProductReviewRecord, isNew?: boolean) => void;
   onDeleteProductReview?: (id: string) => void;
+  onSaveIntegration?: (config: MarketplaceIntegrationConfig) => void;
+  onImportOrders?: (orders: OrderRecord[], channel: MarketplaceChannel) => void;
+  onSaveAutomationRule?: (rule: AutomationRule) => void;
+  onDeleteAutomationRule?: (ruleId: string) => void;
+  onRunAutomationRulesNow?: () => string;
+  onSaveAdSpend?: (entry: MonthlyAdSpendRecord) => void;
   onChangeAdminPasswordHash: (nextHash: string) => void;
   onPurgeTestData?: () => Promise<{ clearedTables: string[]; errors: string[] }>;
   onLockAdmin: () => void;
@@ -114,6 +146,9 @@ export function AdminPanelView({
   spools,
   auditLogs,
   crmFlagsByPhone,
+  integrations = [],
+  automationRules = [],
+  adSpendLogs = [],
   settings,
   adminPasswordHash,
   cloudAdminEmail = null,
@@ -129,6 +164,8 @@ export function AdminPanelView({
   onDeleteProduct,
   onResetCatalog,
   onUpdateOrderLogistics,
+  onBulkUpdateOrders,
+  onUpdateOrderSettlement,
   onUpdateReturnRequest,
   onSaveCoupon,
   onDeleteCoupon,
@@ -141,6 +178,12 @@ export function AdminPanelView({
   onBulkDeleteCustomerMessages,
   onSaveProductReview,
   onDeleteProductReview,
+  onSaveIntegration,
+  onImportOrders,
+  onSaveAutomationRule,
+  onDeleteAutomationRule,
+  onRunAutomationRulesNow,
+  onSaveAdSpend,
   onChangeAdminPasswordHash,
   onPurgeTestData,
   onLockAdmin,
@@ -282,6 +325,10 @@ export function AdminPanelView({
               onUpdateOrderLogistics(orderNumber, updates);
               notify(`Updated order ${orderNumber} logistics (${updates.fulfillmentStage}).`);
             }}
+            onBulkUpdateOrders={(updatedOrders, label) => {
+              onBulkUpdateOrders?.(updatedOrders, label);
+              notify(label);
+            }}
           />
         )}
 
@@ -340,6 +387,10 @@ export function AdminPanelView({
               onAdjustProductStock(pid, nextQty);
               notify(`Updated stock count to ${nextQty} units.`);
             }}
+            onSaveProduct={(prod) => {
+              onSaveProduct(prod);
+              notify(`Saved omnichannel inventory settings for "${prod.title}".`);
+            }}
             onSavePrintJob={(job) => {
               onSavePrintJob(job);
               notify(`Print batch "${job.productTitle}" updated to ${job.stage}.`);
@@ -349,6 +400,62 @@ export function AdminPanelView({
               notify(`Filament spool "${spool.name}" updated (${spool.remainingGrams}g).`);
             }}
           />
+        )}
+
+        {activeModule === 'integrations' && (
+          <AdminIntegrationsTab
+            integrations={integrations}
+            orders={orders}
+            products={products}
+            onSaveIntegration={(config) => {
+              onSaveIntegration?.(config);
+              notify(`Saved ${config.name} connector settings.`);
+            }}
+            onImportOrders={(imported, channel) => {
+              onImportOrders?.(imported, channel);
+              notify(`Imported ${imported.length} order(s) from ${channel} & synced stock.`);
+            }}
+          />
+        )}
+
+        {activeModule === 'automations' && (
+          <AdminAutomationsTab
+            rules={automationRules}
+            onSaveRule={(rule) => {
+              onSaveAutomationRule?.(rule);
+              notify(`Saved rule "${rule.name}" (${rule.enabled ? 'Active' : 'Paused'}).`);
+            }}
+            onDeleteRule={(ruleId) => {
+              onDeleteAutomationRule?.(ruleId);
+              notify('Deleted automation rule.');
+            }}
+            onRunRulesNow={() => {
+              const summary = onRunAutomationRulesNow?.() ?? 'Evaluated active rules.';
+              notify(summary);
+              return summary;
+            }}
+          />
+        )}
+
+        {activeModule === 'reconciliation' && (
+          <AdminReconciliationTab
+            orders={orders}
+            products={products}
+            returns={returns}
+            adSpends={adSpendLogs}
+            onSaveAdSpend={(entry) => {
+              onSaveAdSpend?.(entry);
+              notify(`Logged ₹${Math.round(entry.amount)} ad spend for ${entry.month}.`);
+            }}
+            onUpdateOrderSettlement={(orderNumber, settlement) => {
+              onUpdateOrderSettlement?.(orderNumber, settlement);
+              notify(`Updated payment settlement & UTR for ${orderNumber}.`);
+            }}
+          />
+        )}
+
+        {activeModule === 'analytics' && (
+          <AdminAnalyticsTab orders={orders} products={products} returns={returns} />
         )}
 
         {activeModule === 'discounts' && (

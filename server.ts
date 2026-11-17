@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import nodemailer from 'nodemailer';
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import type {
   OrderNotificationChannelResult,
@@ -12,8 +13,6 @@ import {
   buildOrderSmsConfirmationText,
   normalizeIndianPhoneDigits10,
 } from './src/utils/orderNotifications.ts';
-import { INITIAL_PRODUCTS } from './src/data/catalog.ts';
-import { generateRobotsTxt, generateSitemapXml } from './src/utils/sitemap.ts';
 
 const PORT = Number(process.env.PORT || 3000);
 
@@ -332,18 +331,7 @@ async function startServer() {
     return 'https://bee4.in';
   };
 
-  app.get('/sitemap.xml', (req, res) => {
-    const xml = generateSitemapXml({
-      products: INITIAL_PRODUCTS,
-      origin: resolveRequestOrigin(req),
-    });
-    res.status(200).type('application/xml; charset=utf-8').send(xml);
-  });
-
-  app.get('/robots.txt', (req, res) => {
-    const txt = generateRobotsTxt(resolveRequestOrigin(req));
-    res.status(200).type('text/plain; charset=utf-8').send(txt);
-  });
+  const distDir = path.resolve(process.cwd(), 'dist');
 
   if (process.env.NODE_ENV !== 'production') {
     const { createServer: createViteServer } = await import('vite');
@@ -353,7 +341,32 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distDir = path.resolve(process.cwd(), 'dist');
+    app.get('/sitemap.xml', async (req, res) => {
+      const origin = resolveRequestOrigin(req).replace(/\/+$/, '');
+      try {
+        const xml = await fs.readFile(path.join(distDir, 'sitemap.xml'), 'utf-8');
+        const resolved = xml.replace(/https:\/\/bee4\.in/g, origin);
+        res.status(200).type('application/xml; charset=utf-8').send(resolved);
+      } catch {
+        const fallback = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>${origin}/</loc></url>\n</urlset>\n`;
+        res.status(200).type('application/xml; charset=utf-8').send(fallback);
+      }
+    });
+
+    app.get('/robots.txt', async (req, res) => {
+      const origin = resolveRequestOrigin(req).replace(/\/+$/, '');
+      try {
+        const txt = await fs.readFile(path.join(distDir, 'robots.txt'), 'utf-8');
+        const resolved = txt.replace(/https:\/\/bee4\.in/g, origin);
+        res.status(200).type('text/plain; charset=utf-8').send(resolved);
+      } catch {
+        res
+          .status(200)
+          .type('text/plain; charset=utf-8')
+          .send(`User-agent: *\nAllow: /\n\nSitemap: ${origin}/sitemap.xml\n`);
+      }
+    });
+
     app.use(express.static(distDir));
     app.get('/{*splat}', (_req, res) => {
       res.sendFile(path.join(distDir, 'index.html'));

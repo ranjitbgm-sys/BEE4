@@ -183,13 +183,16 @@ create table if not exists public.products (
   made_to_order boolean not null default false,
   status text not null default 'Active',
   damaged_scrap_count integer not null default 0,
+  cogs_cost numeric,
+  reserve_for_website integer not null default 0,
+  marketplace_listings jsonb not null default '[]'::jsonb,
   in_stock boolean not null default true,
   featured boolean not null default false,
   tag text,
   updated_at timestamptz not null default now()
 );
 
--- 3. Orders Table (Checkout + Fulfillment Logistics + GST State Data)
+-- 3. Orders Table (Checkout + Omnichannel Fulfillment + Settlement + GST State Data)
 create table if not exists public.orders (
   order_number text primary key,
   user_id uuid references auth.users(id) on delete set null,
@@ -202,18 +205,26 @@ create table if not exists public.orders (
   total numeric not null default 0,
   payment_method text not null default 'upi',
   order_channel text not null default 'UPI / Prepaid',
+  source_channel text not null default 'bee4.in',
+  external_order_id text not null default '',
   coupon_code text not null default '',
   customer jsonb not null,
   gift_wrap boolean not null default false,
   gift_message text not null default '',
   status text not null default 'Confirmed',
   fulfillment_stage text not null default 'New / Unverified',
+  operational_bucket text not null default 'New / Upcoming',
+  sla_dispatch_by timestamptz,
+  label_generated_at timestamptz,
+  picklist_generated_at timestamptz,
   courier_partner text not null default '',
   awb_number text not null default '',
   tracking_url text not null default '',
   internal_notes text not null default '',
   refund_status text not null default 'None',
   refunded_amount numeric not null default 0,
+  packing_proof jsonb,
+  settlement jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -352,6 +363,14 @@ create table if not exists public.returns (
   refund_mode text,
   refund_utr text not null default '',
   issued_coupon_code text not null default '',
+  source_channel text not null default 'bee4.in',
+  received_at_hub boolean not null default false,
+  received_at_hub_date timestamptz,
+  claim_filed boolean not null default false,
+  claim_filed_at timestamptz,
+  claim_reference_id text not null default '',
+  qc_outcome text not null default 'Pending',
+  cancelled_after_label boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -401,6 +420,44 @@ create table if not exists public.product_reviews (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.marketplace_integrations (
+  id text primary key,
+  key text not null unique,
+  name text not null,
+  category text not null default 'marketplace',
+  active boolean not null default false,
+  seller_id text not null default '',
+  api_key text not null default '',
+  webhook_url text not null default '',
+  notes text not null default '',
+  last_synced_at timestamptz,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.automation_rules (
+  id text primary key,
+  name text not null,
+  enabled boolean not null default false,
+  trigger text not null,
+  condition_field text not null default 'always',
+  condition_value text not null default '',
+  action_type text not null,
+  action_value text not null default '',
+  execution_count integer not null default 0,
+  last_executed_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.ad_spend_logs (
+  id text primary key,
+  month text not null,
+  channel text not null default 'All Channels',
+  amount numeric not null default 0,
+  notes text not null default '',
+  updated_at timestamptz not null default now()
+);
+
 -- 7. Enable Row Level Security (RLS)
 alter table public.profiles enable row level security;
 alter table public.customers enable row level security;
@@ -417,6 +474,9 @@ alter table public.returns enable row level security;
 alter table public.inventory_adjustments enable row level security;
 alter table public.customer_messages enable row level security;
 alter table public.product_reviews enable row level security;
+alter table public.marketplace_integrations enable row level security;
+alter table public.automation_rules enable row level security;
+alter table public.ad_spend_logs enable row level security;
 
 -- Public Read Policies (Storefront Catalog, Coupons, Settings, Testimonials)
 drop policy if exists "Public read active products" on public.products;
@@ -662,6 +722,36 @@ end $$;
 do $$
 begin
   alter publication supabase_realtime add table public.customers;
+exception when duplicate_object then null;
+end $$;
+
+drop policy if exists "Admins manage marketplace_integrations" on public.marketplace_integrations;
+create policy "Admins manage marketplace_integrations" on public.marketplace_integrations
+  for all using (public.is_bee4_admin()) with check (public.is_bee4_admin());
+
+drop policy if exists "Admins manage automation_rules" on public.automation_rules;
+create policy "Admins manage automation_rules" on public.automation_rules
+  for all using (public.is_bee4_admin()) with check (public.is_bee4_admin());
+
+drop policy if exists "Admins manage ad_spend_logs" on public.ad_spend_logs;
+create policy "Admins manage ad_spend_logs" on public.ad_spend_logs
+  for all using (public.is_bee4_admin()) with check (public.is_bee4_admin());
+
+do $$
+begin
+  alter publication supabase_realtime add table public.marketplace_integrations;
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table public.automation_rules;
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table public.ad_spend_logs;
 exception when duplicate_object then null;
 end $$;
 `;

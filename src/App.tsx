@@ -11,6 +11,7 @@ import {
   bulkDeleteCustomerMessagesFromSupabase,
   createOrderInSupabase,
   createReturnRequestInSupabase,
+  deleteAutomationRuleFromSupabase,
   deleteCouponFromSupabase,
   deleteCustomerMessageFromSupabase,
   deleteProductFromSupabase,
@@ -19,8 +20,11 @@ import {
   onSupabaseAuthChange,
   onSupabaseAuthEvent,
   purgeTestDataInSupabase,
+  saveAdSpendLogToSupabase,
+  saveAutomationRuleToSupabase,
   saveCouponToSupabase,
   saveFilamentSpoolToSupabase,
+  saveMarketplaceIntegrationToSupabase,
   savePrintJobToSupabase,
   saveProductToSupabase,
   saveStoreSettingsToSupabase,
@@ -30,6 +34,7 @@ import {
   submitCustomerMessageToSupabase,
   submitInquiryToSupabase,
   submitProductReviewToSupabase,
+  subscribeAdSpendLogsAdmin,
   subscribeAdminAuditLogs,
   subscribeAllCustomerMessagesAdmin,
   subscribeAllCustomersAdmin,
@@ -37,9 +42,11 @@ import {
   subscribeAllOrdersAdmin,
   subscribeAllProductReviewsAdmin,
   subscribeAllReturnsAdmin,
+  subscribeAutomationRulesAdmin,
   subscribeCoupons,
   subscribeFilamentSpoolsAdmin,
   subscribeInventoryAdjustmentsAdmin,
+  subscribeMarketplaceIntegrationsAdmin,
   subscribePrintJobsAdmin,
   subscribePublicProducts,
   subscribePublicPublishedReviews,
@@ -69,6 +76,7 @@ import {
   AdminAuditLog,
   AdminModuleRoute,
   AgeGroup,
+  AutomationRule,
   CartItem,
   CouponRecord,
   CrmCustomerFlag,
@@ -79,8 +87,14 @@ import {
   FulfillmentStage,
   GiftOccasion,
   InventoryAdjustmentRecord,
+  MarketplaceChannel,
+  MarketplaceIntegrationConfig,
+  MonthlyAdSpendRecord,
+  OperationalOrderBucket,
   OrderRecord,
+  OrderSettlementRecord,
   OrderStatus,
+  PackingVerificationProof,
   PrintJobRecord,
   Product,
   ProductCategory,
@@ -109,6 +123,12 @@ import { CustomerAccountView } from './components/CustomerAccountView';
 import { WhatsAppWidget } from './components/WhatsAppWidget';
 import { resolveExpectedAdminHash } from './utils/adminAuth';
 import { mapFulfillmentStageToOrderStatus } from './utils/adminLogic';
+import {
+  DEFAULT_AUTOMATION_RULE_TEMPLATES,
+  DEFAULT_MARKETPLACE_INTEGRATIONS,
+  deductMasterInventoryForItems,
+  evaluateOrderAutomations,
+} from './utils/omnichannelLogic';
 import { clearAllLocalTestCaches, runProductionCleanMigration } from './utils/productionClean';
 import { applyRmaTransitionSync, RmaTransitionUpdates } from './utils/rmaLogic';
 import { applyDocumentSeoMetadata, resolvePageSeoMetadata } from './utils/seoMeta';
@@ -133,6 +153,9 @@ const STORAGE_PRINT_JOBS_KEY = 'bee4_print_jobs_v1';
 const STORAGE_SPOOLS_KEY = 'bee4_filament_spools_v1';
 const STORAGE_AUDIT_LOGS_KEY = 'bee4_admin_logs_v1';
 const STORAGE_CRM_FLAGS_KEY = 'bee4_crm_flags_v1';
+const STORAGE_INTEGRATIONS_KEY = 'bee4_marketplace_integrations_v1';
+const STORAGE_AUTOMATION_RULES_KEY = 'bee4_automation_rules_v1';
+const STORAGE_AD_SPEND_KEY = 'bee4_ad_spend_v1';
 const SESSION_ADMIN_TOKEN_KEY = 'bee4_admin_session_v1';
 
 const ADMIN_INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000;
@@ -143,6 +166,10 @@ const VALID_ADMIN_MODULES = new Set<AdminModuleRoute>([
   'returns',
   'products',
   'inventory',
+  'integrations',
+  'automations',
+  'reconciliation',
+  'analytics',
   'discounts',
   'customers',
   'messages-reviews',
@@ -264,6 +291,27 @@ export default function App() {
   );
   const [crmFlagsByPhone, setCrmFlagsByPhone] = useState<Record<string, CrmCustomerFlag>>(() =>
     loadStoredJson<Record<string, CrmCustomerFlag>>(STORAGE_CRM_FLAGS_KEY, {})
+  );
+  const [marketplaceIntegrations, setMarketplaceIntegrations] = useState<
+    MarketplaceIntegrationConfig[]
+  >(() => {
+    const stored = loadStoredJson<MarketplaceIntegrationConfig[]>(STORAGE_INTEGRATIONS_KEY, []);
+    if (!Array.isArray(stored) || stored.length === 0) {
+      return DEFAULT_MARKETPLACE_INTEGRATIONS;
+    }
+    return DEFAULT_MARKETPLACE_INTEGRATIONS.map(
+      (def) => stored.find((s) => s.id === def.id || s.key === def.key) ?? def
+    );
+  });
+  const [automationRules, setAutomationRules] = useState<AutomationRule[]>(() => {
+    const stored = loadStoredJson<AutomationRule[]>(STORAGE_AUTOMATION_RULES_KEY, []);
+    if (!Array.isArray(stored) || stored.length === 0) {
+      return DEFAULT_AUTOMATION_RULE_TEMPLATES;
+    }
+    return stored;
+  });
+  const [adSpendLogs, setAdSpendLogs] = useState<MonthlyAdSpendRecord[]>(() =>
+    loadStoredJson<MonthlyAdSpendRecord[]>(STORAGE_AD_SPEND_KEY, [])
   );
   const [currentCustomerId, setCurrentCustomerId] = useState<string | null>(() =>
     loadStoredJson<string | null>(STORAGE_CURRENT_CUSTOMER_ID_KEY, null)
@@ -501,6 +549,22 @@ export default function App() {
       setAuditLogs(cloudLogs);
     });
 
+    const unsubIntegrations = subscribeMarketplaceIntegrationsAdmin((cloudConfigs) => {
+      setMarketplaceIntegrations(
+        DEFAULT_MARKETPLACE_INTEGRATIONS.map(
+          (def) => cloudConfigs.find((c) => c.id === def.id || c.key === def.key) ?? def
+        )
+      );
+    });
+
+    const unsubRules = subscribeAutomationRulesAdmin((cloudRules) => {
+      setAutomationRules(cloudRules);
+    });
+
+    const unsubAdSpend = subscribeAdSpendLogsAdmin((cloudAdSpends) => {
+      setAdSpendLogs(cloudAdSpends);
+    });
+
     return () => {
       unsubAdminOrders();
       unsubAdminReturns();
@@ -512,6 +576,9 @@ export default function App() {
       unsubPrintJobs();
       unsubSpools();
       unsubLogs();
+      unsubIntegrations();
+      unsubRules();
+      unsubAdSpend();
     };
   }, [supabaseAuthReady, supabaseUser, isSupabaseAdmin]);
 
@@ -668,6 +735,36 @@ export default function App() {
       // Ignore storage errors
     }
   }, [crmFlagsByPhone]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        STORAGE_INTEGRATIONS_KEY,
+        JSON.stringify(marketplaceIntegrations)
+      );
+    } catch {
+      // Ignore storage errors
+    }
+  }, [marketplaceIntegrations]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        STORAGE_AUTOMATION_RULES_KEY,
+        JSON.stringify(automationRules)
+      );
+    } catch {
+      // Ignore storage errors
+    }
+  }, [automationRules]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(STORAGE_AD_SPEND_KEY, JSON.stringify(adSpendLogs));
+    } catch {
+      // Ignore storage errors
+    }
+  }, [adSpendLogs]);
 
   useEffect(() => {
     try {
@@ -945,19 +1042,67 @@ export default function App() {
   };
 
   const handleOrderComplete = (order: OrderRecord) => {
-    setOrders((prev) => [order, ...prev]);
+    const channel: MarketplaceChannel = order.sourceChannel ?? 'bee4.in';
+    const orderWithChannel: OrderRecord = {
+      ...order,
+      sourceChannel: channel,
+      operationalBucket: order.operationalBucket ?? 'New / Upcoming',
+    };
+
+    const autoRes = evaluateOrderAutomations(
+      orderWithChannel,
+      automationRules,
+      'new_order_placed'
+    );
+    const finalOrder = autoRes.updatedOrder;
+
+    const { updatedProducts, deductions } = deductMasterInventoryForItems(
+      products,
+      finalOrder.items,
+      channel
+    );
+    if (deductions.length > 0) {
+      setProducts(updatedProducts);
+      if (isSupabaseAdmin) {
+        const changedIds = new Set(deductions.map((d) => d.productId));
+        for (const p of updatedProducts) {
+          if (changedIds.has(p.id)) {
+            void saveProductToSupabase(p).catch((err) => console.error(err));
+          }
+        }
+      }
+    }
+
+    if (autoRes.triggeredLogs.length > 0) {
+      setAutomationRules(autoRes.updatedRules);
+      if (isSupabaseAdmin) {
+        for (const r of autoRes.updatedRules) {
+          void saveAutomationRuleToSupabase(r).catch((err) => console.error(err));
+        }
+      }
+    }
+    if (autoRes.queuedPrintJobs.length > 0) {
+      setPrintJobs((prev) => [...autoRes.queuedPrintJobs, ...prev]);
+      if (isSupabaseAdmin) {
+        for (const pj of autoRes.queuedPrintJobs) {
+          void savePrintJobToSupabase(pj).catch((err) => console.error(err));
+        }
+      }
+    }
+
+    setOrders((prev) => [finalOrder, ...prev]);
     setCart([]);
-    if (order.couponCode) {
+    if (finalOrder.couponCode) {
       setCoupons((prev) =>
         prev.map((c) =>
-          c.code.toUpperCase() === order.couponCode?.toUpperCase()
+          c.code.toUpperCase() === finalOrder.couponCode?.toUpperCase()
             ? { ...c, usedCount: c.usedCount + 1 }
             : c
         )
       );
     }
     if (supabaseDiagnostics.isConfigured) {
-      void createOrderInSupabase(order, supabaseUser?.id ?? null).catch((err) =>
+      void createOrderInSupabase(finalOrder, supabaseUser?.id ?? null).catch((err) =>
         console.error(err)
       );
     }
@@ -1072,6 +1217,10 @@ export default function App() {
       awbNumber?: string;
       trackingUrl?: string;
       internalNotes?: string;
+      operationalBucket?: OperationalOrderBucket;
+      labelGeneratedAt?: string;
+      picklistGeneratedAt?: string;
+      packingProof?: PackingVerificationProof;
     }
   ) => {
     const mappedStatus = mapFulfillmentStageToOrderStatus(updates.fulfillmentStage);
@@ -1086,6 +1235,18 @@ export default function App() {
               awbNumber: updates.awbNumber,
               trackingUrl: updates.trackingUrl,
               internalNotes: updates.internalNotes,
+              ...(updates.operationalBucket !== undefined
+                ? { operationalBucket: updates.operationalBucket }
+                : {}),
+              ...(updates.labelGeneratedAt !== undefined
+                ? { labelGeneratedAt: updates.labelGeneratedAt }
+                : {}),
+              ...(updates.picklistGeneratedAt !== undefined
+                ? { picklistGeneratedAt: updates.picklistGeneratedAt }
+                : {}),
+              ...(updates.packingProof !== undefined
+                ? { packingProof: updates.packingProof }
+                : {}),
             }
           : order
       )
@@ -1098,6 +1259,10 @@ export default function App() {
         awbNumber: updates.awbNumber,
         trackingUrl: updates.trackingUrl,
         internalNotes: updates.internalNotes,
+        operationalBucket: updates.operationalBucket,
+        labelGeneratedAt: updates.labelGeneratedAt,
+        picklistGeneratedAt: updates.picklistGeneratedAt,
+        packingProof: updates.packingProof,
       }).catch((err) => console.error(err));
     }
     recordAuditLog(
@@ -1105,6 +1270,226 @@ export default function App() {
       'order',
       orderNumber,
       `Stage -> ${updates.fulfillmentStage}${updates.courierPartner ? ` · ${updates.courierPartner} ${updates.awbNumber || ''}` : ''}`
+    );
+  };
+
+  const handleBulkUpdateOrders = (updatedSubset: OrderRecord[], summaryLabel: string) => {
+    const byOrderNo = new Map(updatedSubset.map((o) => [o.orderNumber, o]));
+    setOrders((prev) => prev.map((o) => byOrderNo.get(o.orderNumber) ?? o));
+    if (isSupabaseAdmin) {
+      for (const ord of updatedSubset) {
+        void updateOrderLogisticsInSupabase(ord.orderNumber, {
+          status: ord.status,
+          fulfillmentStage: ord.fulfillmentStage || 'Confirmed',
+          courierPartner: ord.courierPartner,
+          awbNumber: ord.awbNumber,
+          trackingUrl: ord.trackingUrl,
+          internalNotes: ord.internalNotes,
+          operationalBucket: ord.operationalBucket,
+          labelGeneratedAt: ord.labelGeneratedAt,
+          picklistGeneratedAt: ord.picklistGeneratedAt,
+          packingProof: ord.packingProof,
+        }).catch((err) => console.error(err));
+      }
+    }
+    recordAuditLog('ORDERS_BULK_UPDATED', 'order', `bulk-${updatedSubset.length}`, summaryLabel);
+  };
+
+  const handleUpdateOrderSettlement = (
+    orderNumber: string,
+    settlement: OrderSettlementRecord
+  ) => {
+    const target = orders.find((o) => o.orderNumber === orderNumber);
+    setOrders((prev) =>
+      prev.map((o) => (o.orderNumber === orderNumber ? { ...o, settlement } : o))
+    );
+    if (isSupabaseAdmin && target) {
+      void updateOrderLogisticsInSupabase(orderNumber, {
+        status: target.status,
+        fulfillmentStage: target.fulfillmentStage || 'Confirmed',
+        courierPartner: target.courierPartner,
+        awbNumber: target.awbNumber,
+        trackingUrl: target.trackingUrl,
+        internalNotes: target.internalNotes,
+        settlement,
+      }).catch((err) => console.error(err));
+    }
+    recordAuditLog(
+      'ORDER_SETTLEMENT_UPDATED',
+      'settlement',
+      orderNumber,
+      `Settled ₹${Math.round(settlement.actualSettlementReceived)} (UTR: ${settlement.utrNumber || 'Pending'}).`
+    );
+  };
+
+  const handleSaveIntegration = (config: MarketplaceIntegrationConfig) => {
+    setMarketplaceIntegrations((prev) =>
+      prev.some((c) => c.id === config.id)
+        ? prev.map((c) => (c.id === config.id ? config : c))
+        : [config, ...prev]
+    );
+    if (isSupabaseAdmin) {
+      void saveMarketplaceIntegrationToSupabase(config).catch((err) => console.error(err));
+    }
+    recordAuditLog(
+      'INTEGRATION_UPDATED',
+      'integration',
+      config.key,
+      `Saved ${config.name} (${config.active ? 'Active' : 'Paused'}).`
+    );
+  };
+
+  const handleImportMarketplaceOrders = (
+    importedOrders: OrderRecord[],
+    channel: MarketplaceChannel
+  ) => {
+    const existingIds = new Set(orders.map((o) => o.orderNumber));
+    const uniqueNew = importedOrders.filter((o) => !existingIds.has(o.orderNumber));
+    if (uniqueNew.length === 0) return;
+
+    let runningRules = [...automationRules];
+    let runningProducts = [...products];
+    const extraPrintJobs: PrintJobRecord[] = [];
+    const processedOrders: OrderRecord[] = [];
+    const touchedProductIds = new Set<string>();
+
+    for (const rawOrder of uniqueNew) {
+      const autoRes = evaluateOrderAutomations(
+        rawOrder,
+        runningRules,
+        'marketplace_csv_imported'
+      );
+      runningRules = autoRes.updatedRules;
+      if (autoRes.queuedPrintJobs.length > 0) {
+        extraPrintJobs.push(...autoRes.queuedPrintJobs);
+      }
+      const stockRes = deductMasterInventoryForItems(
+        runningProducts,
+        autoRes.updatedOrder.items,
+        channel
+      );
+      runningProducts = stockRes.updatedProducts;
+      for (const d of stockRes.deductions) {
+        touchedProductIds.add(d.productId);
+      }
+      processedOrders.push(autoRes.updatedOrder);
+    }
+
+    setOrders((prev) => [...processedOrders, ...prev]);
+    setProducts(runningProducts);
+    setAutomationRules(runningRules);
+    if (extraPrintJobs.length > 0) {
+      setPrintJobs((prev) => [...extraPrintJobs, ...prev]);
+    }
+
+    if (isSupabaseAdmin) {
+      for (const ord of processedOrders) {
+        void createOrderInSupabase(ord, null).catch((err) => console.error(err));
+      }
+      for (const prod of runningProducts) {
+        if (touchedProductIds.has(prod.id)) {
+          void saveProductToSupabase(prod).catch((err) => console.error(err));
+        }
+      }
+      for (const r of runningRules) {
+        void saveAutomationRuleToSupabase(r).catch((err) => console.error(err));
+      }
+      for (const pj of extraPrintJobs) {
+        void savePrintJobToSupabase(pj).catch((err) => console.error(err));
+      }
+    }
+
+    recordAuditLog(
+      'MARKETPLACE_ORDERS_IMPORTED',
+      'order',
+      channel,
+      `Imported ${processedOrders.length} order(s) from ${channel} CSV and synchronized master inventory.`
+    );
+  };
+
+  const handleSaveAutomationRule = (rule: AutomationRule) => {
+    setAutomationRules((prev) =>
+      prev.some((r) => r.id === rule.id)
+        ? prev.map((r) => (r.id === rule.id ? rule : r))
+        : [rule, ...prev]
+    );
+    if (isSupabaseAdmin) {
+      void saveAutomationRuleToSupabase(rule).catch((err) => console.error(err));
+    }
+    recordAuditLog(
+      'AUTOMATION_RULE_SAVED',
+      'automation',
+      rule.id,
+      `${rule.enabled ? 'Enabled' : 'Paused'} rule "${rule.name}".`
+    );
+  };
+
+  const handleDeleteAutomationRule = (ruleId: string) => {
+    const target = automationRules.find((r) => r.id === ruleId);
+    setAutomationRules((prev) => prev.filter((r) => r.id !== ruleId));
+    if (isSupabaseAdmin) {
+      void deleteAutomationRuleFromSupabase(ruleId).catch((err) => console.error(err));
+    }
+    recordAuditLog(
+      'AUTOMATION_RULE_DELETED',
+      'automation',
+      ruleId,
+      `Deleted automation rule "${target?.name || ruleId}".`
+    );
+  };
+
+  const handleRunAutomationRulesNow = (): string => {
+    const activeRules = automationRules.filter((r) => r.enabled);
+    if (activeRules.length === 0) {
+      return 'No active automation rules enabled yet. Toggle at least one rule ON first.';
+    }
+    let runningRules = [...automationRules];
+    const extraPrintJobs: PrintJobRecord[] = [];
+    let matchedCount = 0;
+
+    const nextOrders = orders.map((ord) => {
+      if (ord.status === 'Delivered' || ord.status === 'Cancelled') return ord;
+      let cur = ord;
+      for (const trig of ['new_order_placed', 'marketplace_csv_imported', 'order_status_changed'] as const) {
+        const res = evaluateOrderAutomations(cur, runningRules, trig);
+        runningRules = res.updatedRules;
+        if (res.triggeredLogs.length > 0) {
+          matchedCount += res.triggeredLogs.length;
+          cur = res.updatedOrder;
+          extraPrintJobs.push(...res.queuedPrintJobs);
+        }
+      }
+      return cur;
+    });
+
+    setOrders(nextOrders);
+    setAutomationRules(runningRules);
+    if (extraPrintJobs.length > 0) {
+      setPrintJobs((prev) => [...extraPrintJobs, ...prev]);
+    }
+    if (isSupabaseAdmin) {
+      for (const r of runningRules) {
+        void saveAutomationRuleToSupabase(r).catch((err) => console.error(err));
+      }
+      for (const pj of extraPrintJobs) {
+        void savePrintJobToSupabase(pj).catch((err) => console.error(err));
+      }
+    }
+    return matchedCount > 0
+      ? `Executed ${matchedCount} active automation action(s) across ${nextOrders.length} open orders.`
+      : `Evaluated ${activeRules.length} active rule(s) on ${orders.length} order(s): 0 pending matches.`;
+  };
+
+  const handleSaveAdSpend = (entry: MonthlyAdSpendRecord) => {
+    setAdSpendLogs((prev) => [entry, ...prev.filter((a) => a.id !== entry.id)]);
+    if (isSupabaseAdmin) {
+      void saveAdSpendLogToSupabase(entry).catch((err) => console.error(err));
+    }
+    recordAuditLog(
+      'AD_SPEND_LOGGED',
+      'settlement',
+      entry.id,
+      `Logged ₹${Math.round(entry.amount)} ad spend (${entry.channel}) for ${entry.month}.`
     );
   };
 
@@ -1126,7 +1511,13 @@ export default function App() {
   const handleUpdateReturnRequest = (
     prevReturn: ReturnRequestRecord,
     nextUpdates: RmaTransitionUpdates,
-    options?: { forceQueuePrint?: boolean }
+    options?: {
+      forceQueuePrint?: boolean;
+      receivedAtHub?: boolean;
+      claimFiled?: boolean;
+      claimReferenceId?: string;
+      qcOutcome?: ReturnRequestRecord['qcOutcome'];
+    }
   ): string => {
     const syncRes = applyRmaTransitionSync({
       prevReturn,
@@ -1138,8 +1529,31 @@ export default function App() {
       forceQueuePrint: options?.forceQueuePrint,
     });
 
+    const nowIso = new Date().toISOString();
+    const enrichedReturn: ReturnRequestRecord = {
+      ...syncRes.updatedReturn,
+      ...(options?.receivedAtHub !== undefined
+        ? {
+            receivedAtHub: options.receivedAtHub,
+            receivedAtHubDate: options.receivedAtHub
+              ? syncRes.updatedReturn.receivedAtHubDate || nowIso
+              : undefined,
+          }
+        : {}),
+      ...(options?.claimFiled !== undefined
+        ? {
+            claimFiled: options.claimFiled,
+            claimFiledAt: options.claimFiled
+              ? syncRes.updatedReturn.claimFiledAt || nowIso
+              : undefined,
+            claimReferenceId: options.claimReferenceId ?? syncRes.updatedReturn.claimReferenceId,
+          }
+        : {}),
+      ...(options?.qcOutcome !== undefined ? { qcOutcome: options.qcOutcome } : {}),
+    };
+
     setReturns((prev) =>
-      prev.map((r) => (r.id === syncRes.updatedReturn.id ? syncRes.updatedReturn : r))
+      prev.map((r) => (r.id === enrichedReturn.id ? enrichedReturn : r))
     );
     setProducts(syncRes.updatedProducts);
     setOrders(syncRes.updatedOrders);
@@ -1160,7 +1574,7 @@ export default function App() {
     }
 
     if (isSupabaseAdmin) {
-      void updateReturnRequestInSupabase(syncRes.updatedReturn).catch((err) => console.error(err));
+      void updateReturnRequestInSupabase(enrichedReturn).catch((err) => console.error(err));
 
       if (syncRes.inventoryAdjustments.length > 0) {
         const affectedProductIds = new Set(syncRes.inventoryAdjustments.map((a) => a.productId));
@@ -1185,9 +1599,9 @@ export default function App() {
         void saveCouponToSupabase(newCoupon).catch((err) => console.error(err));
       }
 
-      if (syncRes.updatedReturn.status === 'Refund Completed') {
+      if (enrichedReturn.status === 'Refund Completed') {
         const updatedParentOrder = syncRes.updatedOrders.find(
-          (o) => o.orderNumber === syncRes.updatedReturn.orderNumber
+          (o) => o.orderNumber === enrichedReturn.orderNumber
         );
         if (updatedParentOrder) {
           void updateOrderRefundInSupabase(
@@ -1202,10 +1616,14 @@ export default function App() {
     recordAuditLog(
       'RMA_UPDATED',
       'rma',
-      syncRes.updatedReturn.rmaNumber,
-      syncRes.auditSummary
+      enrichedReturn.rmaNumber,
+      options?.claimFiled
+        ? `Filed SPF Claim ${options.claimReferenceId || enrichedReturn.rmaNumber}`
+        : syncRes.auditSummary
     );
-    return syncRes.auditSummary;
+    return options?.claimFiled
+      ? `Filed SPF Claim (${options.claimReferenceId || enrichedReturn.rmaNumber})`
+      : syncRes.auditSummary;
   };
 
   const handleSaveCoupon = (coupon: CouponRecord) => {
@@ -1500,6 +1918,7 @@ export default function App() {
     setPrintJobs([]);
     setAuditLogs([]);
     setCrmFlagsByPhone({});
+    setAdSpendLogs([]);
     setCoupons(INITIAL_COUPONS);
     return supaRes;
   };
@@ -1853,6 +2272,9 @@ export default function App() {
               spools={spools}
               auditLogs={auditLogs}
               crmFlagsByPhone={crmFlagsByPhone}
+              integrations={marketplaceIntegrations}
+              automationRules={automationRules}
+              adSpendLogs={adSpendLogs}
               settings={settings}
               adminPasswordHash={expectedAdminHash}
               cloudAdminEmail={isSupabaseAdmin ? supabaseUser?.email ?? null : null}
@@ -1868,6 +2290,8 @@ export default function App() {
               onDeleteProduct={handleDeleteProduct}
               onResetCatalog={handleResetCatalog}
               onUpdateOrderLogistics={handleUpdateOrderLogistics}
+              onBulkUpdateOrders={handleBulkUpdateOrders}
+              onUpdateOrderSettlement={handleUpdateOrderSettlement}
               onUpdateReturnRequest={handleUpdateReturnRequest}
               onSaveCoupon={handleSaveCoupon}
               onDeleteCoupon={handleDeleteCoupon}
@@ -1880,6 +2304,12 @@ export default function App() {
               onBulkDeleteCustomerMessages={handleBulkDeleteCustomerMessages}
               onSaveProductReview={handleSaveProductReview}
               onDeleteProductReview={handleDeleteProductReview}
+              onSaveIntegration={handleSaveIntegration}
+              onImportOrders={handleImportMarketplaceOrders}
+              onSaveAutomationRule={handleSaveAutomationRule}
+              onDeleteAutomationRule={handleDeleteAutomationRule}
+              onRunAutomationRulesNow={handleRunAutomationRulesNow}
+              onSaveAdSpend={handleSaveAdSpend}
               onChangeAdminPasswordHash={handleChangeAdminPasswordHash}
               onPurgeTestData={handlePurgeTestData}
               onLockAdmin={handleLockAdmin}

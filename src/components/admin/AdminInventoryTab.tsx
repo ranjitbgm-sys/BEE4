@@ -1,14 +1,20 @@
 import { FormEvent, useState } from 'react';
-import { History, Minus, Plus, Printer, RefreshCw } from 'lucide-react';
+import { History, Link2, Minus, Plus, Printer, RefreshCw, X } from 'lucide-react';
 import type {
   FilamentSpool,
   InventoryAdjustmentRecord,
+  MarketplaceChannel,
+  MarketplaceListingMap,
   PrintJobRecord,
   PrintJobStage,
   Product,
 } from '../../types';
 import { hydrateProductAdminFields } from '../../data/catalog';
 import { estimateSpoolRemainingUnits } from '../../utils/adminLogic';
+import {
+  calculateChannelAvailableStock,
+  MARKETPLACE_CHANNELS,
+} from '../../utils/omnichannelLogic';
 import { formatINR } from '../../utils/storeLogic';
 
 interface AdminInventoryTabProps {
@@ -17,6 +23,7 @@ interface AdminInventoryTabProps {
   spools: FilamentSpool[];
   inventoryAdjustments?: InventoryAdjustmentRecord[];
   onAdjustProductStock: (productId: string, nextQuantity: number) => void;
+  onSaveProduct?: (product: Product) => void;
   onSavePrintJob: (job: PrintJobRecord) => void;
   onSaveFilamentSpool: (spool: FilamentSpool) => void;
 }
@@ -29,6 +36,7 @@ export function AdminInventoryTab({
   spools,
   inventoryAdjustments = [],
   onAdjustProductStock,
+  onSaveProduct,
   onSavePrintJob,
   onSaveFilamentSpool,
 }: AdminInventoryTabProps) {
@@ -36,6 +44,35 @@ export function AdminInventoryTab({
   const [newJobQty, setNewJobQty] = useState('4');
   const [newJobOrderNo, setNewJobOrderNo] = useState('');
   const [newJobPrinter, setNewJobPrinter] = useState('Bambu P1S #2 (Banka Lab)');
+  const [mappingProductId, setMappingProductId] = useState<string | null>(null);
+  const [mapChannel, setMapChannel] = useState<MarketplaceChannel>('Flipkart');
+  const [mapRemoteSku, setMapRemoteSku] = useState('');
+  const [mapListingId, setMapListingId] = useState('');
+  const [mapPackMultiplier, setMapPackMultiplier] = useState('1');
+
+  const mappingProduct = products.find((p) => p.id === mappingProductId) ?? null;
+
+  const handleAddMarketplaceListing = (e: FormEvent) => {
+    e.preventDefault();
+    if (!mappingProduct || !onSaveProduct || !mapRemoteSku.trim()) return;
+    const existing = mappingProduct.marketplaceListings ?? [];
+    const nextEntry: MarketplaceListingMap = {
+      id: `map-${Date.now()}`,
+      channel: mapChannel,
+      remoteSkuOrAsin: mapRemoteSku.trim(),
+      listingId: mapListingId.trim() || undefined,
+      packMultiplier: Math.max(1, Math.round(Number(mapPackMultiplier) || 1)),
+      active: true,
+    };
+    const filtered = existing.filter((l) => l.channel !== mapChannel || l.remoteSkuOrAsin !== nextEntry.remoteSkuOrAsin);
+    onSaveProduct({
+      ...mappingProduct,
+      marketplaceListings: [...filtered, nextEntry],
+    });
+    setMapRemoteSku('');
+    setMapListingId('');
+    setMapPackMultiplier('1');
+  };
 
   const handleQueueBatch = (e: FormEvent) => {
     e.preventDefault();
@@ -81,8 +118,10 @@ export function AdminInventoryTab({
             <thead>
               <tr className="bg-white/45 dark:bg-white/5 text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-400 border-b border-zinc-900/10 dark:border-white/10">
                 <th className="py-3 px-4">SKU & Product</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4 text-right">Inline Stock Adjust</th>
+                <th className="py-3 px-4">COGS ₹</th>
+                <th className="py-3 px-4">Reserve bee4.in</th>
+                <th className="py-3 px-4">Channel Stock Sync</th>
+                <th className="py-3 px-4 text-right">Master Stock</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-900/6 dark:divide-white/8 text-xs">
@@ -91,18 +130,22 @@ export function AdminInventoryTab({
                 const qty = p.stockQuantity ?? 0;
                 const threshold = p.lowStockThreshold ?? 5;
                 const isLow = qty <= threshold;
+                const cogsVal = p.cogsCost ?? p.manufacturingCost ?? Math.round(p.price * 0.34);
+                const reserveVal = p.reserveForWebsite ?? 0;
+                const fkAvail = calculateChannelAvailableStock(p, 'Flipkart');
+                const amzAvail = calculateChannelAvailableStock(p, 'Amazon');
+                const meeshoAvail = calculateChannelAvailableStock(p, 'Meesho');
+                const mappingsCount = (p.marketplaceListings ?? []).length;
                 return (
                   <tr key={p.id} className="hover:bg-white/40 dark:hover:bg-white/5">
                     <td className="py-3 px-4">
                       <p className="font-semibold text-zinc-900 dark:text-white">{p.title}</p>
-                      <p className="text-[11px] font-mono text-zinc-500 dark:text-zinc-400 tabular-nums">
-                        {p.sku} · Threshold {threshold}
-                      </p>
-                    </td>
-                    <td className="py-3 px-4 whitespace-nowrap">
-                      <div className="flex flex-wrap items-center gap-1.5">
+                      <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                        <span className="text-[11px] font-mono text-zinc-500 dark:text-zinc-400 tabular-nums">
+                          {p.sku}
+                        </span>
                         <span
-                          className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                             qty === 0
                               ? 'bg-red-500/15 text-red-700 dark:text-red-300'
                               : isLow
@@ -117,6 +160,53 @@ export function AdminInventoryTab({
                             Scrap PLA: {p.damagedScrapCount}
                           </span>
                         )}
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 whitespace-nowrap">
+                      <input
+                        type="number"
+                        min={0}
+                        aria-label={`COGS cost for ${p.title}`}
+                        value={cogsVal}
+                        onChange={(e) => {
+                          if (!onSaveProduct) return;
+                          const nextCogs = Math.max(0, Math.round(Number(e.target.value) || 0));
+                          onSaveProduct({
+                            ...p,
+                            cogsCost: nextCogs,
+                            manufacturingCost: nextCogs,
+                          });
+                        }}
+                        className="w-20 px-2 py-1 rounded-lg glass-input text-xs font-semibold tabular-nums focus:outline-none"
+                      />
+                    </td>
+                    <td className="py-3 px-4 whitespace-nowrap">
+                      <input
+                        type="number"
+                        min={0}
+                        aria-label={`Reserve units for bee4.in on ${p.title}`}
+                        value={reserveVal}
+                        onChange={(e) => {
+                          if (!onSaveProduct) return;
+                          const nextRes = Math.max(0, Math.round(Number(e.target.value) || 0));
+                          onSaveProduct({ ...p, reserveForWebsite: nextRes });
+                        }}
+                        className="w-16 px-2 py-1 rounded-lg glass-input text-xs font-semibold tabular-nums focus:outline-none"
+                      />
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-[11px] text-zinc-600 dark:text-zinc-300 tabular-nums">
+                          FK:{fkAvail} · AMZ:{amzAvail} · MSH:{meeshoAvail}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setMappingProductId(p.id)}
+                          className="px-2.5 py-1 rounded-xl glass-btn-secondary text-[11px] font-semibold inline-flex items-center gap-1"
+                        >
+                          <Link2 className="w-3 h-3" />
+                          <span>Map SKUs ({mappingsCount})</span>
+                        </button>
                       </div>
                     </td>
                     <td className="py-3 px-4 text-right whitespace-nowrap">
@@ -380,6 +470,118 @@ export function AdminInventoryTab({
           )}
         </div>
       </div>
+
+      {/* Multi-Marketplace SKU & Combo Multiplier Mapper Modal */}
+      {mappingProduct && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 bg-zinc-950/55 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setMappingProductId(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-xl glass-drawer rounded-3xl p-6 space-y-5"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="font-display text-lg font-bold text-zinc-900 dark:text-white">
+                  Marketplace &amp; Combo SKU Mapper · {mappingProduct.title}
+                </h3>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  Master Stock: {mappingProduct.stockQuantity ?? 0} · Reserve for bee4.in:{' '}
+                  {mappingProduct.reserveForWebsite ?? 0} units
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMappingProductId(null)}
+                className="p-1.5 rounded-xl text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddMarketplaceListing} className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 text-xs">
+              <select
+                value={mapChannel}
+                onChange={(e) => setMapChannel(e.target.value as MarketplaceChannel)}
+                className="sm:col-span-3 px-3 py-2 rounded-xl glass-input font-semibold focus:outline-none"
+              >
+                {MARKETPLACE_CHANNELS.map((ch) => (
+                  <option key={ch} value={ch}>
+                    {ch}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="text"
+                required
+                value={mapRemoteSku}
+                onChange={(e) => setMapRemoteSku(e.target.value)}
+                placeholder="ASIN / FSN / Channel SKU"
+                className="sm:col-span-4 px-3 py-2 rounded-xl glass-input font-mono focus:outline-none"
+              />
+              <input
+                type="number"
+                min={1}
+                value={mapPackMultiplier}
+                onChange={(e) => setMapPackMultiplier(e.target.value)}
+                placeholder="Pack x"
+                title="Combo Pack Multiplier (e.g. 2 for Pack of 2)"
+                className="sm:col-span-2 px-3 py-2 rounded-xl glass-input tabular-nums focus:outline-none"
+              />
+              <button
+                type="submit"
+                className="sm:col-span-3 px-3 py-2 rounded-xl glass-btn-amber text-white font-semibold"
+              >
+                + Link SKU
+              </button>
+            </form>
+
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {(mappingProduct.marketplaceListings ?? []).length === 0 ? (
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 italic p-3 glass-subtle rounded-2xl">
+                  No marketplace SKUs mapped yet. Add a Flipkart FSN, Amazon ASIN, or Meesho SKU with pack multiplier (e.g. 2x deducts 2 Master units per sale).
+                </p>
+              ) : (
+                (mappingProduct.marketplaceListings ?? []).map((lst) => (
+                  <div
+                    key={lst.id}
+                    className="glass-subtle rounded-2xl p-3 flex items-center justify-between gap-2 text-xs"
+                  >
+                    <div>
+                      <p className="font-bold text-zinc-900 dark:text-white">
+                        {lst.channel} · <span className="font-mono">{lst.remoteSkuOrAsin}</span>
+                      </p>
+                      <p className="text-[11px] text-zinc-500 dark:text-zinc-400 tabular-nums">
+                        Pack Multiplier: {lst.packMultiplier}x · Channel Avail:{' '}
+                        {calculateChannelAvailableStock(mappingProduct, lst.channel)} packs
+                      </p>
+                    </div>
+                    {onSaveProduct && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onSaveProduct({
+                            ...mappingProduct,
+                            marketplaceListings: (mappingProduct.marketplaceListings ?? []).filter(
+                              (x) => x.id !== lst.id
+                            ),
+                          })
+                        }
+                        className="px-2.5 py-1 rounded-xl glass-btn-secondary text-red-600 dark:text-red-400 font-semibold"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
