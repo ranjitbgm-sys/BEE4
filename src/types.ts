@@ -352,6 +352,13 @@ export interface ProductReviewRecord {
   updatedAt: string;
 }
 
+export interface CustomerPanelControls {
+  enableGiftCards: boolean;
+  enableLanguageSwitcher: boolean;
+  enableSelfServiceCancel: boolean;
+  enableProductQa: boolean;
+}
+
 export interface StoreSettings {
   whatsappNumber: string;
   supportEmail: string;
@@ -374,6 +381,7 @@ export interface StoreSettings {
   promoCode: string;
   promoDiscountPercent: number;
   giftFinderWeights?: Record<Exclude<GiftOccasion, GiftOccasion.ALL>, number>;
+  customerPanelControls?: CustomerPanelControls;
 }
 
 export type CouponDiscountType = 'percentage' | 'flat';
@@ -438,6 +446,7 @@ export interface AdminAuditLog {
     | 'integration'
     | 'automation'
     | 'settlement'
+    | 'qa'
     | 'auth';
   entityId: string;
   summary: string;
@@ -612,7 +621,7 @@ export interface TestimonialErrors {
   feedback?: string;
 }
 
-export type AddressLabel = 'Home' | 'Work' | 'Other';
+export type AddressLabel = 'Home' | 'Work' | 'Gift' | 'Other';
 
 export interface SavedAddress {
   id: string;
@@ -668,15 +677,61 @@ export interface CustomerCustomDesign {
   createdAt: string;
 }
 
+export interface CustomerDeviceSession {
+  id: string;
+  deviceLabel: string;
+  browser: string;
+  platform: string;
+  lastActiveAt: string;
+  isCurrent?: boolean;
+}
+
+export interface CustomerNotificationPreferences {
+  orderUpdates: boolean;
+  returnAlerts: boolean;
+  offersAndLaunches: boolean;
+}
+
+export type CustomerGender = 'Male' | 'Female' | 'Other';
+
+export type CustomerAccountStatus = 'Active' | 'Suspended';
+
+export interface ProductQuestionRecord {
+  id: string;
+  userId?: string | null;
+  productId: string;
+  productName: string;
+  customerName: string;
+  customerContact?: string;
+  question: string;
+  answer?: string;
+  answeredBy?: string;
+  status: 'Pending' | 'Answered';
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface CustomerProfile {
   id: string;
   fullName: string;
+  firstName?: string;
+  lastName?: string;
+  gender?: CustomerGender;
+  avatarUrl?: string;
   phone: string;
   email: string;
   emailVerified?: boolean;
   emailConfirmedAt?: string;
   passwordHash?: string;
   preferredPayment: PaymentMethod;
+  preferredLanguage?: 'en' | 'hi';
+  notificationPreferences?: CustomerNotificationPreferences;
+  savedUpiIds?: string[];
+  devices?: CustomerDeviceSession[];
+  accountStatus?: CustomerAccountStatus;
+  deactivationRequested?: boolean;
+  deactivationRequestedAt?: string;
+  forceLoggedOutAt?: string;
   celebrationMonth?: string;
   crmFlag?: CrmCustomerFlag;
   walletBalance?: number;

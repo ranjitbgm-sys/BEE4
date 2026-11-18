@@ -4,6 +4,7 @@ import {
   BadgeCheck,
   Check,
   Heart,
+  HelpCircle,
   ImagePlus,
   MessageCircle,
   MessageSquarePlus,
@@ -18,7 +19,7 @@ import {
 } from 'lucide-react';
 import { AGE_GROUP_META } from '../data/catalog';
 import { uploadReviewPhotoToSupabaseStorage } from '../services/supabaseStoreService';
-import { Product, ProductReviewRecord } from '../types';
+import { Product, ProductQuestionRecord, ProductReviewRecord } from '../types';
 import {
   ProductReviewFormErrors,
   computeProductRatingStats,
@@ -37,6 +38,8 @@ interface ProductDetailViewProps {
   product: Product;
   relatedProducts: Product[];
   reviews?: ProductReviewRecord[];
+  productQuestions?: ProductQuestionRecord[];
+  qaEnabled?: boolean;
   wishlistIds: string[];
   whatsappNumber: string;
   onBackToShop: () => void;
@@ -46,6 +49,7 @@ interface ProductDetailViewProps {
   onBuyNow: (product: Product, variant: string, quantity: number) => void;
   onToggleWishlist: (productId: string) => void;
   onSubmitReview?: (review: ProductReviewRecord) => void;
+  onSubmitProductQuestion?: (question: ProductQuestionRecord) => void;
 }
 
 const RATING_LEVELS: (1 | 2 | 3 | 4 | 5)[] = [1, 2, 3, 4, 5];
@@ -54,6 +58,8 @@ export function ProductDetailView({
   product,
   relatedProducts,
   reviews = [],
+  productQuestions = [],
+  qaEnabled = true,
   wishlistIds,
   whatsappNumber,
   onBackToShop,
@@ -63,6 +69,7 @@ export function ProductDetailView({
   onBuyNow,
   onToggleWishlist,
   onSubmitReview,
+  onSubmitProductQuestion,
 }: ProductDetailViewProps) {
   const isWishlisted = wishlistIds.includes(product.id);
   const [selectedVariant, setSelectedVariant] = useState(
@@ -83,6 +90,11 @@ export function ProductDetailView({
   const [reviewErrors, setReviewErrors] = useState<ProductReviewFormErrors>({});
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
   const [lightboxPhoto, setLightboxPhoto] = useState<{ url: string; caption: string } | null>(null);
+  const [qaName, setQaName] = useState('');
+  const [qaContact, setQaContact] = useState('');
+  const [qaText, setQaText] = useState('');
+  const [qaError, setQaError] = useState<string | null>(null);
+  const [qaSuccess, setQaSuccess] = useState(false);
 
   const ageMeta = AGE_GROUP_META.find((m) => m.ageGroup === product.ageGroup);
   const angles = product.gallery;
@@ -90,6 +102,40 @@ export function ProductDetailView({
 
   const productReviews = getPublishedReviewsForProduct(reviews, product.id, product.title);
   const ratingStats = computeProductRatingStats(reviews, product.id, product.title);
+  const productSpecificQuestions = productQuestions.filter(
+    (q) => q.productId === product.id && (q.status === 'Answered' || Boolean(q.answer))
+  );
+
+  const handleQuestionSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    setQaError(null);
+    if (!qaName.trim() || qaName.trim().length < 2) {
+      setQaError('Please enter your name.');
+      return;
+    }
+    if (!qaText.trim() || qaText.trim().length < 6) {
+      setQaError('Please type your question (minimum 6 characters).');
+      return;
+    }
+    if (onSubmitProductQuestion) {
+      const now = new Date().toISOString();
+      onSubmitProductQuestion({
+        id: `qa-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        productId: product.id,
+        productName: product.title,
+        customerName: qaName.trim(),
+        customerContact: qaContact.trim(),
+        question: qaText.trim(),
+        status: 'Pending',
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+    setQaName('');
+    setQaContact('');
+    setQaText('');
+    setQaSuccess(true);
+  };
 
   const savings =
     product.compareAtPrice && product.compareAtPrice > product.price
@@ -802,6 +848,118 @@ export function ProductDetailView({
           </form>
         </div>
       </div>
+
+      {/* Customer Questions & Answers */}
+      {qaEnabled && (
+        <div className="mt-14 pt-10 border-t border-white/75 dark:border-white/10">
+          <div className="mb-6">
+            <p className="text-xs font-semibold tracking-wide text-zinc-500 dark:text-zinc-400">
+              Product Q&amp;A
+            </p>
+            <h2 className="mt-1 font-display text-2xl font-bold text-zinc-900 dark:text-white">
+              Customer Questions &amp; Answers
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            <div className="lg:col-span-7 space-y-3">
+              {productSpecificQuestions.length === 0 ? (
+                <div className="p-6 rounded-3xl glass-surface text-sm text-zinc-600 dark:text-zinc-300">
+                  No answered questions for this product yet. Ask Team BEE4 anything about dimensions, age suitability, or custom options!
+                </div>
+              ) : (
+                productSpecificQuestions.map((qa) => (
+                  <article key={qa.id} className="p-5 rounded-2xl glass-surface space-y-2.5">
+                    <div className="flex items-start gap-2.5">
+                      <HelpCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-bold text-zinc-900 dark:text-white">
+                          Q: {qa.question}
+                        </p>
+                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+                          Asked by {qa.customerName}
+                        </p>
+                      </div>
+                    </div>
+                    {qa.answer && (
+                      <div className="p-3.5 rounded-xl glass-subtle border-l-2 border-emerald-500 space-y-1">
+                        <p className="text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                          {qa.answeredBy || 'Team BEE4'}
+                        </p>
+                        <p className="text-xs sm:text-sm text-zinc-700 dark:text-zinc-200 leading-relaxed">
+                          {qa.answer}
+                        </p>
+                      </div>
+                    )}
+                  </article>
+                ))
+              )}
+            </div>
+
+            <form
+              onSubmit={handleQuestionSubmit}
+              className="lg:col-span-5 p-6 rounded-3xl glass-surface space-y-3.5"
+            >
+              <h3 className="font-display text-lg font-bold text-zinc-900 dark:text-white">
+                Ask a Question
+              </h3>
+              {qaSuccess && (
+                <div role="status" className="p-3 rounded-xl bg-emerald-500/12 border border-emerald-500/30 text-xs font-semibold text-emerald-800 dark:text-emerald-200">
+                  Question sent to Team BEE4! You&apos;ll see the answer here and inside your BEE4 Account.
+                </div>
+              )}
+              {qaError && (
+                <p className="text-xs font-semibold text-rose-600 dark:text-rose-300">{qaError}</p>
+              )}
+              <div>
+                <label htmlFor="pdp-qa-name" className="block text-xs font-medium text-zinc-700 dark:text-zinc-200 mb-1">
+                  Your Name *
+                </label>
+                <input
+                  id="pdp-qa-name"
+                  type="text"
+                  value={qaName}
+                  onChange={(e) => setQaName(e.target.value)}
+                  placeholder="e.g. Rohan Verma"
+                  className="w-full h-10 px-3 rounded-xl glass-input text-sm focus:outline-none"
+                />
+              </div>
+              <div>
+                <label htmlFor="pdp-qa-contact" className="block text-xs font-medium text-zinc-700 dark:text-zinc-200 mb-1">
+                  Phone or Email (Optional)
+                </label>
+                <input
+                  id="pdp-qa-contact"
+                  type="text"
+                  value={qaContact}
+                  onChange={(e) => setQaContact(e.target.value)}
+                  placeholder="10-digit mobile or email"
+                  className="w-full h-10 px-3 rounded-xl glass-input text-sm focus:outline-none"
+                />
+              </div>
+              <div>
+                <label htmlFor="pdp-qa-question" className="block text-xs font-medium text-zinc-700 dark:text-zinc-200 mb-1">
+                  Your Question *
+                </label>
+                <textarea
+                  id="pdp-qa-question"
+                  rows={3}
+                  value={qaText}
+                  onChange={(e) => setQaText(e.target.value)}
+                  placeholder="Ask about material safety, difficulty level, or custom engraving..."
+                  className="w-full p-3 rounded-xl glass-input text-sm focus:outline-none"
+                />
+              </div>
+              <button
+                type="submit"
+                className="w-full h-10 rounded-xl glass-btn-amber text-white text-sm font-semibold"
+              >
+                Submit Question
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Related Products */}
       {relatedProducts.length > 0 && (

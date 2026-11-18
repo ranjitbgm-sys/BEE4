@@ -725,6 +725,12 @@ export const DEFAULT_STORE_SETTINGS = {
     [GiftOccasion.EVERYDAY]: 6,
     [GiftOccasion.HOUSEWARMING]: 5,
   },
+  customerPanelControls: {
+    enableGiftCards: true,
+    enableLanguageSwitcher: true,
+    enableSelfServiceCancel: true,
+    enableProductQa: true,
+  },
 };
 
 export const INITIAL_COUPONS = [

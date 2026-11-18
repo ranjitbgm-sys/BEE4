@@ -20,6 +20,7 @@ import type {
 import { DEFAULT_STORE_SETTINGS } from '../../data/catalog';
 import { buildSupabaseSetupSql, supabaseDiagnostics } from '../../lib/supabase';
 import { validateAdminPasswordChange } from '../../utils/adminAuth';
+import { DEFAULT_CUSTOMER_PANEL_CONTROLS } from '../../utils/customerAccountLogic';
 import { normalizeWhatsAppNumber } from '../../utils/storeLogic';
 
 interface AdminSettingsTabProps {
@@ -96,6 +97,20 @@ export function AdminSettingsTab({
   const [upiVpa, setUpiVpa] = useState(settings.upiVpa ?? DEFAULT_STORE_SETTINGS.upiVpa);
   const [promoCodeDraft, setPromoCodeDraft] = useState(settings.promoCode);
   const [promoPctDraft, setPromoPctDraft] = useState(String(settings.promoDiscountPercent));
+  const [enableGiftCards, setEnableGiftCards] = useState(
+    settings.customerPanelControls?.enableGiftCards ?? DEFAULT_CUSTOMER_PANEL_CONTROLS.enableGiftCards
+  );
+  const [enableLanguageSwitcher, setEnableLanguageSwitcher] = useState(
+    settings.customerPanelControls?.enableLanguageSwitcher ??
+      DEFAULT_CUSTOMER_PANEL_CONTROLS.enableLanguageSwitcher
+  );
+  const [enableSelfServiceCancel, setEnableSelfServiceCancel] = useState(
+    settings.customerPanelControls?.enableSelfServiceCancel ??
+      DEFAULT_CUSTOMER_PANEL_CONTROLS.enableSelfServiceCancel
+  );
+  const [enableProductQa, setEnableProductQa] = useState(
+    settings.customerPanelControls?.enableProductQa ?? DEFAULT_CUSTOMER_PANEL_CONTROLS.enableProductQa
+  );
   const [settingsError, setSettingsError] = useState('');
 
   // Passphrase draft
@@ -145,6 +160,12 @@ export function AdminSettingsTab({
       upiVpa: upiVpa.trim() || 'bee4studio@okaxis',
       promoCode: promoCodeDraft.trim().toUpperCase(),
       promoDiscountPercent: Math.max(0, Math.min(80, Math.round(Number(promoPctDraft) || 0))),
+      customerPanelControls: {
+        enableGiftCards,
+        enableLanguageSwitcher,
+        enableSelfServiceCancel,
+        enableProductQa,
+      },
     });
     setSettingsError('');
   };
@@ -605,6 +626,56 @@ export function AdminSettingsTab({
               />
               <span>WhatsApp Quick Order Enabled</span>
             </label>
+          </div>
+
+          {/* Customer Panel Controls */}
+          <div className="md:col-span-2 glass-subtle rounded-2xl p-4 space-y-2.5">
+            <div>
+              <p className="text-xs font-bold text-zinc-900 dark:text-white">
+                Customer Panel Controls
+              </p>
+              <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                Toggle live capabilities inside Customer Account (/account) and Product Pages
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-semibold">
+              <label className="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={enableGiftCards}
+                  onChange={(e) => setEnableGiftCards(e.target.checked)}
+                  className="w-4 h-4 accent-amber-600"
+                />
+                <span>Enable Gift Cards &amp; Wallet Features</span>
+              </label>
+              <label className="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={enableLanguageSwitcher}
+                  onChange={(e) => setEnableLanguageSwitcher(e.target.checked)}
+                  className="w-4 h-4 accent-amber-600"
+                />
+                <span>Enable Language Switcher (English / हिन्दी)</span>
+              </label>
+              <label className="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={enableSelfServiceCancel}
+                  onChange={(e) => setEnableSelfServiceCancel(e.target.checked)}
+                  className="w-4 h-4 accent-amber-600"
+                />
+                <span>Enable Customer Self-Service Cancellation</span>
+              </label>
+              <label className="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={enableProductQa}
+                  onChange={(e) => setEnableProductQa(e.target.checked)}
+                  className="w-4 h-4 accent-amber-600"
+                />
+                <span>Enable Product Q&amp;A (Storefront &amp; Account)</span>
+              </label>
+            </div>
           </div>
         </div>
 

@@ -115,6 +115,18 @@ alter table public.profiles add column if not exists email_confirmed_at timestam
 alter table public.profiles add column if not exists wallet_balance numeric not null default 0;
 alter table public.profiles add column if not exists wallet_transactions jsonb not null default '[]'::jsonb;
 alter table public.profiles add column if not exists custom_designs jsonb not null default '[]'::jsonb;
+alter table public.profiles add column if not exists first_name text not null default '';
+alter table public.profiles add column if not exists last_name text not null default '';
+alter table public.profiles add column if not exists gender text not null default 'Prefer not to say';
+alter table public.profiles add column if not exists avatar_url text not null default '';
+alter table public.profiles add column if not exists preferred_language text not null default 'en';
+alter table public.profiles add column if not exists notification_preferences jsonb not null default '{"orderUpdates":true,"returnAlerts":true,"offersAndLaunches":false}'::jsonb;
+alter table public.profiles add column if not exists saved_upi_ids jsonb not null default '[]'::jsonb;
+alter table public.profiles add column if not exists devices jsonb not null default '[]'::jsonb;
+alter table public.profiles add column if not exists account_status text not null default 'Active';
+alter table public.profiles add column if not exists deactivation_requested boolean not null default false;
+alter table public.profiles add column if not exists deactivation_requested_at timestamptz;
+alter table public.profiles add column if not exists force_logged_out_at timestamptz;
 
 create table if not exists public.customers (
   id text primary key,
@@ -141,6 +153,18 @@ alter table public.customers add column if not exists email_confirmed_at timesta
 alter table public.customers add column if not exists wallet_balance numeric not null default 0;
 alter table public.customers add column if not exists wallet_transactions jsonb not null default '[]'::jsonb;
 alter table public.customers add column if not exists custom_designs jsonb not null default '[]'::jsonb;
+alter table public.customers add column if not exists first_name text not null default '';
+alter table public.customers add column if not exists last_name text not null default '';
+alter table public.customers add column if not exists gender text not null default 'Prefer not to say';
+alter table public.customers add column if not exists avatar_url text not null default '';
+alter table public.customers add column if not exists preferred_language text not null default 'en';
+alter table public.customers add column if not exists notification_preferences jsonb not null default '{"orderUpdates":true,"returnAlerts":true,"offersAndLaunches":false}'::jsonb;
+alter table public.customers add column if not exists saved_upi_ids jsonb not null default '[]'::jsonb;
+alter table public.customers add column if not exists devices jsonb not null default '[]'::jsonb;
+alter table public.customers add column if not exists account_status text not null default 'Active';
+alter table public.customers add column if not exists deactivation_requested boolean not null default false;
+alter table public.customers add column if not exists deactivation_requested_at timestamptz;
+alter table public.customers add column if not exists force_logged_out_at timestamptz;
 
 create or replace function public.is_bee4_admin()
 returns boolean
@@ -293,8 +317,11 @@ create table if not exists public.store_settings (
   promo_code text not null default 'SMARTKID15',
   promo_discount_percent numeric not null default 15,
   gift_finder_weights jsonb not null default '{}'::jsonb,
+  customer_panel_controls jsonb not null default '{"enableGiftCards":true,"enableLanguageSwitcher":true,"enableSelfServiceCancel":true,"enableProductQa":true}'::jsonb,
   updated_at timestamptz not null default now()
 );
+
+alter table public.store_settings add column if not exists customer_panel_controls jsonb not null default '{"enableGiftCards":true,"enableLanguageSwitcher":true,"enableSelfServiceCancel":true,"enableProductQa":true}'::jsonb;
 
 -- 6. Supporting Admin & Storefront Tables
 create table if not exists public.print_jobs (
@@ -962,5 +989,45 @@ begin
   );
 end;
 $$;
+
+-- 11. Product Questions & Answers Table & Policies
+create table if not exists public.product_questions (
+  id text primary key,
+  user_id uuid references auth.users(id) on delete set null,
+  product_id text not null,
+  product_name text not null,
+  customer_name text not null,
+  customer_contact text not null default '',
+  question text not null,
+  answer text not null default '',
+  answered_by text not null default '',
+  status text not null default 'Pending',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.product_questions enable row level security;
+
+drop policy if exists "Public read answered or own product_questions" on public.product_questions;
+create policy "Public read answered or own product_questions" on public.product_questions
+  for select using (
+    status = 'Answered'
+    or auth.uid() = user_id
+    or public.is_bee4_admin()
+  );
+
+drop policy if exists "Anyone submit product_question" on public.product_questions;
+create policy "Anyone submit product_question" on public.product_questions
+  for insert with check (true);
+
+drop policy if exists "Admins manage product_questions" on public.product_questions;
+create policy "Admins manage product_questions" on public.product_questions
+  for all using (public.is_bee4_admin()) with check (public.is_bee4_admin());
+
+do $$
+begin
+  alter publication supabase_realtime add table public.product_questions;
+exception when duplicate_object then null;
+end $$;
 `;
 }

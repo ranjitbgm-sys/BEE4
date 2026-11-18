@@ -1,12 +1,33 @@
-import { useMemo, useState } from 'react';
-import { BadgeCheck, Download, Search, ShieldAlert, Users } from 'lucide-react';
-import type { CrmCustomerFlag } from '../../types';
+import { FormEvent, useMemo, useState } from 'react';
+import {
+  BadgeCheck,
+  Ban,
+  CheckCircle2,
+  Download,
+  Edit3,
+  Globe,
+  LogOut,
+  MapPin,
+  Search,
+  ShieldAlert,
+  Smartphone,
+  Users,
+  Wallet,
+  X,
+} from 'lucide-react';
+import type { CrmCustomerFlag, CustomerGender, CustomerProfile } from '../../types';
 import { CrmCustomerSummary, exportCustomersToCsv } from '../../utils/adminLogic';
+import { joinFirstLastName, splitFullName } from '../../utils/customerAccountLogic';
 import { formatINR } from '../../utils/storeLogic';
 
 interface AdminCustomersTabProps {
   crmCustomers: CrmCustomerSummary[];
+  customers?: CustomerProfile[];
   onSetCustomerFlag: (phoneOrKey: string, flag: CrmCustomerFlag) => void;
+  onUpdateCustomerAdmin?: (updated: CustomerProfile) => void;
+  onAdjustCustomerWallet?: (customer: CustomerProfile, deltaAmount: number, note: string) => void;
+  onForceLogoutCustomer?: (customer: CustomerProfile) => void;
+  onToggleCustomerStatus?: (customer: CustomerProfile) => void;
 }
 
 const CRM_FLAGS: CrmCustomerFlag[] = ['VIP', 'Standard', 'High-Risk RTO'];
@@ -24,17 +45,95 @@ function flagStyle(flag: CrmCustomerFlag): string {
 
 export function AdminCustomersTab({
   crmCustomers,
+  customers = [],
   onSetCustomerFlag,
+  onUpdateCustomerAdmin,
+  onAdjustCustomerWallet,
+  onForceLogoutCustomer,
+  onToggleCustomerStatus,
 }: AdminCustomersTabProps) {
   const [search, setSearch] = useState('');
   const [flagFilter, setFlagFilter] = useState<CrmCustomerFlag | 'All'>('All');
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+
+  // Manage drawer local drafts
+  const [editFirstName, setEditFirstName] = useState('');
+  const [editLastName, setEditLastName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editGender, setEditGender] = useState<CustomerGender | ''>('');
+  const [editLanguage, setEditLanguage] = useState<'en' | 'hi'>('en');
+  const [walletMode, setWalletMode] = useState<'credit' | 'debit'>('credit');
+  const [walletAmount, setWalletAmount] = useState('');
+  const [walletNote, setWalletNote] = useState('');
+  const [drawerMessage, setDrawerMessage] = useState('');
+
+  const selectedProfile = useMemo(
+    () => (selectedProfileId ? customers.find((c) => c.id === selectedProfileId) ?? null : null),
+    [selectedProfileId, customers]
+  );
+
+  const openManageDrawer = (profile: CustomerProfile) => {
+    const split = splitFullName(profile.fullName);
+    setSelectedProfileId(profile.id);
+    setEditFirstName(profile.firstName ?? split.firstName);
+    setEditLastName(profile.lastName ?? split.lastName);
+    setEditPhone(profile.phone);
+    setEditEmail(profile.email);
+    setEditGender(profile.gender ?? '');
+    setEditLanguage(profile.preferredLanguage ?? 'en');
+    setWalletMode('credit');
+    setWalletAmount('');
+    setWalletNote('');
+    setDrawerMessage('');
+  };
+
+  const handleSaveProfileEdit = (e: FormEvent) => {
+    e.preventDefault();
+    if (!selectedProfile || !onUpdateCustomerAdmin) return;
+    const fullName = joinFirstLastName(editFirstName, editLastName) || selectedProfile.fullName;
+    const updated: CustomerProfile = {
+      ...selectedProfile,
+      firstName: editFirstName.trim() || undefined,
+      lastName: editLastName.trim() || undefined,
+      fullName,
+      phone: editPhone.trim(),
+      email: editEmail.trim(),
+      gender: editGender || undefined,
+      preferredLanguage: editLanguage,
+    };
+    onUpdateCustomerAdmin(updated);
+    setDrawerMessage('Customer profile saved and synced live.');
+  };
+
+  const handleApplyWalletAdjustment = (e: FormEvent) => {
+    e.preventDefault();
+    if (!selectedProfile || !onAdjustCustomerWallet) return;
+    const num = Math.round(Number(walletAmount) || 0);
+    if (num <= 0) {
+      setDrawerMessage('Enter a valid wallet amount greater than ₹0.');
+      return;
+    }
+    const delta = walletMode === 'credit' ? num : -num;
+    onAdjustCustomerWallet(selectedProfile, delta, walletNote.trim());
+    setWalletAmount('');
+    setWalletNote('');
+    setDrawerMessage(
+      `${walletMode === 'credit' ? 'Credited' : 'Debited'} ₹${num} ${
+        walletMode === 'credit' ? 'to' : 'from'
+      } ${selectedProfile.fullName}'s BEE4 Wallet.`
+    );
+  };
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return crmCustomers.filter((c) => {
       if (flagFilter !== 'All' && c.flag !== flagFilter) return false;
       if (!q) return true;
-      return [c.fullName, c.phone, c.email, c.city, c.state].join(' ').toLowerCase().includes(q);
+      return [c.fullName, c.phone, c.email, c.city, c.state, c.gender || '']
+        .join(' ')
+        .toLowerCase()
+        .includes(q);
     });
   }, [crmCustomers, search, flagFilter]);
 
@@ -102,26 +201,36 @@ export function AdminCustomersTab({
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="bg-white/45 dark:bg-white/5 text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-400 border-b border-zinc-900/10 dark:border-white/10">
-                <th className="py-3 px-4">Customer</th>
-                <th className="py-3 px-4">Location</th>
+                <th className="py-3 px-4">Customer &amp; Profile</th>
+                <th className="py-3 px-4">Preferences &amp; Security</th>
                 <th className="py-3 px-4 text-center">Orders</th>
-                <th className="py-3 px-4 text-right">Lifetime Value</th>
-                <th className="py-3 px-4 text-center">Payment Pref</th>
-                <th className="py-3 px-4 text-right">CRM Flag</th>
+                <th className="py-3 px-4 text-right">Wallet &amp; LTV</th>
+                <th className="py-3 px-4 text-center">Account</th>
+                <th className="py-3 px-4 text-right">CRM &amp; Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-900/6 dark:divide-white/8">
               {filtered.map((cust) => {
                 const phoneKey = cust.phone.replace(/\D/g, '').slice(-10) || cust.email;
+                const registeredProfile = customers.find(
+                  (p) =>
+                    p.id === cust.id ||
+                    (phoneKey && p.phone.replace(/\D/g, '').slice(-10) === phoneKey)
+                );
                 return (
                   <tr key={cust.id} className="hover:bg-white/40 dark:hover:bg-white/5">
                     <td className="py-3 px-4">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <p className="font-bold text-zinc-900 dark:text-white">{cust.fullName}</p>
+                        {cust.gender && (
+                          <span className="px-1.5 py-0.5 rounded-md glass-subtle text-[10px] font-semibold text-zinc-700 dark:text-zinc-300">
+                            {cust.gender}
+                          </span>
+                        )}
                         {cust.emailVerified === true && (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold">
                             <BadgeCheck className="w-3 h-3" />
-                            <span>Verified Email</span>
+                            <span>Verified</span>
                           </span>
                         )}
                         {cust.emailVerified === false && (
@@ -134,15 +243,37 @@ export function AdminCustomersTab({
                       <p className="text-[11px] text-zinc-500 dark:text-zinc-400 tabular-nums mt-0.5">
                         {cust.phone || 'No phone'} · {cust.email || 'No email'}
                       </p>
+                      <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+                        {cust.city}, {cust.state} · Active {cust.lastOrderDate.slice(0, 10)}
+                      </p>
                     </td>
+
                     <td className="py-3 px-4 text-zinc-700 dark:text-zinc-300">
-                      <div>
-                        {cust.city}, {cust.state}
+                      <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                        <span className="inline-flex items-center gap-1 font-medium">
+                          <Globe className="w-3 h-3 text-sky-600 dark:text-sky-400" />
+                          {cust.preferredLanguage === 'hi' ? 'हिन्दी' : 'English'}
+                        </span>
+                        {typeof cust.activeDevicesCount === 'number' && (
+                          <span className="inline-flex items-center gap-1 text-zinc-600 dark:text-zinc-300">
+                            <Smartphone className="w-3 h-3" />
+                            {cust.activeDevicesCount} dev
+                          </span>
+                        )}
+                        {typeof cust.savedAddressesCount === 'number' && (
+                          <span className="inline-flex items-center gap-1 text-zinc-600 dark:text-zinc-300">
+                            <MapPin className="w-3 h-3" />
+                            {cust.savedAddressesCount} addr
+                          </span>
+                        )}
                       </div>
-                      <div className="text-[11px] text-zinc-500 dark:text-zinc-400 tabular-nums">
-                        Last active {cust.lastOrderDate.slice(0, 10)}
-                      </div>
+                      {cust.notificationSummary && (
+                        <div className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-1">
+                          Alerts: {cust.notificationSummary} · {cust.paymentPreference}
+                        </div>
+                      )}
                     </td>
+
                     <td className="py-3 px-4 text-center font-bold tabular-nums text-zinc-900 dark:text-white">
                       <div>{cust.totalOrders}</div>
                       {cust.returnCount > 0 && (
@@ -151,27 +282,62 @@ export function AdminCustomersTab({
                         </div>
                       )}
                     </td>
+
                     <td className="py-3 px-4 text-right font-bold tabular-nums text-zinc-900 dark:text-white">
-                      {formatINR(cust.ltv)}
+                      <div>LTV {formatINR(cust.ltv)}</div>
+                      {typeof cust.walletBalance === 'number' && (
+                        <div className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 mt-0.5">
+                          Wallet {formatINR(cust.walletBalance)}
+                        </div>
+                      )}
                     </td>
-                    <td className="py-3 px-4 text-center font-medium text-zinc-700 dark:text-zinc-300">
-                      {cust.paymentPreference}
+
+                    <td className="py-3 px-4 text-center">
+                      <div className="flex flex-col items-center gap-1">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            cust.accountStatus === 'Suspended'
+                              ? 'bg-red-500/15 text-red-700 dark:text-red-300'
+                              : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                          }`}
+                        >
+                          {cust.accountStatus ?? 'Active'}
+                        </span>
+                        {cust.deactivationRequested && (
+                          <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-300 text-[10px] font-bold">
+                            Deactivation Req
+                          </span>
+                        )}
+                      </div>
                     </td>
+
                     <td className="py-3 px-4 text-right whitespace-nowrap">
-                      <select
-                        aria-label={`CRM flag for ${cust.fullName}`}
-                        value={cust.flag}
-                        onChange={(e) =>
-                          onSetCustomerFlag(phoneKey, e.target.value as CrmCustomerFlag)
-                        }
-                        className={`px-2.5 py-1 rounded-full text-[11px] font-bold border border-transparent focus:outline-none ${flagStyle(cust.flag)}`}
-                      >
-                        {CRM_FLAGS.map((fl) => (
-                          <option key={fl} value={fl}>
-                            {fl}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="inline-flex items-center justify-end gap-1.5">
+                        <select
+                          aria-label={`CRM flag for ${cust.fullName}`}
+                          value={cust.flag}
+                          onChange={(e) =>
+                            onSetCustomerFlag(phoneKey, e.target.value as CrmCustomerFlag)
+                          }
+                          className={`px-2.5 py-1 rounded-full text-[11px] font-bold border border-transparent focus:outline-none ${flagStyle(cust.flag)}`}
+                        >
+                          {CRM_FLAGS.map((fl) => (
+                            <option key={fl} value={fl}>
+                              {fl}
+                            </option>
+                          ))}
+                        </select>
+                        {registeredProfile && (
+                          <button
+                            type="button"
+                            onClick={() => openManageDrawer(registeredProfile)}
+                            className="px-2.5 py-1 rounded-xl glass-btn-secondary text-[11px] font-semibold inline-flex items-center gap-1"
+                          >
+                            <Edit3 className="w-3 h-3" />
+                            <span>Manage</span>
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -185,7 +351,7 @@ export function AdminCustomersTab({
                         : 'No customers match your current filters.'}
                     </p>
                     <p className="mt-1 text-xs">
-                      Verified sign-ups and live checkout customers sync automatically from Supabase.
+                      Verified sign-ups and live checkout customers sync automatically from your live store backend.
                     </p>
                   </td>
                 </tr>
@@ -194,6 +360,245 @@ export function AdminCustomersTab({
           </table>
         </div>
       </div>
+
+      {/* Customer Account Control Drawer (Edit Profile, Wallet Credit/Debit, Force Logout, Suspend) */}
+      {selectedProfile && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Manage customer ${selectedProfile.fullName}`}
+          className="fixed inset-0 z-50 flex justify-end bg-zinc-950/55 backdrop-blur-sm"
+          onClick={() => setSelectedProfileId(null)}
+        >
+          <div
+            className="w-full max-w-lg h-full glass-drawer p-5 sm:p-6 overflow-y-auto space-y-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-zinc-900/10 dark:border-white/10 pb-4">
+              <div>
+                <p className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400">
+                  Customer Account Controls
+                </p>
+                <h2 className="font-display text-lg font-bold text-zinc-900 dark:text-white">
+                  {selectedProfile.fullName}
+                </h2>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 tabular-nums mt-0.5">
+                  Wallet: {formatINR(selectedProfile.walletBalance ?? 0)} · Status:{' '}
+                  <strong>{selectedProfile.accountStatus ?? 'Active'}</strong>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedProfileId(null)}
+                aria-label="Close customer drawer"
+                className="p-2 rounded-xl glass-btn-secondary"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {drawerMessage && (
+              <div
+                role="status"
+                className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-xs font-medium text-emerald-800 dark:text-emerald-200"
+              >
+                {drawerMessage}
+              </div>
+            )}
+
+            {/* Edit Profile Details */}
+            {onUpdateCustomerAdmin && (
+              <form onSubmit={handleSaveProfileEdit} className="glass-subtle rounded-2xl p-4 space-y-3">
+                <h3 className="font-display text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-200">
+                  Edit Customer Profile
+                </h3>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-[11px] font-semibold mb-1">First Name</label>
+                    <input
+                      type="text"
+                      value={editFirstName}
+                      onChange={(e) => setEditFirstName(e.target.value)}
+                      className="w-full h-9 px-3 rounded-xl glass-input text-xs focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold mb-1">Last Name</label>
+                    <input
+                      type="text"
+                      value={editLastName}
+                      onChange={(e) => setEditLastName(e.target.value)}
+                      className="w-full h-9 px-3 rounded-xl glass-input text-xs focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold mb-1">Phone</label>
+                    <input
+                      type="text"
+                      value={editPhone}
+                      onChange={(e) => setEditPhone(e.target.value)}
+                      className="w-full h-9 px-3 rounded-xl glass-input text-xs tabular-nums focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold mb-1">Email</label>
+                    <input
+                      type="email"
+                      value={editEmail}
+                      onChange={(e) => setEditEmail(e.target.value)}
+                      className="w-full h-9 px-3 rounded-xl glass-input text-xs focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold mb-1">Gender</label>
+                    <select
+                      value={editGender}
+                      onChange={(e) => setEditGender(e.target.value as CustomerGender | '')}
+                      className="w-full h-9 px-2.5 rounded-xl glass-input text-xs focus:outline-none"
+                    >
+                      <option value="">Not specified</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold mb-1">Language</label>
+                    <select
+                      value={editLanguage}
+                      onChange={(e) => setEditLanguage(e.target.value as 'en' | 'hi')}
+                      className="w-full h-9 px-2.5 rounded-xl glass-input text-xs focus:outline-none"
+                    >
+                      <option value="en">English</option>
+                      <option value="hi">हिन्दी (Hindi)</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded-xl glass-btn-ink text-xs font-semibold"
+                  >
+                    Save Profile Changes
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Adjust BEE4 Wallet Balance */}
+            {onAdjustCustomerWallet && (
+              <form
+                onSubmit={handleApplyWalletAdjustment}
+                className="glass-subtle rounded-2xl p-4 space-y-3"
+              >
+                <div className="flex items-center justify-between">
+                  <h3 className="font-display text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-200 inline-flex items-center gap-1.5">
+                    <Wallet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <span>Adjust BEE4 Wallet Balance</span>
+                  </h3>
+                  <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300 tabular-nums">
+                    Current: {formatINR(selectedProfile.walletBalance ?? 0)}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <select
+                    value={walletMode}
+                    onChange={(e) => setWalletMode(e.target.value as 'credit' | 'debit')}
+                    className="h-9 px-2.5 rounded-xl glass-input text-xs font-semibold focus:outline-none"
+                  >
+                    <option value="credit">+ Credit ₹</option>
+                    <option value="debit">- Debit ₹</option>
+                  </select>
+                  <input
+                    type="number"
+                    min={1}
+                    max={50000}
+                    value={walletAmount}
+                    onChange={(e) => setWalletAmount(e.target.value)}
+                    placeholder="Amount ₹"
+                    className="col-span-2 h-9 px-3 rounded-xl glass-input text-xs tabular-nums focus:outline-none"
+                  />
+                </div>
+                <input
+                  type="text"
+                  value={walletNote}
+                  onChange={(e) => setWalletNote(e.target.value)}
+                  placeholder="Reason note (e.g. Loyalty Bonus, Goodwill Refund)"
+                  className="w-full h-9 px-3 rounded-xl glass-input text-xs focus:outline-none"
+                />
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded-xl glass-btn-amber text-white text-xs font-semibold"
+                  >
+                    Apply Wallet Adjustment
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Security Actions: Force Logout Devices & Account Status */}
+            <div className="glass-subtle rounded-2xl p-4 space-y-3">
+              <h3 className="font-display text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-200">
+                Security &amp; Session Actions
+              </h3>
+              <p className="text-[11px] text-zinc-600 dark:text-zinc-300">
+                Active logged-in devices: <strong>{selectedProfile.devices?.length ?? 0}</strong> · Saved addresses:{' '}
+                <strong>{selectedProfile.addresses?.length ?? 0}</strong> · Saved UPI IDs:{' '}
+                <strong>{selectedProfile.savedUpiIds?.length ?? 0}</strong>
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {onForceLogoutCustomer && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onForceLogoutCustomer(selectedProfile);
+                      setDrawerMessage(`Force-logged out all active sessions for ${selectedProfile.fullName}.`);
+                    }}
+                    className="px-3.5 py-2 rounded-xl glass-btn-secondary text-amber-700 dark:text-amber-300 text-xs font-semibold inline-flex items-center gap-1.5"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Force Logout All Devices</span>
+                  </button>
+                )}
+
+                {onToggleCustomerStatus && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextSuspended = selectedProfile.accountStatus !== 'Suspended';
+                      onToggleCustomerStatus(selectedProfile);
+                      setDrawerMessage(
+                        nextSuspended
+                          ? `Account suspended for ${selectedProfile.fullName}.`
+                          : `Account reactivated for ${selectedProfile.fullName}.`
+                      );
+                    }}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-semibold inline-flex items-center gap-1.5 ${
+                      selectedProfile.accountStatus === 'Suspended'
+                        ? 'glass-btn-ink'
+                        : 'glass-btn-secondary text-red-600 dark:text-red-400'
+                    }`}
+                  >
+                    {selectedProfile.accountStatus === 'Suspended' ? (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Activate Account</span>
+                      </>
+                    ) : (
+                      <>
+                        <Ban className="w-3.5 h-3.5" />
+                        <span>Suspend Account</span>
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

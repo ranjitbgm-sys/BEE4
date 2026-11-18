@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Lock, Menu, Moon, ShoppingBag, Sun, X } from 'lucide-react';
+import { Menu, Moon, ShoppingBag, Sun, X } from 'lucide-react';
 import { BRAND_LOGO_URL } from '../data/catalog';
 import { StorePage, ThemeMode } from '../types';
 
@@ -105,18 +105,8 @@ export function Header({
             })}
           </nav>
 
-          {/* Zone 3: Subtle Admin Panel + Theme Toggle + Bag + Mobile menu trigger */}
+          {/* Zone 3: Theme Toggle + Bag + Mobile menu trigger */}
           <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => handleNavClick('manager')}
-              aria-label="Admin Panel"
-              title="Admin Panel (/admin)"
-              className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-xl glass-btn-secondary text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white opacity-85 hover:opacity-100 whitespace-nowrap shrink-0 transition-all"
-            >
-              <Lock className="w-3.5 h-3.5 shrink-0" />
-              <span className="hidden lg:inline">Admin Panel</span>
-            </button>
 
             <button
               type="button"
@@ -183,14 +173,6 @@ export function Header({
                 </button>
               );
             })}
-            <button
-              type="button"
-              onClick={() => handleNavClick('manager')}
-              className="w-full text-left px-3.5 py-2.5 rounded-xl text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-white/10 inline-flex items-center gap-2 transition-colors border-t border-zinc-900/5 dark:border-white/10 mt-1 pt-2.5"
-            >
-              <Lock className="w-3.5 h-3.5 shrink-0" />
-              <span>Admin Panel</span>
-            </button>
           </nav>
         )}
       </header>

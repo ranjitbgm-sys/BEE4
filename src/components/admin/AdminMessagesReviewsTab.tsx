@@ -8,6 +8,7 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
+  HelpCircle,
   Home,
   Inbox,
   Mail,
@@ -28,6 +29,7 @@ import type {
   CustomerMessageStatus,
   CustomerMessageTopic,
   Product,
+  ProductQuestionRecord,
   ProductReviewRecord,
   ProductReviewStatus,
 } from '../../types';
@@ -44,12 +46,15 @@ import {
 interface AdminMessagesReviewsTabProps {
   messages: CustomerMessageRecord[];
   reviews: ProductReviewRecord[];
+  productQuestions?: ProductQuestionRecord[];
   products: Product[];
   onUpdateMessage: (updated: CustomerMessageRecord) => void;
   onDeleteMessage: (id: string) => void;
   onBulkDeleteMessages: (ids: string[]) => void;
   onSaveReview: (review: ProductReviewRecord, isNew?: boolean) => void;
   onDeleteReview: (id: string) => void;
+  onSaveQuestion?: (question: ProductQuestionRecord) => void;
+  onDeleteQuestion?: (id: string) => void;
 }
 
 const STARS: (1 | 2 | 3 | 4 | 5)[] = [1, 2, 3, 4, 5];
@@ -81,14 +86,17 @@ function reviewStatusBadgeClass(status: ProductReviewStatus): string {
 export function AdminMessagesReviewsTab({
   messages,
   reviews,
+  productQuestions = [],
   products,
   onUpdateMessage,
   onDeleteMessage,
   onBulkDeleteMessages,
   onSaveReview,
   onDeleteReview,
+  onSaveQuestion,
+  onDeleteQuestion,
 }: AdminMessagesReviewsTabProps) {
-  const [activeSubTab, setActiveSubTab] = useState<'messages' | 'reviews'>('messages');
+  const [activeSubTab, setActiveSubTab] = useState<'messages' | 'reviews' | 'qa'>('messages');
 
   // --- Customer Messages Inbox state ---
   const [msgSearch, setMsgSearch] = useState('');
@@ -135,8 +143,33 @@ export function AdminMessagesReviewsTab({
   const [revDraftError, setRevDraftError] = useState('');
   const [revUploadingPhoto, setRevUploadingPhoto] = useState(false);
 
+  // --- Product Q&A state ---
+  const [qaSearch, setQaSearch] = useState('');
+  const [qaStatusFilter, setQaStatusFilter] = useState<'All' | 'Pending' | 'Answered'>('All');
+  const [qaAnswerDrafts, setQaAnswerDrafts] = useState<Record<string, string>>({});
+  const [confirmDeleteQaId, setConfirmDeleteQaId] = useState<string | null>(null);
+
   const msgKpis = useMemo(() => computeMessageInboxKpis(messages), [messages]);
   const revKpis = useMemo(() => computeReviewManagerKpis(reviews), [reviews]);
+
+  const pendingQaCount = useMemo(
+    () => productQuestions.filter((q) => q.status === 'Pending').length,
+    [productQuestions]
+  );
+
+  const filteredQuestions = useMemo(() => {
+    const q = qaSearch.trim().toLowerCase();
+    return productQuestions
+      .filter((item) => {
+        if (qaStatusFilter !== 'All' && item.status !== qaStatusFilter) return false;
+        if (!q) return true;
+        return [item.productName, item.customerName, item.question, item.answer || '']
+          .join(' ')
+          .toLowerCase()
+          .includes(q);
+      })
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [productQuestions, qaSearch, qaStatusFilter]);
 
   const filteredMessages = useMemo(() => {
     const q = msgSearch.trim().toLowerCase();
@@ -371,6 +404,30 @@ export function AdminMessagesReviewsTab({
                 }`}
               >
                 {revKpis.pendingCount} pending
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeSubTab === 'qa'}
+            onClick={() => setActiveSubTab('qa')}
+            className={`px-4 py-2 rounded-xl text-xs font-semibold inline-flex items-center gap-2 whitespace-nowrap ${
+              activeSubTab === 'qa' ? 'glass-btn-ink' : 'text-zinc-700 dark:text-zinc-300'
+            }`}
+          >
+            <HelpCircle className="w-3.5 h-3.5" />
+            <span>Product Q&amp;A</span>
+            {pendingQaCount > 0 && (
+              <span
+                className={`px-2 py-0.5 rounded-full text-[11px] font-bold tabular-nums ${
+                  activeSubTab === 'qa'
+                    ? 'bg-amber-400 text-zinc-950'
+                    : 'bg-amber-500/20 text-amber-800 dark:text-amber-300'
+                }`}
+              >
+                {pendingQaCount} pending
               </span>
             )}
           </button>
@@ -1031,6 +1088,189 @@ export function AdminMessagesReviewsTab({
                   </div>
                 </article>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* SUB-TAB 3: PRODUCT Q&A MODERATION & TEAM BEE4 ANSWERS                 */}
+      {/* ===================================================================== */}
+      {activeSubTab === 'qa' && (
+        <div className="space-y-5">
+          <div className="grid grid-cols-3 gap-3.5">
+            <div className="glass-surface rounded-2xl p-4 space-y-1">
+              <p className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">
+                Total Product Questions
+              </p>
+              <p className="font-display text-2xl font-bold text-zinc-900 dark:text-white tabular-nums">
+                {productQuestions.length}
+              </p>
+            </div>
+            <div className="glass-surface rounded-2xl p-4 space-y-1">
+              <p className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">
+                Pending Reply
+              </p>
+              <p className="font-display text-2xl font-bold text-amber-600 dark:text-amber-400 tabular-nums">
+                {pendingQaCount}
+              </p>
+            </div>
+            <div className="glass-surface rounded-2xl p-4 space-y-1">
+              <p className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">
+                Answered &amp; Live
+              </p>
+              <p className="font-display text-2xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                {productQuestions.length - pendingQaCount}
+              </p>
+            </div>
+          </div>
+
+          <div className="glass-surface rounded-3xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="relative flex-1 max-w-md">
+              <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="search"
+                value={qaSearch}
+                onChange={(e) => setQaSearch(e.target.value)}
+                placeholder="Search by product, shopper name, or question..."
+                className="w-full h-10 pl-10 pr-3 rounded-xl glass-input text-xs focus:outline-none"
+              />
+            </div>
+
+            <div className="flex flex-wrap gap-1.5">
+              {(['All', 'Pending', 'Answered'] as const).map((status) => (
+                <button
+                  key={status}
+                  type="button"
+                  onClick={() => setQaStatusFilter(status)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold ${
+                    qaStatusFilter === status ? 'glass-btn-ink' : 'glass-btn-secondary'
+                  }`}
+                >
+                  {status}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {filteredQuestions.length === 0 ? (
+            <div className="glass-surface rounded-3xl p-10 text-center text-sm text-zinc-600 dark:text-zinc-300">
+              {productQuestions.length === 0
+                ? '0 customer product questions submitted yet. Questions from product pages & customer accounts appear here.'
+                : 'No questions match your current filters.'}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {filteredQuestions.map((qa) => {
+                const draftVal = qaAnswerDrafts[qa.id] ?? qa.answer ?? '';
+                return (
+                  <article
+                    key={qa.id}
+                    className="glass-surface rounded-3xl p-5 space-y-3 border border-zinc-900/8 dark:border-white/10"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="text-xs font-bold text-amber-700 dark:text-amber-300">
+                          {qa.productName}
+                        </p>
+                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+                          Asked by <strong>{qa.customerName}</strong>
+                          {qa.customerContact ? ` (${qa.customerContact})` : ''} ·{' '}
+                          {new Date(qa.createdAt).toLocaleDateString('en-IN')}
+                        </p>
+                      </div>
+                      <span
+                        className={`px-2.5 py-1 rounded-full text-[11px] font-bold border ${
+                          qa.status === 'Answered'
+                            ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30'
+                            : 'bg-amber-500/18 text-amber-800 dark:text-amber-300 border-amber-500/35'
+                        }`}
+                      >
+                        {qa.status}
+                      </span>
+                    </div>
+
+                    <p className="text-sm font-semibold text-zinc-900 dark:text-white">
+                      Q: {qa.question}
+                    </p>
+
+                    <div className="space-y-2 pt-1">
+                      <label
+                        htmlFor={`qa-reply-${qa.id}`}
+                        className="block text-[11px] font-semibold text-zinc-600 dark:text-zinc-300"
+                      >
+                        Official Team BEE4 Answer (Visible publicly on product page &amp; customer account)
+                      </label>
+                      <textarea
+                        id={`qa-reply-${qa.id}`}
+                        rows={2}
+                        value={draftVal}
+                        onChange={(e) =>
+                          setQaAnswerDrafts((prev) => ({ ...prev, [qa.id]: e.target.value }))
+                        }
+                        placeholder="Write a helpful, clear answer as Team BEE4..."
+                        className="w-full p-3 rounded-xl glass-input text-xs leading-relaxed focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                      {onDeleteQuestion && (
+                        confirmDeleteQaId === qa.id ? (
+                          <div className="inline-flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onDeleteQuestion(qa.id);
+                                setConfirmDeleteQaId(null);
+                              }}
+                              className="px-3 py-1.5 rounded-xl bg-red-600 text-white text-xs font-semibold"
+                            >
+                              Confirm Delete
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteQaId(null)}
+                              className="px-2.5 py-1.5 rounded-xl glass-btn-secondary text-xs"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteQaId(qa.id)}
+                            className="px-3 py-1.5 rounded-xl glass-btn-secondary text-red-600 dark:text-red-400 text-xs font-semibold inline-flex items-center gap-1"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Delete</span>
+                          </button>
+                        )
+                      )}
+
+                      {onSaveQuestion && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const cleanAnswer = draftVal.trim();
+                            if (!cleanAnswer) return;
+                            onSaveQuestion({
+                              ...qa,
+                              answer: cleanAnswer,
+                              answeredBy: 'Team BEE4',
+                              status: 'Answered',
+                              updatedAt: new Date().toISOString(),
+                            });
+                          }}
+                          className="px-4 py-2 rounded-xl glass-btn-amber text-white text-xs font-semibold inline-flex items-center gap-1.5"
+                        >
+                          <Reply className="w-3.5 h-3.5" />
+                          <span>{qa.status === 'Answered' ? 'Update Answer' : 'Publish Answer'}</span>
+                        </button>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           )}
         </div>

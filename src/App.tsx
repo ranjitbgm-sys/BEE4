@@ -17,6 +17,7 @@ import {
   deleteCouponFromSupabase,
   deleteCustomerMessageFromSupabase,
   deleteProductFromSupabase,
+  deleteProductQuestionFromSupabase,
   deleteProductReviewFromSupabase,
   ensureSupabaseCustomerProfile,
   fetchAllOrdersAdminFromSupabase,
@@ -38,6 +39,7 @@ import {
   signOutFromSupabase,
   submitCustomerMessageToSupabase,
   submitInquiryToSupabase,
+  submitProductQuestionToSupabase,
   submitProductReviewToSupabase,
   subscribeAdSpendLogsAdmin,
   subscribeAdminAuditLogs,
@@ -45,6 +47,7 @@ import {
   subscribeAllCustomersAdmin,
   subscribeAllInquiriesAdmin,
   subscribeAllOrdersAdmin,
+  subscribeAllProductQuestionsAdmin,
   subscribeAllProductReviewsAdmin,
   subscribeAllReturnsAdmin,
   subscribeAutomationRulesAdmin,
@@ -54,6 +57,7 @@ import {
   subscribeInventoryAdjustmentsAdmin,
   subscribeMarketplaceIntegrationsAdmin,
   subscribePrintJobsAdmin,
+  subscribePublicProductQuestions,
   subscribePublicProducts,
   subscribePublicPublishedReviews,
   subscribePublicSettings,
@@ -63,10 +67,12 @@ import {
   subscribeUserReturns,
   toggleInquiryStatusInSupabase,
   updateCustomerMessageInSupabase,
+  updateCustomerRecordAdminSupabase,
   updateGiftCardInSupabase,
   updateOrderLogisticsInSupabase,
   updateOrderRefundInSupabase,
   updateOrderStatusInSupabase,
+  updateProductQuestionInSupabase,
   updateProductReviewInSupabase,
   updateReturnRequestInSupabase,
   updateSupabaseCustomerProfile,
@@ -107,6 +113,7 @@ import {
   PrintJobRecord,
   Product,
   ProductCategory,
+  ProductQuestionRecord,
   ProductReviewRecord,
   ReturnRequestRecord,
   SavedAddress,
@@ -134,6 +141,10 @@ import { WhatsAppWidget } from './components/WhatsAppWidget';
 import { resolveExpectedAdminHash } from './utils/adminAuth';
 import { mapFulfillmentStageToOrderStatus } from './utils/adminLogic';
 import {
+  adjustCustomerWalletBalance,
+  isSessionInvalidatedByAdmin,
+} from './utils/customerAccountLogic';
+import {
   applyOrderCancellation,
   createDigitalGiftCard,
   deductWalletOnOrder,
@@ -157,10 +168,12 @@ const STORAGE_INVENTORY_LOGS_KEY = 'bee4_inventory_logs_v1';
 const STORAGE_INQUIRIES_KEY = 'bee4_inquiries_v1';
 const STORAGE_CUSTOMER_MESSAGES_KEY = 'bee4_customer_messages_v1';
 const STORAGE_PRODUCT_REVIEWS_KEY = 'bee4_product_reviews_v1';
+const STORAGE_PRODUCT_QUESTIONS_KEY = 'bee4_product_questions_v1';
 const STORAGE_SETTINGS_KEY = 'bee4_settings_v3';
 const STORAGE_TESTIMONIALS_KEY = 'bee4_testimonials_v2';
 const STORAGE_CUSTOMERS_KEY = 'bee4_customers_v2';
 const STORAGE_CURRENT_CUSTOMER_ID_KEY = 'bee4_current_customer_id_v1';
+const STORAGE_CUSTOMER_SESSION_ISSUED_KEY = 'bee4_customer_session_issued_v1';
 const STORAGE_GUEST_WISHLIST_KEY = 'bee4_guest_wishlist_v1';
 const STORAGE_ADMIN_PASS_HASH_KEY = 'bee4_admin_pass_hash_v1';
 const STORAGE_THEME_KEY = 'bee4_theme_v1';
@@ -284,6 +297,9 @@ export default function App() {
   const [productReviews, setProductReviews] = useState<ProductReviewRecord[]>(() =>
     loadStoredJson<ProductReviewRecord[]>(STORAGE_PRODUCT_REVIEWS_KEY, [])
   );
+  const [productQuestions, setProductQuestions] = useState<ProductQuestionRecord[]>(() =>
+    loadStoredJson<ProductQuestionRecord[]>(STORAGE_PRODUCT_QUESTIONS_KEY, [])
+  );
   const [settings, setSettings] = useState<StoreSettings>(() => ({
     ...DEFAULT_STORE_SETTINGS,
     ...loadStoredJson<StoreSettings>(STORAGE_SETTINGS_KEY, DEFAULT_STORE_SETTINGS),
@@ -301,6 +317,7 @@ export default function App() {
     loadStoredJson<GiftCardRecord[]>(STORAGE_GIFT_CARDS_KEY, [])
   );
   const [showBuyGiftCardModal, setShowBuyGiftCardModal] = useState(false);
+  const [giftCardModalMode, setGiftCardModalMode] = useState<'personal' | 'bulk'>('personal');
   const [printJobs, setPrintJobs] = useState<PrintJobRecord[]>(() =>
     loadStoredJson<PrintJobRecord[]>(STORAGE_PRINT_JOBS_KEY, [])
   );
@@ -336,6 +353,9 @@ export default function App() {
   );
   const [currentCustomerId, setCurrentCustomerId] = useState<string | null>(() =>
     loadStoredJson<string | null>(STORAGE_CURRENT_CUSTOMER_ID_KEY, null)
+  );
+  const [sessionIssuedAt, setSessionIssuedAt] = useState<string | null>(() =>
+    loadStoredJson<string | null>(STORAGE_CUSTOMER_SESSION_ISSUED_KEY, null)
   );
   const [guestWishlistIds, setGuestWishlistIds] = useState<string[]>(() =>
     loadStoredJson<string[]>(STORAGE_GUEST_WISHLIST_KEY, [])
@@ -480,6 +500,9 @@ export default function App() {
     const unsubPublicReviews = subscribePublicPublishedReviews((cloudPublishedReviews) => {
       setProductReviews(cloudPublishedReviews);
     });
+    const unsubPublicQuestions = subscribePublicProductQuestions((cloudQuestions) => {
+      setProductQuestions(cloudQuestions);
+    });
     const unsubCoupons = subscribeCoupons((cloudCoupons) => {
       setCoupons(cloudCoupons);
     });
@@ -491,6 +514,7 @@ export default function App() {
       unsubSettings();
       unsubTestimonials();
       unsubPublicReviews();
+      unsubPublicQuestions();
       unsubCoupons();
       unsubGiftCards();
     };
@@ -579,6 +603,10 @@ export default function App() {
       setProductReviews(cloudReviews);
     });
 
+    const unsubAdminQuestions = subscribeAllProductQuestionsAdmin((cloudQuestions) => {
+      setProductQuestions(cloudQuestions);
+    });
+
     const unsubPrintJobs = subscribePrintJobsAdmin((cloudJobs) => {
       setPrintJobs(cloudJobs);
     });
@@ -615,6 +643,7 @@ export default function App() {
       unsubAdminInquiries();
       unsubAdminCustomerMessages();
       unsubAdminReviews();
+      unsubAdminQuestions();
       unsubPrintJobs();
       unsubSpools();
       unsubLogs();
@@ -713,6 +742,14 @@ export default function App() {
       // Ignore storage errors
     }
   }, [productReviews]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(STORAGE_PRODUCT_QUESTIONS_KEY, JSON.stringify(productQuestions));
+    } catch {
+      // Ignore storage errors
+    }
+  }, [productQuestions]);
 
   useEffect(() => {
     try {
@@ -826,6 +863,17 @@ export default function App() {
       // Ignore storage errors
     }
   }, [currentCustomerId]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        STORAGE_CUSTOMER_SESSION_ISSUED_KEY,
+        JSON.stringify(sessionIssuedAt)
+      );
+    } catch {
+      // Ignore storage errors
+    }
+  }, [sessionIssuedAt]);
 
   useEffect(() => {
     try {
@@ -1936,7 +1984,65 @@ export default function App() {
     );
   };
 
-  const currentCustomer = supabaseUser ? supabaseCustomer : null;
+  const handleSubmitProductQuestion = (question: ProductQuestionRecord) => {
+    setProductQuestions((prev) => [question, ...prev]);
+    if (supabaseDiagnostics.isConfigured) {
+      void submitProductQuestionToSupabase(question, supabaseUser?.id ?? null).catch((err) =>
+        console.error(err)
+      );
+    }
+  };
+
+  const handleSaveProductQuestionAdmin = (updated: ProductQuestionRecord) => {
+    setProductQuestions((prev) => prev.map((q) => (q.id === updated.id ? updated : q)));
+    if (isSupabaseAdmin) {
+      void updateProductQuestionInSupabase(updated).catch((err) => console.error(err));
+    }
+    recordAuditLog(
+      'PRODUCT_QA_ANSWERED',
+      'qa',
+      updated.id,
+      `Answered question on "${updated.productName}" by ${updated.customerName}.`
+    );
+  };
+
+  const handleDeleteProductQuestionAdmin = (id: string) => {
+    const target = productQuestions.find((q) => q.id === id);
+    setProductQuestions((prev) => prev.filter((q) => q.id !== id));
+    if (isSupabaseAdmin) {
+      void deleteProductQuestionFromSupabase(id).catch((err) => console.error(err));
+    }
+    recordAuditLog(
+      'PRODUCT_QA_DELETED',
+      'qa',
+      id,
+      `Deleted product question on "${target?.productName || id}".`
+    );
+  };
+
+  const rawActiveCustomer = supabaseUser
+    ? supabaseCustomer
+    : customers.find((c) => c.id === currentCustomerId) ?? null;
+
+  const isActiveCustomerBlocked = isSessionInvalidatedByAdmin(rawActiveCustomer, sessionIssuedAt);
+
+  useEffect(() => {
+    if (!rawActiveCustomer || !isActiveCustomerBlocked) return;
+    const isSuspended = rawActiveCustomer.accountStatus === 'Suspended';
+    setCurrentCustomerId(null);
+    setSessionIssuedAt(null);
+    setSupabaseCustomer(null);
+    setAuthVerificationNotice(
+      isSuspended
+        ? 'Your BEE4 account is currently suspended. Please contact BEE4 support for assistance.'
+        : 'Your BEE4 session was signed out for security. Please log in again.'
+    );
+    if (supabaseUser) {
+      void signOutFromSupabase().catch(() => {});
+    }
+  }, [rawActiveCustomer, isActiveCustomerBlocked, supabaseUser]);
+
+  const currentCustomer = isActiveCustomerBlocked ? null : rawActiveCustomer;
   const activeWishlistIds = currentCustomer ? currentCustomer.wishlistIds : guestWishlistIds;
 
   const handleGoogleSignIn = async () => {
@@ -1948,17 +2054,45 @@ export default function App() {
     hints?: { fullName?: string; phone?: string }
   ) => {
     setSupabaseUser(sbUser);
+    setSessionIssuedAt(new Date().toISOString());
     const { profile } = await ensureSupabaseCustomerProfile(
       sbUser,
       guestWishlistRef.current,
       hints
     );
     setSupabaseCustomer(profile);
+    setCustomers((prev) => {
+      const exists = prev.some((c) => c.id === profile.id);
+      return exists ? prev.map((c) => (c.id === profile.id ? profile : c)) : [profile, ...prev];
+    });
     if (guestWishlistRef.current.length > 0) {
       setGuestWishlistIds([]);
     }
     if (sbUser.email_confirmed_at) {
       setAuthVerificationNotice('Email Verified Successfully! Welcome to BEE4.');
+    }
+  };
+
+  const handleCompleteCustomerAuth = (profile: CustomerProfile) => {
+    const mergedWishlist = Array.from(
+      new Set([...(profile.wishlistIds ?? []), ...guestWishlistRef.current])
+    );
+    const enriched: CustomerProfile = {
+      ...profile,
+      wishlistIds: mergedWishlist,
+    };
+    setCustomers((prev) => {
+      const exists = prev.some((c) => c.id === enriched.id);
+      return exists ? prev.map((c) => (c.id === enriched.id ? enriched : c)) : [enriched, ...prev];
+    });
+    setCurrentCustomerId(enriched.id);
+    setSessionIssuedAt(new Date().toISOString());
+    if (supabaseUser && enriched.id === supabaseUser.id) {
+      setSupabaseCustomer(enriched);
+      void updateSupabaseCustomerProfile(enriched).catch((err) => console.error(err));
+    }
+    if (guestWishlistRef.current.length > 0) {
+      setGuestWishlistIds([]);
     }
   };
 
@@ -1995,6 +2129,7 @@ export default function App() {
     setInquiries([]);
     setCustomerMessages([]);
     setProductReviews([]);
+    setProductQuestions([]);
     setTestimonials([]);
     setCustomers([]);
     setGiftCards([]);
@@ -2008,6 +2143,7 @@ export default function App() {
 
   const handleCustomerSignOut = () => {
     setCurrentCustomerId(null);
+    setSessionIssuedAt(null);
     setSupabaseCustomer(null);
     setAuthRecoveryMode(false);
     setAuthVerificationNotice('');
@@ -2017,12 +2153,84 @@ export default function App() {
   };
 
   const handleUpdateCustomer = (updated: CustomerProfile) => {
+    setCustomers((prev) => {
+      const exists = prev.some((c) => c.id === updated.id);
+      return exists ? prev.map((c) => (c.id === updated.id ? updated : c)) : [updated, ...prev];
+    });
     if (supabaseUser && updated.id === supabaseUser.id) {
       setSupabaseCustomer(updated);
       void updateSupabaseCustomerProfile(updated).catch((err) => console.error(err));
-      return;
     }
-    setCustomers((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+  };
+
+  const handleUpdateCustomerAdmin = (updated: CustomerProfile) => {
+    setCustomers((prev) => {
+      const exists = prev.some((c) => c.id === updated.id);
+      return exists ? prev.map((c) => (c.id === updated.id ? updated : c)) : [updated, ...prev];
+    });
+    if (supabaseCustomer?.id === updated.id) {
+      setSupabaseCustomer(updated);
+    }
+    if (isSupabaseAdmin) {
+      void updateCustomerRecordAdminSupabase(updated).catch((err) => console.error(err));
+    }
+    recordAuditLog(
+      'CUSTOMER_PROFILE_UPDATED_ADMIN',
+      'customer',
+      updated.id,
+      `Admin updated customer profile for ${updated.fullName}.`
+    );
+  };
+
+  const handleAdjustCustomerWalletAdmin = (
+    customer: CustomerProfile,
+    deltaAmount: number,
+    note: string
+  ) => {
+    const adminEmail = supabaseUser?.email || 'studio-owner@bee4.in';
+    const { updatedProfile, appliedDelta } = adjustCustomerWalletBalance({
+      profile: customer,
+      deltaAmount,
+      note,
+      adminEmail,
+    });
+    handleUpdateCustomerAdmin(updatedProfile);
+    recordAuditLog(
+      'CUSTOMER_WALLET_ADJUSTED',
+      'customer',
+      customer.id,
+      `${appliedDelta >= 0 ? 'Credited' : 'Debited'} ₹${Math.abs(appliedDelta)} on ${customer.fullName}'s BEE4 Wallet (${note || 'Studio Adjustment'}).`
+    );
+  };
+
+  const handleForceLogoutCustomerAdmin = (customer: CustomerProfile) => {
+    const updated: CustomerProfile = {
+      ...customer,
+      forceLoggedOutAt: new Date().toISOString(),
+      devices: [],
+    };
+    handleUpdateCustomerAdmin(updated);
+    recordAuditLog(
+      'CUSTOMER_FORCE_LOGOUT',
+      'customer',
+      customer.id,
+      `Forced logout on all active devices for ${customer.fullName}.`
+    );
+  };
+
+  const handleToggleCustomerStatusAdmin = (customer: CustomerProfile) => {
+    const nextStatus = customer.accountStatus === 'Suspended' ? 'Active' : 'Suspended';
+    const updated: CustomerProfile = {
+      ...customer,
+      accountStatus: nextStatus,
+    };
+    handleUpdateCustomerAdmin(updated);
+    recordAuditLog(
+      'CUSTOMER_STATUS_UPDATED',
+      'customer',
+      customer.id,
+      `Set customer ${customer.fullName} account status to ${nextStatus}.`
+    );
   };
 
   const handleToggleWishlist = (productId: string) => {
@@ -2490,7 +2698,10 @@ export default function App() {
             onQuickView={setQuickViewProduct}
             onQuickAdd={handleQuickAdd}
             onToggleWishlist={handleToggleWishlist}
-            onOpenGiftCardModal={() => setShowBuyGiftCardModal(true)}
+            onOpenGiftCardModal={() => {
+              setGiftCardModalMode('personal');
+              setShowBuyGiftCardModal(true);
+            }}
           />
         )}
 
@@ -2500,6 +2711,8 @@ export default function App() {
             product={activeProduct}
             relatedProducts={relatedProducts}
             reviews={productReviews}
+            productQuestions={productQuestions}
+            qaEnabled={settings.customerPanelControls?.enableProductQa ?? true}
             wishlistIds={activeWishlistIds}
             whatsappNumber={settings.whatsappNumber}
             onBackToShop={() => navigateTo('shop')}
@@ -2509,6 +2722,7 @@ export default function App() {
             onBuyNow={handleBuyNow}
             onToggleWishlist={handleToggleWishlist}
             onSubmitReview={handleSubmitProductReview}
+            onSubmitProductQuestion={handleSubmitProductQuestion}
           />
         )}
 
@@ -2541,21 +2755,26 @@ export default function App() {
         {activePage === 'account' && (
           <CustomerAccountView
             currentCustomer={currentCustomer}
+            existingCustomers={customers}
             orders={orders}
             returns={returns}
             giftCards={giftCards}
             customerMessages={customerMessages}
+            productQuestions={productQuestions}
             products={publicProducts}
             guestWishlistIds={guestWishlistIds}
             whatsappNumber={settings.whatsappNumber}
             supportEmail={settings.supportEmail}
             cloudUserEmail={supabaseUser?.email ?? null}
+            isCloudConnected={supabaseDiagnostics.isConfigured}
+            customerPanelControls={settings.customerPanelControls}
             authRecoveryMode={authRecoveryMode}
             authVerificationNotice={authVerificationNotice}
             onClearAuthVerificationNotice={() => setAuthVerificationNotice('')}
             onClearAuthRecoveryMode={() => setAuthRecoveryMode(false)}
             onGoogleSignIn={handleGoogleSignIn}
             onSyncAuthenticatedUser={handleSyncAuthenticatedUser}
+            onCompleteCustomerAuth={handleCompleteCustomerAuth}
             onSignOut={handleCustomerSignOut}
             onUpdateCustomer={handleUpdateCustomer}
             onToggleWishlist={handleToggleWishlist}
@@ -2563,9 +2782,14 @@ export default function App() {
             onReorderItems={handleReorderItems}
             onCancelOrder={handleCancelCustomerOrder}
             onCreateReturnRequest={handleCreateReturnRequest}
-            onOpenBuyGiftCardModal={() => setShowBuyGiftCardModal(true)}
+            onOpenBuyGiftCardModal={(mode = 'personal') => {
+              setGiftCardModalMode(mode);
+              setShowBuyGiftCardModal(true);
+            }}
             onRedeemGiftCard={handleRedeemGiftCard}
             onSubmitCustomerMessage={handleSubmitCustomerMessage}
+            onSubmitProductReview={handleSubmitProductReview}
+            onSubmitProductQuestion={handleSubmitProductQuestion}
             onSelectProduct={handleSelectProduct}
             onContinueShopping={() => navigateTo('shop')}
             onRefreshOrders={handleRefreshUserOrders}
@@ -2607,6 +2831,7 @@ export default function App() {
               inquiries={inquiries}
               customerMessages={customerMessages}
               productReviews={productReviews}
+              productQuestions={productQuestions}
               customers={customers}
               coupons={coupons}
               giftCards={giftCards}
@@ -2643,12 +2868,18 @@ export default function App() {
               onSavePrintJob={handleSavePrintJob}
               onSaveFilamentSpool={handleSaveFilamentSpool}
               onSetCustomerFlag={handleSetCustomerFlag}
+              onUpdateCustomerAdmin={handleUpdateCustomerAdmin}
+              onAdjustCustomerWallet={handleAdjustCustomerWalletAdmin}
+              onForceLogoutCustomer={handleForceLogoutCustomerAdmin}
+              onToggleCustomerStatus={handleToggleCustomerStatusAdmin}
               onToggleInquiryStatus={handleToggleInquiryStatus}
               onUpdateCustomerMessage={handleUpdateCustomerMessage}
               onDeleteCustomerMessage={handleDeleteCustomerMessage}
               onBulkDeleteCustomerMessages={handleBulkDeleteCustomerMessages}
               onSaveProductReview={handleSaveProductReview}
               onDeleteProductReview={handleDeleteProductReview}
+              onSaveProductQuestion={handleSaveProductQuestionAdmin}
+              onDeleteProductQuestion={handleDeleteProductQuestionAdmin}
               onSaveIntegration={handleSaveIntegration}
               onImportOrders={handleImportMarketplaceOrders}
               onSaveAutomationRule={handleSaveAutomationRule}
@@ -2672,7 +2903,10 @@ export default function App() {
           promoCode={settings.promoCode}
           promoDiscountPercent={settings.promoDiscountPercent}
           onNavigate={navigateTo}
-          onOpenGiftCardModal={() => setShowBuyGiftCardModal(true)}
+          onOpenGiftCardModal={() => {
+            setGiftCardModalMode('personal');
+            setShowBuyGiftCardModal(true);
+          }}
         />
       )}
 
@@ -2716,6 +2950,7 @@ export default function App() {
       {showBuyGiftCardModal && (
         <BuyGiftCardModal
           currentCustomer={currentCustomer}
+          initialMode={giftCardModalMode}
           onClose={() => setShowBuyGiftCardModal(false)}
           onIssueGiftCard={handleIssueGiftCard}
           onRedeemImmediately={handleRedeemGiftCard}

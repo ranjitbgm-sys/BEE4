@@ -17,10 +17,14 @@ import {
   CartItem,
   CouponRecord,
   CrmCustomerFlag,
+  CustomerAccountStatus,
   CustomerCustomDesign,
+  CustomerDeviceSession,
+  CustomerGender,
   CustomerInquiry,
   CustomerMessageRecord,
   CustomerMessageStatus,
+  CustomerNotificationPreferences,
   CustomerProfile,
   FilamentSpool,
   FulfillmentStage,
@@ -45,6 +49,7 @@ import {
   Product,
   ProductAngle,
   ProductCategory,
+  ProductQuestionRecord,
   ProductReviewRecord,
   ProductReviewStatus,
   ProductVisibilityStatus,
@@ -60,6 +65,12 @@ import {
   WalletTransactionRecord,
 } from '../types';
 import { sanitizeRichInput, sanitizeSingleLine } from '../utils/adminLogic';
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  joinFirstLastName,
+  normalizeCustomerPanelControls,
+  splitFullName,
+} from '../utils/customerAccountLogic';
 
 const VALID_SKILL_CATEGORIES = new Set<string>([
   ProductCategory.ENGINEERING,
@@ -216,7 +227,7 @@ export async function signUpCustomerSupabase(input: {
 }): Promise<{ user: User | null; requiresEmailVerification: boolean }> {
   if (!supabase) {
     throw new Error(
-      'Supabase Auth is not configured yet. Please check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.'
+      'BEE4 Account verification service is currently in local studio mode.'
     );
   }
   const cleanEmail = input.email.trim().toLowerCase();
@@ -243,7 +254,7 @@ export async function verifyCustomerEmailOtpSupabase(
   token: string
 ): Promise<User> {
   if (!supabase) {
-    throw new Error('Supabase Auth is not configured.');
+    throw new Error('BEE4 Account verification service is not active.');
   }
   const cleanEmail = email.trim().toLowerCase();
   const cleanToken = token.trim();
@@ -273,7 +284,7 @@ export async function verifyCustomerEmailOtpSupabase(
 
 export async function resendCustomerVerificationEmailSupabase(email: string): Promise<void> {
   if (!supabase) {
-    throw new Error('Supabase Auth is not configured.');
+    throw new Error('BEE4 Account verification service is not active.');
   }
   const { error } = await supabase.auth.resend({
     type: 'signup',
@@ -287,7 +298,7 @@ export async function resendCustomerVerificationEmailSupabase(email: string): Pr
 
 export async function sendCustomerEmailLoginOtpSupabase(email: string): Promise<void> {
   if (!supabase) {
-    throw new Error('Supabase Auth is not configured.');
+    throw new Error('BEE4 Account sign-in service is not active.');
   }
   const { error } = await supabase.auth.signInWithOtp({
     email: email.trim().toLowerCase(),
@@ -304,7 +315,7 @@ export async function verifyCustomerEmailLoginOtpSupabase(
   token: string
 ): Promise<User> {
   if (!supabase) {
-    throw new Error('Supabase Auth is not configured.');
+    throw new Error('BEE4 Account verification service is not active.');
   }
   const { data, error } = await supabase.auth.verifyOtp({
     email: email.trim().toLowerCase(),
@@ -323,7 +334,7 @@ export async function signInCustomerWithEmailPasswordSupabase(
   password: string
 ): Promise<User> {
   if (!supabase) {
-    throw new Error('Supabase Auth is not configured.');
+    throw new Error('BEE4 Account password sign-in is not active.');
   }
   const { data, error } = await supabase.auth.signInWithPassword({
     email: email.trim().toLowerCase(),
@@ -331,14 +342,14 @@ export async function signInCustomerWithEmailPasswordSupabase(
   });
   if (error) throw error;
   if (!data.user) {
-    throw new Error('Sign-in did not return an active user session.');
+    throw new Error('Sign-in did not return an active BEE4 session.');
   }
   return data.user;
 }
 
 export async function sendCustomerPasswordResetEmailSupabase(email: string): Promise<void> {
   if (!supabase) {
-    throw new Error('Supabase Auth is not configured.');
+    throw new Error('BEE4 Account recovery service is not active.');
   }
   const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
     redirectTo: resolveSiteRedirectUrl('/account'),
@@ -348,7 +359,7 @@ export async function sendCustomerPasswordResetEmailSupabase(email: string): Pro
 
 export async function updateSupabaseUserPassword(newPassword: string): Promise<User> {
   if (!supabase) {
-    throw new Error('Supabase Auth is not configured.');
+    throw new Error('BEE4 Account security service is not active.');
   }
   const { data, error } = await supabase.auth.updateUser({ password: newPassword });
   if (error) throw error;
@@ -367,9 +378,7 @@ export async function refreshSupabaseSessionUser(): Promise<User | null> {
 
 export async function signInWithGoogleSupabase(redirectPath = '/admin'): Promise<void> {
   if (!supabase) {
-    throw new Error(
-      'Supabase environment variables (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY) are not configured.'
-    );
+    throw new Error('Google Sign-In is currently unavailable in this session.');
   }
   const { error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
@@ -385,7 +394,7 @@ export async function signInAdminWithEmailPassword(
   password: string
 ): Promise<User> {
   if (!supabase) {
-    throw new Error('Supabase is not configured. Use the Studio Key tab for local admin mode.');
+    throw new Error('Cloud admin auth is not configured. Use Studio Key for local admin mode.');
   }
   const { data, error } = await supabase.auth.signInWithPassword({
     email: email.trim(),
@@ -400,7 +409,7 @@ export async function signInAdminWithEmailPassword(
 
 export async function sendSupabasePhoneOtp(phoneE164: string): Promise<void> {
   if (!supabase) {
-    throw new Error('Supabase is not configured.');
+    throw new Error('BEE4 SMS OTP service is currently in offline verification mode.');
   }
   const { error } = await supabase.auth.signInWithOtp({ phone: phoneE164 });
   if (error) throw error;
@@ -411,7 +420,7 @@ export async function verifySupabasePhoneOtp(
   token: string
 ): Promise<User> {
   if (!supabase) {
-    throw new Error('Supabase is not configured.');
+    throw new Error('BEE4 SMS OTP verification is not active.');
   }
   const { data, error } = await supabase.auth.verifyOtp({
     phone: phoneE164,
@@ -461,8 +470,8 @@ export async function verifySupabaseAdminAccess(user: User | null): Promise<{
   return {
     authorized: false,
     reason: email
-      ? `${email} does not match VITE_ADMIN_EMAIL (${allowlist.join(', ')}) or have is_admin = true.`
-      : 'Your signed-in Supabase account does not have BEE4 admin privileges.',
+      ? `${email} is not authorized in admin allowlist (${allowlist.join(', ')}).`
+      : 'Your signed-in BEE4 account does not have admin privileges.',
   };
 }
 
@@ -776,7 +785,7 @@ export async function uploadProductMediaToSupabaseStorage(
     return {
       url: compressedDataUrl,
       storageMode: 'local-fallback',
-      note: 'Supabase env not configured — saved locally.',
+      note: 'Saved compressed image preview locally.',
     };
   }
 
@@ -1058,6 +1067,9 @@ export function subscribePublicSettings(onData: (settings: StoreSettings) => voi
           data.gift_finder_weights && typeof data.gift_finder_weights === 'object'
             ? (data.gift_finder_weights as StoreSettings['giftFinderWeights'])
             : DEFAULT_STORE_SETTINGS.giftFinderWeights,
+        customerPanelControls: normalizeCustomerPanelControls({
+          customerPanelControls: data.customer_panel_controls as StoreSettings['customerPanelControls'],
+        }),
       });
     } catch {
       // Non-fatal fallback
@@ -1084,45 +1096,52 @@ export function subscribePublicSettings(onData: (settings: StoreSettings) => voi
 
 export async function saveStoreSettingsToSupabase(settings: StoreSettings): Promise<void> {
   if (!supabase) return;
-  const { error } = await supabase.from('store_settings').upsert(
-    {
-      id: 'main',
-      whatsapp_number: sanitizeSingleLine(settings.whatsappNumber, 20) || '919800004004',
-      support_email: sanitizeSingleLine(settings.supportEmail, 120) || 'hello@bee4.in',
-      announcement_text:
-        sanitizeSingleLine(settings.announcementText, 200) || 'Free India shipping ₹499+',
-      announcement_enabled: settings.announcementEnabled ?? true,
-      hero_headline: sanitizeSingleLine(settings.heroHeadline ?? '', 160),
-      hero_subheadline: sanitizeSingleLine(settings.heroSubheadline ?? '', 260),
-      hero_cta_text: sanitizeSingleLine(settings.heroCtaText ?? '', 60),
-      featured_banner_enabled: settings.featuredBannerEnabled ?? true,
-      visible_categories: settings.visibleCategories ?? [],
-      free_shipping_threshold: Math.max(
-        0,
-        Math.min(50000, Number(settings.freeShippingThreshold) || 499)
-      ),
-      standard_shipping_fee: Math.max(
-        0,
-        Math.min(5000, Number(settings.standardShippingFee ?? 49))
-      ),
-      cod_handling_fee: Math.max(0, Math.min(5000, Number(settings.codHandlingFee ?? 0))),
-      gift_wrap_fee: Math.max(0, Math.min(5000, Number(settings.giftWrapFee ?? 49))),
-      gift_wrap_enabled: settings.giftWrapEnabled ?? true,
-      upi_enabled: settings.upiEnabled ?? true,
-      cod_enabled: settings.codEnabled ?? true,
-      whatsapp_order_enabled: settings.whatsappOrderEnabled ?? true,
-      upi_vpa: sanitizeSingleLine(settings.upiVpa ?? 'bee4studio@okaxis', 80),
-      promo_code: sanitizeSingleLine(settings.promoCode, 32).toUpperCase(),
-      promo_discount_percent: Math.max(
-        0,
-        Math.min(90, Number(settings.promoDiscountPercent) || 0)
-      ),
-      gift_finder_weights: settings.giftFinderWeights ?? {},
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'id' }
-  );
-  if (error) console.error('Supabase saveSettings error:', error.message);
+  const payload = {
+    id: 'main',
+    whatsapp_number: sanitizeSingleLine(settings.whatsappNumber, 20) || '919800004004',
+    support_email: sanitizeSingleLine(settings.supportEmail, 120) || 'hello@bee4.in',
+    announcement_text:
+      sanitizeSingleLine(settings.announcementText, 200) || 'Free India shipping ₹499+',
+    announcement_enabled: settings.announcementEnabled ?? true,
+    hero_headline: sanitizeSingleLine(settings.heroHeadline ?? '', 160),
+    hero_subheadline: sanitizeSingleLine(settings.heroSubheadline ?? '', 260),
+    hero_cta_text: sanitizeSingleLine(settings.heroCtaText ?? '', 60),
+    featured_banner_enabled: settings.featuredBannerEnabled ?? true,
+    visible_categories: settings.visibleCategories ?? [],
+    free_shipping_threshold: Math.max(
+      0,
+      Math.min(50000, Number(settings.freeShippingThreshold) || 499)
+    ),
+    standard_shipping_fee: Math.max(
+      0,
+      Math.min(5000, Number(settings.standardShippingFee ?? 49))
+    ),
+    cod_handling_fee: Math.max(0, Math.min(5000, Number(settings.codHandlingFee ?? 0))),
+    gift_wrap_fee: Math.max(0, Math.min(5000, Number(settings.giftWrapFee ?? 49))),
+    gift_wrap_enabled: settings.giftWrapEnabled ?? true,
+    upi_enabled: settings.upiEnabled ?? true,
+    cod_enabled: settings.codEnabled ?? true,
+    whatsapp_order_enabled: settings.whatsappOrderEnabled ?? true,
+    upi_vpa: sanitizeSingleLine(settings.upiVpa ?? 'bee4studio@okaxis', 80),
+    promo_code: sanitizeSingleLine(settings.promoCode, 32).toUpperCase(),
+    promo_discount_percent: Math.max(
+      0,
+      Math.min(90, Number(settings.promoDiscountPercent) || 0)
+    ),
+    gift_finder_weights: settings.giftFinderWeights ?? {},
+    customer_panel_controls: normalizeCustomerPanelControls(settings),
+    updated_at: new Date().toISOString(),
+  };
+  const { error } = await supabase
+    .from('store_settings')
+    .upsert(payload, { onConflict: 'id' });
+  if (error && isMissingSchemaError(error)) {
+    const legacyPayload = { ...payload } as Record<string, unknown>;
+    delete legacyPayload.customer_panel_controls;
+    await supabase.from('store_settings').upsert(legacyPayload, { onConflict: 'id' });
+  } else if (error) {
+    console.error('saveStoreSettings error:', error.message);
+  }
 }
 
 // ============================================================================
@@ -1336,7 +1355,7 @@ function fromOrderRow(d: Record<string, unknown>): OrderRecord {
 export async function fetchUserOrdersFromSupabase(userId: string): Promise<OrderRecord[]> {
   const client = supabase;
   if (!client) {
-    throw new Error('Supabase is not configured. Unable to load user orders.');
+    throw new Error('BEE4 order history is unavailable in offline mode.');
   }
   if (!userId) return [];
 
@@ -1347,7 +1366,7 @@ export async function fetchUserOrdersFromSupabase(userId: string): Promise<Order
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('[BEE4 Supabase] Failed to fetch user orders:', {
+    console.error('[BEE4 Orders] Failed to fetch user orders:', {
       userId,
       code: error.code,
       message: error.message,
@@ -1362,7 +1381,7 @@ export async function fetchUserOrdersFromSupabase(userId: string): Promise<Order
 export async function fetchAllOrdersAdminFromSupabase(): Promise<OrderRecord[]> {
   const client = supabase;
   if (!client) {
-    throw new Error('Supabase is not configured. Unable to load admin orders.');
+    throw new Error('Cloud order service is not configured. Unable to load admin orders.');
   }
 
   const { data, error } = await client
@@ -1463,9 +1482,9 @@ export async function createOrderInSupabase(
   const client = supabase;
   if (!client) {
     const err = new Error(
-      'Supabase is not configured (missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY). Your order could not be saved.'
+      'Unable to complete cloud checkout right now. Please try again in a moment.'
     );
-    console.error('[BEE4 Checkout] Supabase insert aborted:', err.message);
+    console.error('[BEE4 Checkout] Order insert aborted: cloud service unavailable');
     throw err;
   }
 
@@ -1603,7 +1622,7 @@ export async function createOrderInSupabase(
       hint: error.hint,
     });
     throw new Error(
-      `Could not save your order (${orderNumber}) to the database: ${error.message}`
+      `Could not complete your order (${orderNumber}). Please try again.`
     );
   }
 }
@@ -1689,8 +1708,8 @@ export async function cancelOrderInSupabase(input: {
     }
 
     if (error && !rpcSucceeded) {
-      console.error('[BEE4 Cancel] Supabase order cancellation failed:', error.message);
-      throw new Error(`Could not cancel order ${cleanOrderNumber} in Supabase: ${error.message}`);
+      console.error('[BEE4 Cancel] Order cancellation failed:', error.message);
+      throw new Error(`Could not cancel order ${cleanOrderNumber}. Please try again.`);
     }
   }
 
@@ -2068,8 +2087,116 @@ export async function toggleInquiryStatusInSupabase(
 }
 
 // ============================================================================
-// Customer Profile & CRM Sync (Supabase profiles + customers tables)
+// Customer Profile & CRM Sync (profiles + customers tables)
 // ============================================================================
+
+function normalizeProfileRowToCustomer(d: Record<string, unknown>): CustomerProfile {
+  const fullNameRaw = String(d.full_name ?? d.fullName ?? 'BEE4 Customer');
+  const parsedSplit = splitFullName(fullNameRaw);
+  const firstName =
+    typeof (d.first_name ?? d.firstName) === 'string' && String(d.first_name ?? d.firstName).trim()
+      ? String(d.first_name ?? d.firstName).trim()
+      : parsedSplit.firstName;
+  const lastName =
+    typeof (d.last_name ?? d.lastName) === 'string'
+      ? String(d.last_name ?? d.lastName).trim()
+      : parsedSplit.lastName;
+  const rawNotif = d.notification_preferences ?? d.notificationPreferences;
+  const notifObj =
+    rawNotif && typeof rawNotif === 'object'
+      ? (rawNotif as Partial<CustomerNotificationPreferences>)
+      : {};
+  const notificationPreferences: CustomerNotificationPreferences = {
+    orderUpdates: notifObj.orderUpdates ?? DEFAULT_NOTIFICATION_PREFERENCES.orderUpdates,
+    returnAlerts: notifObj.returnAlerts ?? DEFAULT_NOTIFICATION_PREFERENCES.returnAlerts,
+    offersAndLaunches:
+      notifObj.offersAndLaunches ?? DEFAULT_NOTIFICATION_PREFERENCES.offersAndLaunches,
+  };
+
+  return {
+    id: String(d.id ?? ''),
+    firstName,
+    lastName,
+    fullName: joinFirstLastName(firstName, lastName) || fullNameRaw,
+    gender:
+      d.gender === 'Male' || d.gender === 'Female' || d.gender === 'Other'
+        ? (d.gender as CustomerGender)
+        : undefined,
+    avatarUrl:
+      typeof (d.avatar_url ?? d.avatarUrl) === 'string' &&
+      String(d.avatar_url ?? d.avatarUrl).trim()
+        ? String(d.avatar_url ?? d.avatarUrl)
+        : undefined,
+    phone: String(d.phone ?? ''),
+    email: String(d.email ?? ''),
+    emailVerified: Boolean(d.email_verified ?? d.emailVerified ?? d.email_confirmed_at),
+    emailConfirmedAt:
+      typeof (d.email_confirmed_at ?? d.emailConfirmedAt) === 'string'
+        ? String(d.email_confirmed_at ?? d.emailConfirmedAt)
+        : undefined,
+    preferredPayment:
+      ((d.preferred_payment ?? d.preferredPayment) as PaymentMethod) || 'UPI / Prepaid',
+    preferredLanguage:
+      (d.preferred_language ?? d.preferredLanguage) === 'hi' ? 'hi' : 'en',
+    notificationPreferences,
+    savedUpiIds: Array.isArray(d.saved_upi_ids ?? d.savedUpiIds)
+      ? ((d.saved_upi_ids ?? d.savedUpiIds) as string[]).map(String).slice(0, 10)
+      : [],
+    devices: Array.isArray(d.devices)
+      ? (d.devices as CustomerDeviceSession[]).slice(0, 12)
+      : [],
+    accountStatus:
+      (d.account_status ?? d.accountStatus) === 'Suspended'
+        ? ('Suspended' as CustomerAccountStatus)
+        : ('Active' as CustomerAccountStatus),
+    deactivationRequested: Boolean(d.deactivation_requested ?? d.deactivationRequested),
+    deactivationRequestedAt:
+      typeof (d.deactivation_requested_at ?? d.deactivationRequestedAt) === 'string'
+        ? String(d.deactivation_requested_at ?? d.deactivationRequestedAt)
+        : undefined,
+    forceLoggedOutAt:
+      typeof (d.force_logged_out_at ?? d.forceLoggedOutAt) === 'string'
+        ? String(d.force_logged_out_at ?? d.forceLoggedOutAt)
+        : undefined,
+    celebrationMonth:
+      typeof (d.celebration_month ?? d.celebrationMonth) === 'string' &&
+      (d.celebration_month ?? d.celebrationMonth)
+        ? String(d.celebration_month ?? d.celebrationMonth)
+        : undefined,
+    crmFlag: ((d.crm_flag ?? d.crmFlag) as CrmCustomerFlag) || 'Standard',
+    walletBalance: Math.max(0, Number(d.wallet_balance ?? d.walletBalance ?? 0)),
+    walletTransactions: Array.isArray(d.wallet_transactions ?? d.walletTransactions)
+      ? ((d.wallet_transactions ?? d.walletTransactions) as WalletTransactionRecord[])
+      : [],
+    customDesigns: Array.isArray(d.custom_designs ?? d.customDesigns)
+      ? ((d.custom_designs ?? d.customDesigns) as CustomerCustomDesign[])
+      : [],
+    createdAt: String(d.created_at ?? d.createdAt ?? new Date().toISOString()),
+    addresses: Array.isArray(d.addresses) ? (d.addresses as SavedAddress[]) : [],
+    wishlistIds: Array.isArray(d.wishlist_ids) ? d.wishlist_ids.map(String) : [],
+  };
+}
+
+function buildExtendedCustomerFields(profile: CustomerProfile): Record<string, unknown> {
+  const split = splitFullName(profile.fullName);
+  const firstName = clampSingleLine(profile.firstName ?? split.firstName, 60, 'BEE4');
+  const lastName = clampSingleLine(profile.lastName ?? split.lastName, 60);
+  return {
+    first_name: firstName,
+    last_name: lastName,
+    gender: profile.gender ?? null,
+    avatar_url: clampSingleLine(profile.avatarUrl ?? '', 500),
+    preferred_language: profile.preferredLanguage === 'hi' ? 'hi' : 'en',
+    notification_preferences:
+      profile.notificationPreferences ?? DEFAULT_NOTIFICATION_PREFERENCES,
+    saved_upi_ids: (profile.savedUpiIds ?? []).slice(0, 10),
+    devices: (profile.devices ?? []).slice(0, 12),
+    account_status: profile.accountStatus === 'Suspended' ? 'Suspended' : 'Active',
+    deactivation_requested: Boolean(profile.deactivationRequested),
+    deactivation_requested_at: profile.deactivationRequestedAt ?? null,
+    force_logged_out_at: profile.forceLoggedOutAt ?? null,
+  };
+}
 
 async function syncCustomerRecordToSupabaseCustomersTable(
   profile: CustomerProfile,
@@ -2092,19 +2219,30 @@ async function syncCustomerRecordToSupabaseCustomersTable(
       created_at: profile.createdAt || new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
-    const { error } = await client.from('customers').upsert(
-      {
-        ...baseRow,
-        email_verified: Boolean(profile.emailVerified),
-        email_confirmed_at: profile.emailConfirmedAt ?? null,
-        wallet_balance: Math.max(0, Number(profile.walletBalance ?? 0)),
-        wallet_transactions: (profile.walletTransactions ?? []).slice(0, 60),
-        custom_designs: (profile.customDesigns ?? []).slice(0, 30),
-      },
-      { onConflict: 'id' }
-    );
+    const coreWithWallet = {
+      ...baseRow,
+      email_verified: Boolean(profile.emailVerified),
+      email_confirmed_at: profile.emailConfirmedAt ?? null,
+      wallet_balance: Math.max(0, Number(profile.walletBalance ?? 0)),
+      wallet_transactions: (profile.walletTransactions ?? []).slice(0, 60),
+      custom_designs: (profile.customDesigns ?? []).slice(0, 30),
+    };
+    const { error } = await client
+      .from('customers')
+      .upsert(
+        {
+          ...coreWithWallet,
+          ...buildExtendedCustomerFields(profile),
+        },
+        { onConflict: 'id' }
+      );
     if (error && isMissingSchemaError(error)) {
-      await client.from('customers').upsert(baseRow, { onConflict: 'id' });
+      const retry = await client
+        .from('customers')
+        .upsert(coreWithWallet, { onConflict: 'id' });
+      if (retry.error && isMissingSchemaError(retry.error)) {
+        await client.from('customers').upsert(baseRow, { onConflict: 'id' });
+      }
     }
   } catch {
     // Non-fatal fallback if customers table isn't provisioned yet
@@ -2123,6 +2261,7 @@ export async function ensureSupabaseCustomerProfile(
     100,
     'BEE4 Shopper'
   );
+  const split = splitFullName(displayName);
   const rawHintPhone =
     typeof sbUser.user_metadata?.phone === 'string'
       ? sbUser.user_metadata.phone
@@ -2135,12 +2274,20 @@ export async function ensureSupabaseCustomerProfile(
 
   const fallbackProfile: CustomerProfile = {
     id: sbUser.id,
+    firstName: split.firstName,
+    lastName: split.lastName,
     fullName: displayName,
+    gender: undefined,
     phone: metaPhone,
     email: safeEmail,
     emailVerified,
     emailConfirmedAt,
     preferredPayment: 'UPI / Prepaid',
+    preferredLanguage: 'en',
+    notificationPreferences: { ...DEFAULT_NOTIFICATION_PREFERENCES },
+    savedUpiIds: [],
+    devices: [],
+    accountStatus: 'Active',
     walletBalance: 0,
     walletTransactions: [],
     customDesigns: [],
@@ -2196,33 +2343,15 @@ export async function ensureSupabaseCustomerProfile(
         }
       }
 
-      const addresses = Array.isArray(existing.addresses)
-        ? (existing.addresses as SavedAddress[])
-        : [];
-      const walletTransactions = Array.isArray(existing.wallet_transactions)
-        ? (existing.wallet_transactions as WalletTransactionRecord[])
-        : [];
-      const customDesigns = Array.isArray(existing.custom_designs)
-        ? (existing.custom_designs as CustomerCustomDesign[])
-        : [];
-
+      const mapped = normalizeProfileRowToCustomer(existing as Record<string, unknown>);
       const hydratedProfile: CustomerProfile = {
+        ...mapped,
         id: sbUser.id,
-        fullName: String(existing.full_name || displayName),
+        fullName: mapped.fullName || displayName,
         phone: resolvedPhone,
-        email: String(existing.email || safeEmail),
+        email: mapped.email || safeEmail,
         emailVerified,
         emailConfirmedAt,
-        preferredPayment: (existing.preferred_payment as PaymentMethod) || 'UPI / Prepaid',
-        celebrationMonth:
-          typeof existing.celebration_month === 'string' && existing.celebration_month
-            ? existing.celebration_month
-            : undefined,
-        walletBalance: Math.max(0, Number(existing.wallet_balance ?? 0)),
-        walletTransactions,
-        customDesigns,
-        createdAt: String(existing.created_at || new Date().toISOString()),
-        addresses,
         wishlistIds: mergedWishlist,
       };
       void syncCustomerRecordToSupabaseCustomersTable(hydratedProfile, sbUser.id);
@@ -2239,19 +2368,28 @@ export async function ensureSupabaseCustomerProfile(
       addresses: [],
       updated_at: new Date().toISOString(),
     };
+    const coreWalletInsert = {
+      ...baseInsert,
+      email_verified: emailVerified,
+      email_confirmed_at: emailConfirmedAt ?? null,
+      wallet_balance: 0,
+      wallet_transactions: [],
+      custom_designs: [],
+    };
     const { error: upsertErr } = await supabase.from('profiles').upsert(
       {
-        ...baseInsert,
-        email_verified: emailVerified,
-        email_confirmed_at: emailConfirmedAt ?? null,
-        wallet_balance: 0,
-        wallet_transactions: [],
-        custom_designs: [],
+        ...coreWalletInsert,
+        ...buildExtendedCustomerFields(fallbackProfile),
       },
       { onConflict: 'id' }
     );
     if (upsertErr && isMissingSchemaError(upsertErr)) {
-      await supabase.from('profiles').upsert(baseInsert, { onConflict: 'id' });
+      const retry = await supabase
+        .from('profiles')
+        .upsert(coreWalletInsert, { onConflict: 'id' });
+      if (retry.error && isMissingSchemaError(retry.error)) {
+        await supabase.from('profiles').upsert(baseInsert, { onConflict: 'id' });
+      }
     }
     void syncCustomerRecordToSupabaseCustomersTable(fallbackProfile, sbUser.id);
   } catch {
@@ -2273,21 +2411,67 @@ export async function updateSupabaseCustomerProfile(profile: CustomerProfile): P
     addresses: profile.addresses.slice(0, 12),
     updated_at: new Date().toISOString(),
   };
+  const walletUpdate = {
+    ...baseUpdate,
+    email_verified: Boolean(profile.emailVerified),
+    email_confirmed_at: profile.emailConfirmedAt ?? null,
+    wallet_balance: Math.max(0, Number(profile.walletBalance ?? 0)),
+    wallet_transactions: (profile.walletTransactions ?? []).slice(0, 60),
+    custom_designs: (profile.customDesigns ?? []).slice(0, 30),
+  };
   const { error } = await supabase
     .from('profiles')
     .update({
-      ...baseUpdate,
-      email_verified: Boolean(profile.emailVerified),
-      email_confirmed_at: profile.emailConfirmedAt ?? null,
-      wallet_balance: Math.max(0, Number(profile.walletBalance ?? 0)),
-      wallet_transactions: (profile.walletTransactions ?? []).slice(0, 60),
-      custom_designs: (profile.customDesigns ?? []).slice(0, 30),
+      ...walletUpdate,
+      ...buildExtendedCustomerFields(profile),
     })
     .eq('id', profile.id);
   if (error && isMissingSchemaError(error)) {
-    await supabase.from('profiles').update(baseUpdate).eq('id', profile.id);
+    const retry = await supabase
+      .from('profiles')
+      .update(walletUpdate)
+      .eq('id', profile.id);
+    if (retry.error && isMissingSchemaError(retry.error)) {
+      await supabase.from('profiles').update(baseUpdate).eq('id', profile.id);
+    }
   }
   await syncCustomerRecordToSupabaseCustomersTable(profile, profile.id);
+}
+
+export async function updateCustomerRecordAdminSupabase(profile: CustomerProfile): Promise<void> {
+  const client = supabase;
+  if (!client) return;
+  await syncCustomerRecordToSupabaseCustomersTable(profile, profile.id);
+  try {
+    const profilePatch = {
+      full_name: clampSingleLine(profile.fullName, 100, 'BEE4 Customer'),
+      phone: clampSingleLine(profile.phone, 20),
+      email: clampSingleLine(profile.email, 160),
+      wallet_balance: Math.max(0, Number(profile.walletBalance ?? 0)),
+      wallet_transactions: (profile.walletTransactions ?? []).slice(0, 60),
+      ...buildExtendedCustomerFields(profile),
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = await client
+      .from('profiles')
+      .update(profilePatch)
+      .eq('id', profile.id);
+    if (error && isMissingSchemaError(error)) {
+      await client
+        .from('profiles')
+        .update({
+          full_name: profilePatch.full_name,
+          phone: profilePatch.phone,
+          email: profilePatch.email,
+          wallet_balance: profilePatch.wallet_balance,
+          wallet_transactions: profilePatch.wallet_transactions,
+          updated_at: profilePatch.updated_at,
+        })
+        .eq('id', profile.id);
+    }
+  } catch {
+    // Non-fatal fallback
+  }
 }
 
 export function subscribeAllCustomersAdmin(
@@ -2296,35 +2480,6 @@ export function subscribeAllCustomersAdmin(
   const client = supabase;
   if (!client) return () => {};
 
-  const mapRow = (d: Record<string, unknown>): CustomerProfile => ({
-    id: String(d.id ?? ''),
-    fullName: String(d.full_name ?? d.fullName ?? 'BEE4 Customer'),
-    phone: String(d.phone ?? ''),
-    email: String(d.email ?? ''),
-    emailVerified: Boolean(d.email_verified ?? d.emailVerified ?? d.email_confirmed_at),
-    emailConfirmedAt:
-      typeof (d.email_confirmed_at ?? d.emailConfirmedAt) === 'string'
-        ? String(d.email_confirmed_at ?? d.emailConfirmedAt)
-        : undefined,
-    preferredPayment: ((d.preferred_payment ?? d.preferredPayment) as PaymentMethod) || 'UPI / Prepaid',
-    celebrationMonth:
-      typeof (d.celebration_month ?? d.celebrationMonth) === 'string' &&
-      (d.celebration_month ?? d.celebrationMonth)
-        ? String(d.celebration_month ?? d.celebrationMonth)
-        : undefined,
-    crmFlag: ((d.crm_flag ?? d.crmFlag) as CrmCustomerFlag) || 'Standard',
-    walletBalance: Math.max(0, Number(d.wallet_balance ?? d.walletBalance ?? 0)),
-    walletTransactions: Array.isArray(d.wallet_transactions ?? d.walletTransactions)
-      ? ((d.wallet_transactions ?? d.walletTransactions) as WalletTransactionRecord[])
-      : [],
-    customDesigns: Array.isArray(d.custom_designs ?? d.customDesigns)
-      ? ((d.custom_designs ?? d.customDesigns) as CustomerCustomDesign[])
-      : [],
-    createdAt: String(d.created_at ?? d.createdAt ?? new Date().toISOString()),
-    addresses: Array.isArray(d.addresses) ? (d.addresses as SavedAddress[]) : [],
-    wishlistIds: Array.isArray(d.wishlist_ids) ? d.wishlist_ids.map(String) : [],
-  });
-
   const load = async () => {
     try {
       const { data, error } = await client
@@ -2332,7 +2487,7 @@ export function subscribeAllCustomersAdmin(
         .select('*')
         .order('created_at', { ascending: false });
       if (!error && data) {
-        onData(data.map((r) => mapRow(r as Record<string, unknown>)));
+        onData(data.map((r) => normalizeProfileRowToCustomer(r as Record<string, unknown>)));
         return;
       }
       // Fallback to profiles if customers table hasn't been created yet
@@ -2342,7 +2497,7 @@ export function subscribeAllCustomersAdmin(
           .select('*')
           .order('created_at', { ascending: false });
         if (!prof.error && prof.data) {
-          onData(prof.data.map((r) => mapRow(r as Record<string, unknown>)));
+          onData(prof.data.map((r) => normalizeProfileRowToCustomer(r as Record<string, unknown>)));
         }
       }
     } catch {
@@ -3585,4 +3740,175 @@ export async function uploadCustomDesignToSupabaseStorage(
     return { url: compressedDataUrl, storageMode: 'local-fallback' };
   }
 }
+
+// ============================================================================
+// Product Questions & Answers (PDP <-> Customer Account <-> Admin Q&A)
+// ============================================================================
+
+function fromProductQuestionRow(d: Record<string, unknown>): ProductQuestionRecord {
+  return {
+    id: String(d.id ?? ''),
+    userId: d.user_id ? String(d.user_id) : null,
+    productId: String(d.product_id ?? d.productId ?? ''),
+    productName: String(d.product_name ?? d.productName ?? 'BEE4 Product'),
+    customerName: String(d.customer_name ?? d.customerName ?? 'BEE4 Shopper'),
+    customerContact: String(d.customer_contact ?? d.customerContact ?? ''),
+    question: String(d.question ?? ''),
+    answer: typeof d.answer === 'string' && d.answer.trim() ? d.answer : undefined,
+    answeredBy:
+      typeof (d.answered_by ?? d.answeredBy) === 'string' &&
+      String(d.answered_by ?? d.answeredBy).trim()
+        ? String(d.answered_by ?? d.answeredBy)
+        : undefined,
+    status: d.status === 'Answered' ? 'Answered' : 'Pending',
+    createdAt: String(d.created_at ?? d.createdAt ?? new Date().toISOString()),
+    updatedAt: String(d.updated_at ?? d.updatedAt ?? new Date().toISOString()),
+  };
+}
+
+export function subscribePublicProductQuestions(
+  onData: (questions: ProductQuestionRecord[]) => void
+): () => void {
+  const client = supabase;
+  if (!client) return () => {};
+
+  const load = async () => {
+    try {
+      const { data, error } = await client
+        .from('product_questions')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error || !data) return;
+      onData(data.map((r) => fromProductQuestionRow(r as Record<string, unknown>)));
+    } catch {
+      // Optional table fallback
+    }
+  };
+
+  void load();
+
+  const channel = client
+    .channel('bee4-public-product-questions')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'product_questions' },
+      () => {
+        void load();
+      }
+    )
+    .subscribe();
+
+  return () => {
+    void client.removeChannel(channel);
+  };
+}
+
+export function subscribeAllProductQuestionsAdmin(
+  onData: (questions: ProductQuestionRecord[]) => void
+): () => void {
+  const client = supabase;
+  if (!client) return () => {};
+
+  const load = async () => {
+    try {
+      const { data, error } = await client
+        .from('product_questions')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error || !data) return;
+      onData(data.map((r) => fromProductQuestionRow(r as Record<string, unknown>)));
+    } catch {
+      // Optional table fallback
+    }
+  };
+
+  void load();
+
+  const channel = client
+    .channel('bee4-admin-product-questions')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'product_questions' },
+      () => {
+        void load();
+      }
+    )
+    .subscribe();
+
+  return () => {
+    void client.removeChannel(channel);
+  };
+}
+
+export async function submitProductQuestionToSupabase(
+  question: ProductQuestionRecord,
+  userId?: string | null
+): Promise<void> {
+  const client = supabase;
+  if (!client) return;
+  try {
+    const { error } = await client.from('product_questions').upsert(
+      {
+        id: sanitizeId(question.id, 'qa'),
+        user_id: userId || question.userId || null,
+        product_id: sanitizeId(question.productId, 'prod'),
+        product_name: clampSingleLine(question.productName, 160, 'BEE4 Product'),
+        customer_name: clampSingleLine(question.customerName, 100, 'BEE4 Shopper'),
+        customer_contact: clampSingleLine(question.customerContact ?? '', 160),
+        question: clampStr(question.question, 600, ''),
+        answer: clampStr(question.answer ?? '', 1000),
+        answered_by: clampSingleLine(question.answeredBy ?? '', 80),
+        status: question.status === 'Answered' ? 'Answered' : 'Pending',
+        created_at: question.createdAt || new Date().toISOString(),
+        updated_at: question.updatedAt || new Date().toISOString(),
+      },
+      { onConflict: 'id' }
+    );
+    if (error && !isMissingSchemaError(error)) {
+      console.error('[BEE4 QA] submit error:', error.message);
+    }
+  } catch {
+    // Graceful local fallback
+  }
+}
+
+export async function updateProductQuestionInSupabase(
+  question: ProductQuestionRecord
+): Promise<void> {
+  const client = supabase;
+  if (!client) return;
+  try {
+    const { error } = await client
+      .from('product_questions')
+      .update({
+        answer: clampStr(question.answer ?? '', 1000),
+        answered_by: clampSingleLine(question.answeredBy ?? 'Team BEE4', 80),
+        status: question.status === 'Answered' ? 'Answered' : 'Pending',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', sanitizeId(question.id, 'qa'));
+    if (error && !isMissingSchemaError(error)) {
+      console.error('[BEE4 QA] update error:', error.message);
+    }
+  } catch {
+    // Graceful local fallback
+  }
+}
+
+export async function deleteProductQuestionFromSupabase(id: string): Promise<void> {
+  const client = supabase;
+  if (!client) return;
+  try {
+    const { error } = await client
+      .from('product_questions')
+      .delete()
+      .eq('id', sanitizeId(id, 'qa'));
+    if (error && !isMissingSchemaError(error)) {
+      console.error('[BEE4 QA] delete error:', error.message);
+    }
+  } catch {
+    // Graceful local fallback
+  }
+}
+
 

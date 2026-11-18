@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import {
+  Building2,
   Check,
   Copy,
+  Download,
   Gift,
-  Printer,
+  ShieldCheck,
   Sparkles,
   Wallet,
   X,
@@ -14,6 +16,7 @@ import { formatINR } from '../utils/storeLogic';
 
 interface BuyGiftCardModalProps {
   currentCustomer: CustomerProfile | null;
+  initialMode?: 'personal' | 'bulk';
   onClose: () => void;
   onIssueGiftCard: (input: {
     amount: number;
@@ -25,18 +28,25 @@ interface BuyGiftCardModalProps {
 }
 
 const PRESET_AMOUNTS = [250, 500, 1000, 2000] as const;
+const OCCASIONS = ['Birthday', 'Festival', 'Thank You', 'School / Corporate'] as const;
 
 export const BuyGiftCardModal: React.FC<BuyGiftCardModalProps> = ({
   currentCustomer,
+  initialMode = 'personal',
   onClose,
   onIssueGiftCard,
   onRedeemImmediately,
 }) => {
+  const [purchaseType, setPurchaseType] = useState<'personal' | 'bulk'>(initialMode);
+  const [occasion, setOccasion] = useState<(typeof OCCASIONS)[number]>(
+    initialMode === 'bulk' ? 'School / Corporate' : 'Birthday'
+  );
   const [amount, setAmount] = useState<number>(500);
   const [recipientName, setRecipientName] = useState<string>('');
   const [recipientEmail, setRecipientEmail] = useState<string>('');
+  const [bulkQuantity, setBulkQuantity] = useState<number>(10);
   const [message, setMessage] = useState<string>(
-    'Enjoy crafting & screen-free play at BEE4 Studio!'
+    'Enjoy screen-free play & mindful crafting at BEE4 Studio!'
   );
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -57,13 +67,18 @@ export const BuyGiftCardModal: React.FC<BuyGiftCardModalProps> = ({
       return;
     }
 
+    const composedMessage =
+      purchaseType === 'bulk'
+        ? `[${occasion} · Bulk Lot (${bulkQuantity} cards)] ${message.trim()}`.trim()
+        : `[${occasion}] ${message.trim()}`.trim();
+
     setIsSubmitting(true);
     try {
       const created = await onIssueGiftCard({
         amount,
         recipientName: recipientName.trim(),
         recipientEmail: recipientEmail.trim().toLowerCase(),
-        message: message.trim(),
+        message: composedMessage,
       });
       setIssuedCard(created);
     } catch (err) {
@@ -77,7 +92,7 @@ export const BuyGiftCardModal: React.FC<BuyGiftCardModalProps> = ({
 
   const handleCopyCredentials = async () => {
     if (!issuedCard) return;
-    const text = `BEE4 Digital Gift Card\nValue: ${formatINR(issuedCard.initialAmount)}\nCode: ${issuedCard.code}\n4-Digit PIN: ${issuedCard.pin}\nRedeem at: https://bee4.in (My Account -> Gift Cards & Wallet)`;
+    const text = `BEE4 Digital Gift Card (${occasion})\nValue: ${formatINR(issuedCard.initialAmount)}\nCode: ${issuedCard.code}\n4-Digit PIN: ${issuedCard.pin}\nRedeem at: https://bee4.in (Account -> Gift Card & BEE4 Wallet)`;
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
@@ -87,7 +102,7 @@ export const BuyGiftCardModal: React.FC<BuyGiftCardModalProps> = ({
     }
   };
 
-  const handlePrintCard = () => {
+  const handleDownloadVoucher = () => {
     if (!issuedCard) return;
     const html = `<!doctype html>
 <html><head><meta charset="utf-8"/><title>BEE4 Gift Card ${issuedCard.code}</title>
@@ -98,20 +113,23 @@ export const BuyGiftCardModal: React.FC<BuyGiftCardModalProps> = ({
 </style></head>
 <body>
   <div class="card">
-    <div style="font-size:12px;font-weight:700;letter-spacing:0.14em;color:#b45309">BEE4.IN · DIGITAL E-GIFT CARD</div>
+    <div style="font-size:12px;font-weight:700;letter-spacing:0.14em;color:#b45309">BEE4.IN · DIGITAL E-GIFT CARD (${occasion.toUpperCase()})</div>
     <h1 style="margin:8px 0 4px;font-size:32px">${formatINR(issuedCard.initialAmount)}</h1>
     <p style="margin:0;font-size:14px;color:#52525b">For: <strong>${issuedCard.recipientName}</strong> (${issuedCard.recipientEmail})</p>
     ${issuedCard.message ? `<p style="margin:14px 0 0;font-style:italic;color:#27272a">&ldquo;${issuedCard.message}&rdquo;</p>` : ''}
     <div class="code">CODE: ${issuedCard.code}<br/>PIN: ${issuedCard.pin}</div>
     <p style="margin:14px 0 0;font-size:12px;color:#71717a">Redeem inside your BEE4 Account Wallet at bee4.in · Valid for 12 months.</p>
   </div>
-  <script>setTimeout(()=>window.print(),200);</script>
 </body></html>`;
-    const win = window.open('', '_blank', 'width=640,height=520');
-    if (win) {
-      win.document.write(html);
-      win.document.close();
-    }
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `BEE4-Gift-Card-${issuedCard.code}.html`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   const handleInstantRedeemToMyWallet = async () => {
@@ -129,14 +147,14 @@ export const BuyGiftCardModal: React.FC<BuyGiftCardModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/60 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/60 p-4 backdrop-blur-sm overflow-y-auto"
       role="dialog"
       aria-modal="true"
       aria-labelledby="buy-gift-card-title"
       onClick={onClose}
     >
       <div
-        className="glass-surface w-full max-w-xl rounded-3xl border border-zinc-200/70 bg-white/95 p-6 shadow-2xl dark:border-white/15 dark:bg-zinc-900/95"
+        className="glass-surface w-full max-w-xl rounded-3xl border border-zinc-200/70 bg-white/95 p-6 shadow-2xl dark:border-white/15 dark:bg-zinc-900/95 my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4 border-b border-zinc-200/70 pb-4 dark:border-white/10">
@@ -172,7 +190,7 @@ export const BuyGiftCardModal: React.FC<BuyGiftCardModalProps> = ({
               <div className="flex items-center justify-between">
                 <span className="inline-flex items-center gap-1.5 text-xs font-bold tracking-widest text-amber-800 uppercase dark:text-amber-200">
                   <Sparkles className="h-3.5 w-3.5" />
-                  BEE4 E-Gift Card
+                  BEE4 E-Gift Card · {occasion}
                 </span>
                 <span className="tabular-nums text-2xl font-extrabold text-zinc-900 dark:text-zinc-50">
                   {formatINR(issuedCard.initialAmount)}
@@ -218,7 +236,7 @@ export const BuyGiftCardModal: React.FC<BuyGiftCardModalProps> = ({
                 <button
                   type="button"
                   onClick={handleCopyCredentials}
-                  className="glass-btn-secondary inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold"
+                  className="glass-btn-secondary inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-xl"
                 >
                   {copied ? (
                     <>
@@ -234,11 +252,11 @@ export const BuyGiftCardModal: React.FC<BuyGiftCardModalProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={handlePrintCard}
-                  className="glass-btn-secondary inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold"
+                  onClick={handleDownloadVoucher}
+                  className="glass-btn-secondary inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-xl"
                 >
-                  <Printer className="h-3.5 w-3.5" />
-                  Print Gift Card
+                  <Download className="h-3.5 w-3.5" />
+                  Save Gift Card
                 </button>
                 {currentCustomer &&
                   onRedeemImmediately &&
@@ -246,7 +264,7 @@ export const BuyGiftCardModal: React.FC<BuyGiftCardModalProps> = ({
                     <button
                       type="button"
                       onClick={handleInstantRedeemToMyWallet}
-                      className="glass-btn-secondary inline-flex items-center gap-1.5 border-emerald-500/40 px-3.5 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300"
+                      className="glass-btn-secondary inline-flex items-center gap-1.5 border-emerald-500/40 px-3.5 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300 rounded-xl"
                     >
                       <Wallet className="h-3.5 w-3.5" />
                       Add to My Wallet Now
@@ -256,14 +274,45 @@ export const BuyGiftCardModal: React.FC<BuyGiftCardModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="glass-btn-primary px-5 py-2 text-sm font-semibold"
+                className="glass-btn-primary px-5 py-2 text-sm font-semibold rounded-xl"
               >
                 Done
               </button>
             </div>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+          <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+            {/* Personal vs Corporate/School Mode */}
+            <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-zinc-100/90 dark:bg-white/5 border border-zinc-200/70 dark:border-white/10">
+              <button
+                type="button"
+                onClick={() => setPurchaseType('personal')}
+                className={`py-2 px-3 rounded-xl text-xs font-semibold inline-flex items-center justify-center gap-1.5 transition-all ${
+                  purchaseType === 'personal'
+                    ? 'bg-white dark:bg-amber-600 text-zinc-900 dark:text-white shadow-sm'
+                    : 'text-zinc-600 dark:text-zinc-300'
+                }`}
+              >
+                <Gift className="w-3.5 h-3.5" />
+                <span>Personal Gift Card</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPurchaseType('bulk');
+                  setOccasion('School / Corporate');
+                }}
+                className={`py-2 px-3 rounded-xl text-xs font-semibold inline-flex items-center justify-center gap-1.5 transition-all ${
+                  purchaseType === 'bulk'
+                    ? 'bg-white dark:bg-amber-600 text-zinc-900 dark:text-white shadow-sm'
+                    : 'text-zinc-600 dark:text-zinc-300'
+                }`}
+              >
+                <Building2 className="w-3.5 h-3.5" />
+                <span>School / Corporate</span>
+              </button>
+            </div>
+
             {errorMsg && (
               <div
                 role="alert"
@@ -272,6 +321,29 @@ export const BuyGiftCardModal: React.FC<BuyGiftCardModalProps> = ({
                 {errorMsg}
               </div>
             )}
+
+            {/* Occasion Selector */}
+            <div>
+              <span className="mb-1.5 block text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                Select Occasion
+              </span>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {OCCASIONS.map((occ) => (
+                  <button
+                    key={occ}
+                    type="button"
+                    onClick={() => setOccasion(occ)}
+                    className={`rounded-xl border px-2.5 py-2 text-xs font-semibold transition ${
+                      occasion === occ
+                        ? 'border-amber-600 bg-amber-500/15 text-amber-800 dark:text-amber-200'
+                        : 'border-zinc-200 dark:border-white/10 text-zinc-600 dark:text-zinc-300'
+                    }`}
+                  >
+                    {occ}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             <div>
               <span className="mb-2 block text-xs font-semibold text-zinc-700 dark:text-zinc-300">
@@ -298,13 +370,33 @@ export const BuyGiftCardModal: React.FC<BuyGiftCardModalProps> = ({
               </div>
             </div>
 
+            {purchaseType === 'bulk' && (
+              <div>
+                <label
+                  htmlFor="gift-bulk-qty"
+                  className="mb-1.5 block text-xs font-semibold text-zinc-700 dark:text-zinc-300"
+                >
+                  Batch Count (School / Team Distribution)
+                </label>
+                <input
+                  id="gift-bulk-qty"
+                  type="number"
+                  min={2}
+                  max={500}
+                  value={bulkQuantity}
+                  onChange={(e) => setBulkQuantity(Math.max(2, Number(e.target.value) || 2))}
+                  className="glass-input w-full rounded-xl px-3.5 py-2 text-sm tabular-nums text-zinc-900 dark:text-zinc-100"
+                />
+              </div>
+            )}
+
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <label
                   htmlFor="gift-recipient-name"
                   className="mb-1.5 block text-xs font-semibold text-zinc-700 dark:text-zinc-300"
                 >
-                  Recipient Full Name *
+                  {purchaseType === 'bulk' ? 'Coordinator / Organization *' : 'Recipient Full Name *'}
                 </label>
                 <input
                   id="gift-recipient-name"
@@ -312,7 +404,7 @@ export const BuyGiftCardModal: React.FC<BuyGiftCardModalProps> = ({
                   required
                   value={recipientName}
                   onChange={(e) => setRecipientName(e.target.value)}
-                  placeholder="e.g. Ananya Roy"
+                  placeholder={purchaseType === 'bulk' ? 'e.g. DPS Science Club' : 'e.g. Ananya Roy'}
                   className="glass-input w-full rounded-xl px-3.5 py-2.5 text-sm text-zinc-900 dark:text-zinc-100"
                 />
               </div>
@@ -321,7 +413,7 @@ export const BuyGiftCardModal: React.FC<BuyGiftCardModalProps> = ({
                   htmlFor="gift-recipient-email"
                   className="mb-1.5 block text-xs font-semibold text-zinc-700 dark:text-zinc-300"
                 >
-                  Recipient Email *
+                  {purchaseType === 'bulk' ? 'Delivery Email *' : 'Recipient Email *'}
                 </label>
                 <input
                   id="gift-recipient-email"
@@ -351,14 +443,29 @@ export const BuyGiftCardModal: React.FC<BuyGiftCardModalProps> = ({
               />
             </div>
 
-            <div className="flex items-center justify-between gap-3 pt-2">
+            {/* Highlights & 3-Step Redemption Guide */}
+            <div className="rounded-2xl bg-zinc-50/90 dark:bg-white/5 border border-zinc-200/70 dark:border-white/10 p-3.5 space-y-2 text-[11px] text-zinc-600 dark:text-zinc-300">
+              <div className="flex flex-wrap gap-x-4 gap-y-1 font-semibold text-zinc-800 dark:text-zinc-100">
+                <span className="inline-flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  Zero Expiry Worries
+                </span>
+                <span>· Valid Across All 3D Toys &amp; Custom Decor</span>
+                <span>· Instant Code &amp; PIN</span>
+              </div>
+              <p>
+                <strong>How to Redeem:</strong> 1. Sign in to BEE4 Account → 2. Open Gift Card &amp; Wallet → 3. Enter 16-char Voucher Code &amp; 4-digit PIN.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 pt-1">
               <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                Generates a unique 16-char code + 4-digit PIN valid for 12 months.
+                Instant 16-char code + 4-digit PIN valid for 12 months.
               </p>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="glass-btn-primary inline-flex shrink-0 items-center gap-2 px-5 py-2.5 text-sm font-semibold"
+                className="glass-btn-amber inline-flex shrink-0 items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white"
               >
                 <Gift className="h-4 w-4" />
                 {isSubmitting ? 'Issuing Card...' : `Issue ${formatINR(amount)} Gift Card`}

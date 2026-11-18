@@ -21,6 +21,7 @@ import type {
   PackingVerificationProof,
   PrintJobRecord,
   Product,
+  ProductQuestionRecord,
   ProductReviewRecord,
   ReturnRequestRecord,
   StoreSettings,
@@ -58,6 +59,7 @@ interface AdminPanelViewProps {
   inquiries: CustomerInquiry[];
   customerMessages?: CustomerMessageRecord[];
   productReviews?: ProductReviewRecord[];
+  productQuestions?: ProductQuestionRecord[];
   customers: CustomerProfile[];
   coupons: CouponRecord[];
   giftCards?: GiftCardRecord[];
@@ -128,12 +130,18 @@ interface AdminPanelViewProps {
   onSavePrintJob: (job: PrintJobRecord) => void;
   onSaveFilamentSpool: (spool: FilamentSpool) => void;
   onSetCustomerFlag: (phoneOrKey: string, flag: CrmCustomerFlag) => void;
+  onUpdateCustomerAdmin?: (updated: CustomerProfile) => void;
+  onAdjustCustomerWallet?: (customer: CustomerProfile, deltaAmount: number, note: string) => void;
+  onForceLogoutCustomer?: (customer: CustomerProfile) => void;
+  onToggleCustomerStatus?: (customer: CustomerProfile) => void;
   onToggleInquiryStatus: (id: string) => void;
   onUpdateCustomerMessage?: (updated: CustomerMessageRecord) => void;
   onDeleteCustomerMessage?: (id: string) => void;
   onBulkDeleteCustomerMessages?: (ids: string[]) => void;
   onSaveProductReview?: (review: ProductReviewRecord, isNew?: boolean) => void;
   onDeleteProductReview?: (id: string) => void;
+  onSaveProductQuestion?: (question: ProductQuestionRecord) => void;
+  onDeleteProductQuestion?: (id: string) => void;
   onSaveIntegration?: (config: MarketplaceIntegrationConfig) => void;
   onImportOrders?: (orders: OrderRecord[], channel: MarketplaceChannel) => void;
   onSaveAutomationRule?: (rule: AutomationRule) => void;
@@ -157,6 +165,7 @@ export function AdminPanelView({
   inquiries,
   customerMessages = [],
   productReviews = [],
+  productQuestions = [],
   customers,
   coupons,
   giftCards = [],
@@ -193,12 +202,18 @@ export function AdminPanelView({
   onSavePrintJob,
   onSaveFilamentSpool,
   onSetCustomerFlag,
+  onUpdateCustomerAdmin,
+  onAdjustCustomerWallet,
+  onForceLogoutCustomer,
+  onToggleCustomerStatus,
   onToggleInquiryStatus,
   onUpdateCustomerMessage,
   onDeleteCustomerMessage,
   onBulkDeleteCustomerMessages,
   onSaveProductReview,
   onDeleteProductReview,
+  onSaveProductQuestion,
+  onDeleteProductQuestion,
   onSaveIntegration,
   onImportOrders,
   onSaveAutomationRule,
@@ -242,8 +257,10 @@ export function AdminPanelView({
   );
 
   const messagesReviewsBadgeCount = useMemo(
-    () => calculateMessagesReviewsBadgeCount(customerMessages, productReviews),
-    [customerMessages, productReviews]
+    () =>
+      calculateMessagesReviewsBadgeCount(customerMessages, productReviews) +
+      productQuestions.filter((q) => q.status === 'Pending').length,
+    [customerMessages, productReviews, productQuestions]
   );
 
   const crmCustomers = useMemo(
@@ -541,9 +558,32 @@ export function AdminPanelView({
         {activeModule === 'customers' && (
           <AdminCustomersTab
             crmCustomers={crmCustomers}
+            customers={customers}
             onSetCustomerFlag={(phoneKey, flag) => {
               onSetCustomerFlag(phoneKey, flag);
               notify(`Updated CRM flag to ${flag}.`);
+            }}
+            onUpdateCustomerAdmin={(updated) => {
+              onUpdateCustomerAdmin?.(updated);
+              notify(`Saved customer profile for ${updated.fullName}.`);
+            }}
+            onAdjustCustomerWallet={(cust, delta, note) => {
+              onAdjustCustomerWallet?.(cust, delta, note);
+              notify(
+                `${delta >= 0 ? 'Credited' : 'Debited'} ₹${Math.abs(delta)} on ${cust.fullName}'s wallet.`
+              );
+            }}
+            onForceLogoutCustomer={(cust) => {
+              onForceLogoutCustomer?.(cust);
+              notify(`Forced device logout for ${cust.fullName}.`);
+            }}
+            onToggleCustomerStatus={(cust) => {
+              onToggleCustomerStatus?.(cust);
+              notify(
+                cust.accountStatus === 'Suspended'
+                  ? `Reactivated ${cust.fullName}.`
+                  : `Suspended ${cust.fullName}.`
+              );
             }}
           />
         )}
@@ -552,6 +592,7 @@ export function AdminPanelView({
           <AdminMessagesReviewsTab
             messages={customerMessages}
             reviews={productReviews}
+            productQuestions={productQuestions}
             products={products}
             onUpdateMessage={(updated) => {
               onUpdateCustomerMessage?.(updated);
@@ -576,6 +617,14 @@ export function AdminPanelView({
             onDeleteReview={(id) => {
               onDeleteProductReview?.(id);
               notify('Deleted product review and recalculated ratings.');
+            }}
+            onSaveQuestion={(q) => {
+              onSaveProductQuestion?.(q);
+              notify(`Published Team BEE4 answer for ${q.productName}.`);
+            }}
+            onDeleteQuestion={(id) => {
+              onDeleteProductQuestion?.(id);
+              notify('Deleted product question.');
             }}
           />
         )}

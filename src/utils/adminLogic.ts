@@ -647,6 +647,15 @@ export interface CrmCustomerSummary {
   phone: string;
   email: string;
   emailVerified?: boolean;
+  gender?: string;
+  preferredLanguage?: 'en' | 'hi';
+  notificationSummary?: string;
+  activeDevicesCount?: number;
+  savedAddressesCount?: number;
+  savedUpiCount?: number;
+  walletBalance?: number;
+  accountStatus?: 'Active' | 'Suspended';
+  deactivationRequested?: boolean;
   city: string;
   state: string;
   totalOrders: number;
@@ -671,6 +680,15 @@ export function buildCustomerCrmList(input: {
       phone: string;
       email: string;
       emailVerified?: boolean;
+      gender?: string;
+      preferredLanguage?: 'en' | 'hi';
+      notificationSummary?: string;
+      activeDevicesCount?: number;
+      savedAddressesCount?: number;
+      savedUpiCount?: number;
+      walletBalance?: number;
+      accountStatus?: 'Active' | 'Suspended';
+      deactivationRequested?: boolean;
       city: string;
       state: string;
       totalOrders: number;
@@ -687,12 +705,29 @@ export function buildCustomerCrmList(input: {
   for (const cust of input.customers) {
     const key = cust.phone.replace(/\D/g, '').slice(-10) || cust.email.toLowerCase();
     const defAddr = cust.addresses.find((a) => a.isDefault) || cust.addresses[0];
+    const np = cust.notificationPreferences;
+    const notifLabels = np
+      ? [
+          np.orderUpdates ? 'Orders' : '',
+          np.returnAlerts ? 'Returns' : '',
+          np.offersAndLaunches ? 'Offers' : '',
+        ].filter(Boolean)
+      : ['Orders', 'Returns'];
     byKey.set(key, {
       id: cust.id,
       fullName: cust.fullName,
       phone: cust.phone,
       email: cust.email,
       emailVerified: cust.emailVerified,
+      gender: cust.gender,
+      preferredLanguage: cust.preferredLanguage ?? 'en',
+      notificationSummary: notifLabels.length > 0 ? notifLabels.join(' · ') : 'Muted',
+      activeDevicesCount: cust.devices?.length ?? 0,
+      savedAddressesCount: cust.addresses?.length ?? 0,
+      savedUpiCount: cust.savedUpiIds?.length ?? 0,
+      walletBalance: Math.max(0, Math.round(Number(cust.walletBalance ?? 0))),
+      accountStatus: cust.accountStatus ?? 'Active',
+      deactivationRequested: Boolean(cust.deactivationRequested),
       city: defAddr?.city || 'India',
       state: defAddr?.state || 'India',
       totalOrders: 0,
@@ -785,6 +820,15 @@ export function buildCustomerCrmList(input: {
         phone: entry.phone,
         email: entry.email,
         emailVerified: entry.emailVerified,
+        gender: entry.gender,
+        preferredLanguage: entry.preferredLanguage,
+        notificationSummary: entry.notificationSummary,
+        activeDevicesCount: entry.activeDevicesCount,
+        savedAddressesCount: entry.savedAddressesCount,
+        savedUpiCount: entry.savedUpiCount,
+        walletBalance: entry.walletBalance,
+        accountStatus: entry.accountStatus,
+        deactivationRequested: entry.deactivationRequested,
         city: entry.city,
         state: entry.state,
         totalOrders: entry.totalOrders,
