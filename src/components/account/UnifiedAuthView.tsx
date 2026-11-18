@@ -12,7 +12,6 @@ import {
   Package,
   Phone,
   ShieldCheck,
-  Sparkles,
 } from 'lucide-react';
 import {
   resendCustomerVerificationEmailSupabase,
@@ -780,80 +779,9 @@ export function UnifiedAuthView({
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left Brand Spotlight Panel (100% White-Label BEE4) */}
-        <div className="lg:col-span-5 glass-surface rounded-3xl p-7 sm:p-8 space-y-6">
-          <div className="inline-flex items-center gap-2 text-xs font-semibold text-amber-700 dark:text-amber-300">
-            <Sparkles className="w-4 h-4" />
-            <span>BEE4 Account Studio</span>
-          </div>
-
-          <div className="space-y-2.5">
-            <h2 className="font-display text-2xl sm:text-3xl font-extrabold text-zinc-900 dark:text-white leading-tight">
-              Track orders, wallet credits &amp; custom gifts in one place.
-            </h2>
-            <p className="text-sm text-zinc-600 dark:text-zinc-300 leading-relaxed">
-              Manage delivery addresses across India, redeem BEE4 Gift Cards, download GST
-              invoices, and view saved custom 3D print designs.
-            </p>
-          </div>
-
-          <div className="space-y-3 pt-2 text-xs text-zinc-700 dark:text-zinc-200">
-            <div className="flex items-start gap-2.5">
-              <BadgeCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-              <span>Real-time delivery updates, invoices &amp; 7-day easy replacement requests</span>
-            </div>
-            <div className="flex items-start gap-2.5">
-              <BadgeCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-              <span>BEE4 Digital Gift Cards &amp; instant Wallet balance at checkout</span>
-            </div>
-            <div className="flex items-start gap-2.5">
-              <BadgeCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-              <span>Saved UPI IDs &amp; multi-address book for Home, Work &amp; Gift sends</span>
-            </div>
-          </div>
-
-          {/* 3-Step Visual Indicator */}
-          <div className="pt-4 border-t border-zinc-900/10 dark:border-white/10">
-            <p className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 mb-2">
-              Quick 3-Step Sign-In
-            </p>
-            <div className="grid grid-cols-3 gap-2 text-[11px] font-semibold">
-              <div
-                className={`px-2.5 py-2 rounded-xl text-center ${
-                  step === 'entry'
-                    ? 'bg-amber-600 text-white'
-                    : 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-200'
-                }`}
-              >
-                1. Phone / Email
-              </div>
-              <div
-                className={`px-2.5 py-2 rounded-xl text-center ${
-                  step === 'verify'
-                    ? 'bg-amber-600 text-white'
-                    : step === 'profile'
-                      ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-200'
-                      : 'bg-zinc-200/70 dark:bg-white/10 text-zinc-500 dark:text-zinc-400'
-                }`}
-              >
-                2. 6-Digit OTP
-              </div>
-              <div
-                className={`px-2.5 py-2 rounded-xl text-center ${
-                  step === 'profile'
-                    ? 'bg-amber-600 text-white'
-                    : 'bg-zinc-200/70 dark:bg-white/10 text-zinc-500 dark:text-zinc-400'
-                }`}
-              >
-                3. Profile
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Interactive Auth Flow */}
-        <div className="lg:col-span-7 glass-surface rounded-3xl p-6 sm:p-9 space-y-6">
+      <div className="max-w-[560px] mx-auto">
+        {/* Interactive Auth Flow */}
+        <div className="glass-surface rounded-3xl p-6 sm:p-9 space-y-6">
           {errorMsg && (
             <div
               role="alert"
