@@ -148,7 +148,6 @@ import { AdminPanelView } from './components/AdminPanelView';
 import { AdminGuard } from './components/admin/AdminGuard';
 import { BuyGiftCardModal } from './components/BuyGiftCardModal';
 import { CustomerAccountTab, CustomerAccountView } from './components/CustomerAccountView';
-import { WhatsAppWidget } from './components/WhatsAppWidget';
 import { AppSplashScreen } from './components/pwa/AppSplashScreen';
 import { AppBottomNav } from './components/pwa/AppBottomNav';
 import { OfflineFallbackNotice } from './components/pwa/OfflineFallbackNotice';
@@ -3254,18 +3253,12 @@ export default function App() {
       )}
 
       {activePage !== 'manager' && (
-        <WhatsAppWidget
-          whatsappNumber={settings.whatsappNumber}
-          cart={cart}
-          activeProduct={activePage === 'product' ? activeProduct : null}
-        />
-      )}
-
-      {activePage !== 'manager' && (
         <AppBottomNav
           activePage={activePage}
           cartCount={totalCartItems}
           whatsappNumber={settings.whatsappNumber}
+          cart={cart}
+          activeProduct={activePage === 'product' ? activeProduct : null}
           onNavigate={navigateTo}
         />
       )}

@@ -130,10 +130,10 @@ export function Header({
               type="button"
               onClick={() => onNavigate('cart')}
               aria-label={`Shopping cart with ${cartCount} items`}
-              className="relative inline-flex items-center gap-1.5 px-3 h-9 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap shrink-0"
+              className="hidden lg:inline-flex relative items-center gap-1.5 px-3 h-9 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap shrink-0"
             >
               <ShoppingCart className="w-4 h-4 shrink-0" />
-              <span className="hidden sm:inline">Cart</span>
+              <span>Cart</span>
               <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded bg-white text-amber-800 text-[11px] font-bold tabular-nums leading-none">
                 {cartCount}
               </span>
