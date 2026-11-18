@@ -12,6 +12,7 @@
   html {
     font-family: var(--font-sans);
     scroll-behavior: smooth;
+    overscroll-behavior-y: contain;
     color: #18181b;
     background: linear-gradient(135deg, #f6efe4 0%, #e9f0fc 45%, #faf0e1 78%, #eaf5ef 100%);
     background-attachment: fixed;
@@ -28,6 +29,7 @@
   body {
     background: transparent;
     min-height: 100vh;
+    overscroll-behavior-y: contain;
   }
 
   h1,
@@ -443,6 +445,16 @@
 
 .no-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+.pwa-safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.select-none-nav {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 @media (prefers-reduced-motion: reduce) {

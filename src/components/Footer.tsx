@@ -1,3 +1,4 @@
+import { Smartphone } from 'lucide-react';
 import { BRAND_LOGO_URL } from '../data/catalog';
 import { StorePage } from '../types';
 import { buildWhatsAppUrl, formatWhatsAppDisplay } from '../utils/storeLogic';
@@ -7,6 +8,8 @@ interface FooterProps {
   supportEmail: string;
   promoCode: string;
   promoDiscountPercent: number;
+  showInstallApp?: boolean;
+  onInstallApp?: () => void;
   onNavigate: (page: StorePage) => void;
   onOpenGiftCardModal?: () => void;
 }
@@ -16,12 +19,14 @@ export function Footer({
   supportEmail,
   promoCode,
   promoDiscountPercent,
+  showInstallApp = false,
+  onInstallApp,
   onNavigate,
   onOpenGiftCardModal,
 }: FooterProps) {
   return (
     <footer className="glass-surface border-x-0 border-b-0 mt-20">
-      <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-12 sm:py-16">
+      <div className="max-w-[1200px] mx-auto px-4 sm:px-6 pt-12 pb-24 md:py-16">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
           <div className="md:col-span-2">
             <div className="inline-flex items-center gap-2.5">
@@ -129,6 +134,18 @@ export function Footer({
                   My Account &amp; Order Tracking
                 </button>
               </li>
+              {showInstallApp && onInstallApp && (
+                <li className="pt-1">
+                  <button
+                    type="button"
+                    onClick={onInstallApp}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl glass-btn-secondary text-xs font-bold text-zinc-900 dark:text-white"
+                  >
+                    <Smartphone className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                    <span>Install BEE4 App</span>
+                  </button>
+                </li>
+              )}
             </ul>
           </div>
         </div>

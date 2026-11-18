@@ -12,6 +12,7 @@ import {
   Plus,
   Reply,
   ShieldCheck,
+  ShoppingBag,
   Star,
   Truck,
   Upload,
@@ -42,6 +43,8 @@ interface ProductDetailViewProps {
   qaEnabled?: boolean;
   wishlistIds: string[];
   whatsappNumber: string;
+  cartCount?: number;
+  onOpenCart?: () => void;
   onBackToShop: () => void;
   onSelectProduct: (productId: string) => void;
   onQuickView?: (product: Product) => void;
@@ -62,6 +65,8 @@ export function ProductDetailView({
   qaEnabled = true,
   wishlistIds,
   whatsappNumber,
+  cartCount = 0,
+  onOpenCart,
   onBackToShop,
   onSelectProduct,
   onQuickView,
@@ -220,7 +225,7 @@ export function ProductDetailView({
   };
 
   return (
-    <section className="max-w-[1200px] mx-auto px-4 sm:px-6 pt-6 pb-16">
+    <section className="max-w-[1200px] mx-auto px-4 sm:px-6 pt-6 pb-28 md:pb-16">
       {/* Breadcrumb */}
       <div className="mb-6 flex flex-wrap items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
         <button
@@ -1017,6 +1022,43 @@ export function ProductDetailView({
           </div>
         </div>
       )}
+
+      {/* Mobile Sticky Bottom Action Bar (Add to Cart | Buy Now) */}
+      <div className="md:hidden fixed bottom-0 inset-x-0 z-40 glass-bar border-t border-b-0 border-white/75 dark:border-white/12 px-3 py-2 pwa-safe-bottom select-none-nav">
+        <div className="max-w-lg mx-auto flex items-center gap-2">
+          {onOpenCart && (
+            <button
+              type="button"
+              onClick={onOpenCart}
+              aria-label={`Open shopping bag (${cartCount} items)`}
+              className="relative w-11 h-11 rounded-xl glass-btn-secondary flex items-center justify-center shrink-0"
+            >
+              <ShoppingBag className="w-4.5 h-4.5 text-zinc-900 dark:text-white" />
+              {cartCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[17px] h-[17px] px-1 rounded-full bg-amber-600 text-white text-[10px] font-extrabold tabular-nums inline-flex items-center justify-center">
+                  {cartCount}
+                </span>
+              )}
+            </button>
+          )}
+          <button
+            type="button"
+            disabled={!product.inStock}
+            onClick={() => onAddToCart(product, selectedVariant, quantity, true)}
+            className="flex-1 min-h-[44px] px-3 rounded-xl glass-btn-secondary disabled:opacity-50 text-xs font-extrabold text-zinc-900 dark:text-white whitespace-nowrap"
+          >
+            {product.inStock ? 'Add to Cart' : 'Out of Stock'}
+          </button>
+          <button
+            type="button"
+            disabled={!product.inStock}
+            onClick={() => onBuyNow(product, selectedVariant, quantity)}
+            className="flex-1 min-h-[44px] px-3 rounded-xl glass-btn-amber disabled:opacity-50 text-white text-xs font-extrabold whitespace-nowrap tabular-nums"
+          >
+            Buy Now · {formatINR(product.price * quantity)}
+          </button>
+        </div>
+      </div>
     </section>
   );
 }

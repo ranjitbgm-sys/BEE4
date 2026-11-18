@@ -55,6 +55,7 @@ export interface UnifiedAuthViewProps {
   returns?: ReturnRequestRecord[];
   guestWishlistIds: string[];
   isCloudConnected: boolean;
+  initialOpenGuestTracker?: boolean;
   authRecoveryMode?: boolean;
   authVerificationNotice?: string;
   onClearAuthVerificationNotice?: () => void;
@@ -76,6 +77,7 @@ export function UnifiedAuthView({
   returns = [],
   guestWishlistIds,
   isCloudConnected,
+  initialOpenGuestTracker = false,
   authRecoveryMode = false,
   authVerificationNotice = '',
   onClearAuthVerificationNotice,
@@ -119,7 +121,7 @@ export function UnifiedAuthView({
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
   // Guest tracker toggle
-  const [showGuestTracker, setShowGuestTracker] = useState(false);
+  const [showGuestTracker, setShowGuestTracker] = useState(initialOpenGuestTracker);
   const [guestOrderNumber, setGuestOrderNumber] = useState('');
   const [guestPhone, setGuestPhone] = useState('');
   const [guestLookupError, setGuestLookupError] = useState<string | null>(null);
@@ -127,6 +129,12 @@ export function UnifiedAuthView({
     order: OrderRecord;
     rma?: ReturnRequestRecord;
   } | null>(null);
+
+  useEffect(() => {
+    if (initialOpenGuestTracker) {
+      setShowGuestTracker(true);
+    }
+  }, [initialOpenGuestTracker]);
 
   useEffect(() => {
     if (resendCountdown <= 0) return;

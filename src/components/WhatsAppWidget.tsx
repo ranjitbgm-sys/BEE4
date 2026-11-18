@@ -58,7 +58,7 @@ export function WhatsAppWidget({
   );
 
   return (
-    <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40 flex flex-col items-end gap-3">
+    <div className="fixed bottom-[76px] right-4 md:bottom-6 md:right-6 z-40 flex flex-col items-end gap-3">
       {isOpen && (
         <div
           role="dialog"

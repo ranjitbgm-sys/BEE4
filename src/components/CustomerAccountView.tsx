@@ -1,4 +1,4 @@
-import { ChangeEvent, FormEvent, useState } from 'react';
+import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import {
   ArrowLeft,
@@ -30,6 +30,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   ShoppingBag,
+  Smartphone,
   Sparkles,
   Star,
   Trash2,
@@ -123,6 +124,11 @@ interface CustomerAccountViewProps {
   cloudUserEmail?: string | null;
   isCloudConnected?: boolean;
   customerPanelControls?: CustomerPanelControls;
+  requestedTab?: CustomerAccountTab | null;
+  onConsumeRequestedTab?: () => void;
+  onTabChange?: (tab: CustomerAccountTab) => void;
+  showInstallApp?: boolean;
+  onInstallApp?: () => void;
   authRecoveryMode?: boolean;
   authVerificationNotice?: string;
   onClearAuthVerificationNotice?: () => void;
@@ -215,6 +221,11 @@ export function CustomerAccountView({
   supportEmail = 'hello@bee4.in',
   isCloudConnected = false,
   customerPanelControls,
+  requestedTab = null,
+  onConsumeRequestedTab,
+  onTabChange,
+  showInstallApp = false,
+  onInstallApp,
   authRecoveryMode = false,
   authVerificationNotice = '',
   onClearAuthVerificationNotice,
@@ -245,8 +256,22 @@ export function CustomerAccountView({
       : 'en';
   const ui = getAccountUiCopy(lang);
 
-  const [activeTab, setActiveTab] = useState<CustomerAccountTab>('overview');
+  const [activeTab, setActiveTab] = useState<CustomerAccountTab>(requestedTab || 'overview');
+  const [guestOrdersRequested, setGuestOrdersRequested] = useState(requestedTab === 'orders');
   const [accountToast, setAccountToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!requestedTab) return;
+    setActiveTab(requestedTab);
+    if (!currentCustomer && requestedTab === 'orders') {
+      setGuestOrdersRequested(true);
+    }
+    onConsumeRequestedTab?.();
+  }, [requestedTab, currentCustomer, onConsumeRequestedTab]);
+
+  useEffect(() => {
+    onTabChange?.(activeTab);
+  }, [activeTab, onTabChange]);
 
   // Orders search & filter + modals
   const [orderSearch, setOrderSearch] = useState('');
@@ -329,6 +354,7 @@ export function CustomerAccountView({
         returns={returns}
         guestWishlistIds={guestWishlistIds}
         isCloudConnected={isCloudConnected}
+        initialOpenGuestTracker={guestOrdersRequested}
         authRecoveryMode={authRecoveryMode}
         authVerificationNotice={authVerificationNotice}
         onClearAuthVerificationNotice={onClearAuthVerificationNotice}
@@ -1242,6 +1268,19 @@ export function CustomerAccountView({
                     {(currentCustomer.devices ?? []).length === 1 ? 'device' : 'devices'}
                   </span>
                 </button>
+                {showInstallApp && onInstallApp && (
+                  <button
+                    type="button"
+                    onClick={onInstallApp}
+                    className="w-full p-3 rounded-2xl glass-btn-amber text-white flex items-center justify-between text-xs font-bold"
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <Smartphone className="w-4 h-4" />
+                      Install BEE4 App
+                    </span>
+                    <span className="text-[11px] opacity-90">Faster Checkout →</span>
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -2637,6 +2676,29 @@ export function CustomerAccountView({
                 })}
               </div>
             </div>
+
+            {/* Install App Card inside Profile Settings */}
+            {showInstallApp && onInstallApp && (
+              <div className="glass-surface rounded-3xl p-6 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Smartphone className="w-4 h-4 text-amber-600" />
+                  <h3 className="font-display text-base font-bold text-zinc-900 dark:text-white">
+                    BEE4 Mobile App
+                  </h3>
+                </div>
+                <p className="text-xs text-zinc-600 dark:text-zinc-300">
+                  Add BEE4 to your Home Screen for 1-tap order alerts and faster checkout.
+                </p>
+                <button
+                  type="button"
+                  onClick={onInstallApp}
+                  className="w-full h-10 rounded-xl glass-btn-amber text-white text-xs font-bold inline-flex items-center justify-center gap-2"
+                >
+                  <Smartphone className="w-3.5 h-3.5" />
+                  <span>Install BEE4 App</span>
+                </button>
+              </div>
+            )}
 
             {/* Email Verification Block */}
             {currentCustomer.email && !currentCustomer.emailVerified && (

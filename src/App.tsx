@@ -136,8 +136,16 @@ import { AboutView, ContactView } from './components/AboutContactView';
 import { AdminPanelView } from './components/AdminPanelView';
 import { AdminGuard } from './components/admin/AdminGuard';
 import { BuyGiftCardModal } from './components/BuyGiftCardModal';
-import { CustomerAccountView } from './components/CustomerAccountView';
+import { CustomerAccountTab, CustomerAccountView } from './components/CustomerAccountView';
 import { WhatsAppWidget } from './components/WhatsAppWidget';
+import { AppSplashScreen } from './components/pwa/AppSplashScreen';
+import { MobileBottomNav } from './components/pwa/MobileBottomNav';
+import { MobileCategoriesSheet } from './components/pwa/MobileCategoriesSheet';
+import { OfflineFallbackNotice } from './components/pwa/OfflineFallbackNotice';
+import { PwaInstallBanner } from './components/pwa/PwaInstallBanner';
+import { PwaInstallModal } from './components/pwa/PwaInstallModal';
+import { useOnlineStatus } from './hooks/useOnlineStatus';
+import { usePwaInstall } from './hooks/usePwaInstall';
 import { resolveExpectedAdminHash } from './utils/adminAuth';
 import { mapFulfillmentStageToOrderStatus } from './utils/adminLogic';
 import {
@@ -435,6 +443,11 @@ export default function App() {
   });
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isCategoriesSheetOpen, setIsCategoriesSheetOpen] = useState(false);
+  const [requestedAccountTab, setRequestedAccountTab] = useState<CustomerAccountTab | null>(null);
+  const [currentAccountTab, setCurrentAccountTab] = useState<CustomerAccountTab>('overview');
+  const isOnline = useOnlineStatus();
+  const pwaInstall = usePwaInstall();
 
   // Sync Daylight / Dark Aurora theme class & persistence
   useEffect(() => {
@@ -2620,6 +2633,10 @@ export default function App() {
       </div>
 
       {activePage !== 'manager' && (
+        <AppSplashScreen isStandalone={pwaInstall.isInstalled} />
+      )}
+
+      {activePage !== 'manager' && (
         <Header
           activePage={activePage}
           cartCount={totalCartItems}
@@ -2634,6 +2651,14 @@ export default function App() {
       )}
 
       <main className="flex-1 relative z-10">
+        {activePage !== 'manager' && <OfflineFallbackNotice isOnline={isOnline} />}
+        {activePage !== 'manager' && activePage !== 'checkout' && (
+          <PwaInstallBanner
+            visible={pwaInstall.showBanner}
+            onInstall={() => void pwaInstall.triggerInstall()}
+            onDismiss={pwaInstall.dismissBanner}
+          />
+        )}
         {activePage === 'home' && (
           <HomeView
             products={publicProducts}
@@ -2715,6 +2740,8 @@ export default function App() {
             qaEnabled={settings.customerPanelControls?.enableProductQa ?? true}
             wishlistIds={activeWishlistIds}
             whatsappNumber={settings.whatsappNumber}
+            cartCount={totalCartItems}
+            onOpenCart={() => setIsCartOpen(true)}
             onBackToShop={() => navigateTo('shop')}
             onSelectProduct={handleSelectProduct}
             onQuickView={setQuickViewProduct}
@@ -2768,6 +2795,11 @@ export default function App() {
             cloudUserEmail={supabaseUser?.email ?? null}
             isCloudConnected={supabaseDiagnostics.isConfigured}
             customerPanelControls={settings.customerPanelControls}
+            requestedTab={requestedAccountTab}
+            onConsumeRequestedTab={() => setRequestedAccountTab(null)}
+            onTabChange={setCurrentAccountTab}
+            showInstallApp={!pwaInstall.isInstalled}
+            onInstallApp={() => void pwaInstall.triggerInstall()}
             authRecoveryMode={authRecoveryMode}
             authVerificationNotice={authVerificationNotice}
             onClearAuthVerificationNotice={() => setAuthVerificationNotice('')}
@@ -2902,6 +2934,8 @@ export default function App() {
           supportEmail={settings.supportEmail}
           promoCode={settings.promoCode}
           promoDiscountPercent={settings.promoDiscountPercent}
+          showInstallApp={!pwaInstall.isInstalled}
+          onInstallApp={() => void pwaInstall.triggerInstall()}
           onNavigate={navigateTo}
           onOpenGiftCardModal={() => {
             setGiftCardModalMode('personal');
@@ -2917,6 +2951,55 @@ export default function App() {
           activeProduct={activePage === 'product' ? activeProduct : null}
         />
       )}
+
+      {activePage !== 'manager' && activePage !== 'product' && activePage !== 'checkout' && (
+        <MobileBottomNav
+          activePage={activePage}
+          activeAccountTab={currentAccountTab}
+          categoriesOpen={isCategoriesSheetOpen}
+          cartCount={totalCartItems}
+          isSignedIn={Boolean(currentCustomer)}
+          onSelectHome={() => {
+            setIsCategoriesSheetOpen(false);
+            navigateTo('home');
+          }}
+          onOpenCategories={() => setIsCategoriesSheetOpen(true)}
+          onOpenCart={() => {
+            setIsCategoriesSheetOpen(false);
+            setIsCartOpen(true);
+          }}
+          onSelectOrders={() => {
+            setIsCategoriesSheetOpen(false);
+            setRequestedAccountTab('orders');
+            navigateTo('account');
+          }}
+          onSelectAccount={() => {
+            setIsCategoriesSheetOpen(false);
+            setRequestedAccountTab('overview');
+            navigateTo('account');
+          }}
+        />
+      )}
+
+      <MobileCategoriesSheet
+        isOpen={isCategoriesSheetOpen}
+        selectedCategory={shopCategory}
+        selectedAgeGroup={shopAgeGroup}
+        searchQuery={shopSearch}
+        onClose={() => setIsCategoriesSheetOpen(false)}
+        onApplyFilter={({ category, ageGroup, search, page }) => {
+          if (category !== undefined) setShopCategory(category);
+          if (ageGroup !== undefined) setShopAgeGroup(ageGroup);
+          if (search !== undefined) setShopSearch(search);
+          navigateTo(page ?? 'shop');
+        }}
+      />
+
+      <PwaInstallModal
+        isOpen={pwaInstall.showGuideModal}
+        platform={pwaInstall.platform}
+        onClose={pwaInstall.closeGuideModal}
+      />
 
       <CartDrawer
         isOpen={isCartOpen}
