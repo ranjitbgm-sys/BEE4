@@ -871,6 +871,40 @@ export function AdminProductsTab({
                     <span>Made-to-Order (3D Print on Demand)</span>
                   </label>
                 </div>
+
+                <div className="sm:col-span-3 pt-2 border-t border-zinc-900/10 dark:border-white/10 space-y-1.5">
+                  <p className="text-[11px] font-semibold text-zinc-600 dark:text-zinc-300">
+                    Storefront Home Shelves
+                  </p>
+                  <div className="flex flex-wrap gap-4 text-xs font-semibold">
+                    {(
+                      [
+                        { id: 'Best Selling', label: 'Best Selling Products' },
+                        { id: 'Newly Launched', label: 'Newly Launched Products' },
+                        { id: 'Trendy', label: 'Trendy Products' },
+                      ] as const
+                    ).map((shelf) => {
+                      const tags = editing.curatedTags ?? [];
+                      const checked = tags.includes(shelf.id);
+                      return (
+                        <label key={shelf.id} className="inline-flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              const nextTags = e.target.checked
+                                ? Array.from(new Set([...tags, shelf.id]))
+                                : tags.filter((t) => t !== shelf.id);
+                              setEditing({ ...editing, curatedTags: nextTags });
+                            }}
+                            className="w-4 h-4 accent-amber-600"
+                          />
+                          <span>{shelf.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
 
               <div className="flex justify-end gap-3">

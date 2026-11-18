@@ -19,6 +19,7 @@ import {
   deleteProductFromSupabase,
   deleteProductQuestionFromSupabase,
   deleteProductReviewFromSupabase,
+  deleteViralReelFromSupabase,
   ensureSupabaseCustomerProfile,
   fetchAllOrdersAdminFromSupabase,
   fetchUserOrdersFromSupabase,
@@ -34,6 +35,7 @@ import {
   savePrintJobToSupabase,
   saveProductToSupabase,
   saveStoreSettingsToSupabase,
+  saveViralReelToSupabase,
   seedSupabaseDataAsAdmin,
   signInWithGoogleSupabase,
   signOutFromSupabase,
@@ -50,6 +52,7 @@ import {
   subscribeAllProductQuestionsAdmin,
   subscribeAllProductReviewsAdmin,
   subscribeAllReturnsAdmin,
+  subscribeAllViralReelsAdmin,
   subscribeAutomationRulesAdmin,
   subscribeCoupons,
   subscribeFilamentSpoolsAdmin,
@@ -62,6 +65,7 @@ import {
   subscribePublicPublishedReviews,
   subscribePublicSettings,
   subscribePublicTestimonials,
+  subscribePublicViralReels,
   subscribeUserCustomerMessages,
   subscribeUserOrders,
   subscribeUserReturns,
@@ -111,6 +115,7 @@ import {
   OrderStatus,
   PackingVerificationProof,
   PrintJobRecord,
+  PrinterIntegrationConfig,
   Product,
   ProductCategory,
   ProductQuestionRecord,
@@ -122,10 +127,12 @@ import {
   StoreSettings,
   Testimonial,
   ThemeMode,
+  ViralReelRecord,
 } from './types';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 import { CartDrawer } from './components/CartDrawer';
+import { CartPageView } from './components/CartPageView';
 import { HomeView } from './components/HomeView';
 import { ShopView } from './components/ShopView';
 import { GiftIdeasView } from './components/GiftIdeasView';
@@ -133,14 +140,17 @@ import { ProductDetailView } from './components/ProductDetailView';
 import { ProductQuickViewModal } from './components/ProductQuickViewModal';
 import { CheckoutView } from './components/CheckoutView';
 import { AboutView, ContactView } from './components/AboutContactView';
+import { LegalPagesView, LegalPageKind } from './components/LegalPagesView';
+import { OrdersListView } from './components/OrdersListView';
+import { OrderDetailView } from './components/OrderDetailView';
+import { WalletView } from './components/WalletView';
 import { AdminPanelView } from './components/AdminPanelView';
 import { AdminGuard } from './components/admin/AdminGuard';
 import { BuyGiftCardModal } from './components/BuyGiftCardModal';
 import { CustomerAccountTab, CustomerAccountView } from './components/CustomerAccountView';
 import { WhatsAppWidget } from './components/WhatsAppWidget';
 import { AppSplashScreen } from './components/pwa/AppSplashScreen';
-import { MobileBottomNav } from './components/pwa/MobileBottomNav';
-import { MobileCategoriesSheet } from './components/pwa/MobileCategoriesSheet';
+import { AppBottomNav } from './components/pwa/AppBottomNav';
 import { OfflineFallbackNotice } from './components/pwa/OfflineFallbackNotice';
 import { PwaInstallBanner } from './components/pwa/PwaInstallBanner';
 import { PwaInstallModal } from './components/pwa/PwaInstallModal';
@@ -152,6 +162,7 @@ import {
   adjustCustomerWalletBalance,
   isSessionInvalidatedByAdmin,
 } from './utils/customerAccountLogic';
+import { evaluateCustomerAccess } from './utils/customerModerationLogic';
 import {
   applyOrderCancellation,
   createDigitalGiftCard,
@@ -165,7 +176,9 @@ import {
   evaluateOrderAutomations,
 } from './utils/omnichannelLogic';
 import { clearAllLocalTestCaches, runProductionCleanMigration } from './utils/productionClean';
+import { canCustomerReviewProduct } from './utils/reviewsPolicyLogic';
 import { applyRmaTransitionSync, RmaTransitionUpdates } from './utils/rmaLogic';
+import { buildAppRoutePath, parseAppRoute } from './utils/routingLogic';
 import { applyDocumentSeoMetadata, resolvePageSeoMetadata } from './utils/seoMeta';
 
 const STORAGE_PRODUCTS_KEY = 'bee4_products_v3';
@@ -192,27 +205,60 @@ const STORAGE_SPOOLS_KEY = 'bee4_filament_spools_v1';
 const STORAGE_AUDIT_LOGS_KEY = 'bee4_admin_logs_v1';
 const STORAGE_CRM_FLAGS_KEY = 'bee4_crm_flags_v1';
 const STORAGE_INTEGRATIONS_KEY = 'bee4_marketplace_integrations_v1';
+const STORAGE_PRINTER_INTEGRATIONS_KEY = 'bee4_printer_integrations_v1';
+const STORAGE_VIRAL_REELS_KEY = 'bee4_viral_reels_v1';
 const STORAGE_AUTOMATION_RULES_KEY = 'bee4_automation_rules_v1';
 const STORAGE_AD_SPEND_KEY = 'bee4_ad_spend_v1';
 const SESSION_ADMIN_TOKEN_KEY = 'bee4_admin_session_v1';
 
 const ADMIN_INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000;
 
-const VALID_ADMIN_MODULES = new Set<AdminModuleRoute>([
-  'dashboard',
-  'orders',
-  'returns',
-  'products',
-  'inventory',
-  'integrations',
-  'automations',
-  'reconciliation',
-  'analytics',
-  'discounts',
-  'customers',
-  'messages-reviews',
-  'settings',
-]);
+const DEFAULT_PRINTER_INTEGRATIONS: PrinterIntegrationConfig[] = [
+  {
+    id: 'printer-bambu-lab',
+    name: 'Bambu Lab A1 Mini / P1S',
+    brand: 'Bambu Lab',
+    active: true,
+    printerSerialOrHost: '01P00A441200892 (Banka Lab #1)',
+    apiKeyOrToken: '',
+    webhookUrl: '',
+    defaultSpoolId: 'spool-eco-pla-amber',
+    notes: 'Primary production printer synced for lithophanes, clocks & embossers.',
+  },
+  {
+    id: 'printer-octoprint',
+    name: 'OctoPrint Farm Controller',
+    brand: 'OctoPrint',
+    active: false,
+    printerSerialOrHost: 'http://octopi-banka.local',
+    apiKeyOrToken: '',
+    webhookUrl: '',
+    defaultSpoolId: 'spool-bio-pla-ivory',
+    notes: 'Connect REST API key to auto-log spool grams & filament unit cost.',
+  },
+  {
+    id: 'printer-klipper',
+    name: 'Klipper / Moonraker Voron',
+    brand: 'Klipper',
+    active: false,
+    printerSerialOrHost: 'http://moonraker.local:7125',
+    apiKeyOrToken: '',
+    webhookUrl: '',
+    defaultSpoolId: 'spool-bio-pla-obsidian',
+    notes: 'High-speed mechanical gears & DIY robotics kit batch printer.',
+  },
+  {
+    id: 'printer-manual-log',
+    name: 'Manual Studio Costing Log',
+    brand: 'Manual',
+    active: true,
+    printerSerialOrHost: 'BEE4 Banka Print Room',
+    apiKeyOrToken: '',
+    webhookUrl: '',
+    defaultSpoolId: 'spool-wood-pla-walnut',
+    notes: 'Record completed batch grams directly inside Inventory & Lab.',
+  },
+];
 
 const VALID_CATEGORIES = new Set<string>([
   ProductCategory.ENGINEERING,
@@ -221,24 +267,30 @@ const VALID_CATEGORIES = new Set<string>([
   ProductCategory.IMAGINATION,
 ]);
 
-function parseAdminRouteFromLocation(): { isAdminPath: boolean; module: AdminModuleRoute } {
+function resolveCurrentLocationRoute(): {
+  page: StorePage;
+  adminRoute: AdminModuleRoute;
+  orderNumber?: string;
+  productId?: string;
+} {
   if (typeof window === 'undefined') {
-    return { isAdminPath: false, module: 'dashboard' };
+    return { page: 'home', adminRoute: 'dashboard' };
   }
   const { pathname, search, hash } = window.location;
   const params = new URLSearchParams(search);
-  const cleanPath = pathname.replace(/\/+$/, '');
-  const isAdminUrlPath = cleanPath === '/admin' || cleanPath.startsWith('/admin/');
-  const isAdminTrigger = isAdminUrlPath || hash === '#admin' || params.get('admin') === '1';
-
-  let module: AdminModuleRoute = 'dashboard';
-  if (cleanPath.startsWith('/admin/')) {
-    const seg = cleanPath.slice('/admin/'.length).split('/')[0] as AdminModuleRoute;
-    if (VALID_ADMIN_MODULES.has(seg)) {
-      module = seg;
-    }
+  const parsed = parseAppRoute(pathname, search);
+  if (parsed.page === 'manager' || hash === '#admin' || params.get('admin') === '1') {
+    return {
+      page: 'manager',
+      adminRoute: parsed.adminRoute ?? 'dashboard',
+    };
   }
-  return { isAdminPath: isAdminTrigger, module };
+  return {
+    page: parsed.page,
+    adminRoute: 'dashboard',
+    orderNumber: parsed.orderNumber,
+    productId: parsed.productId,
+  };
 }
 
 function loadStoredJson<T>(key: string, fallback: T): T {
@@ -349,6 +401,18 @@ export default function App() {
       (def) => stored.find((s) => s.id === def.id || s.key === def.key) ?? def
     );
   });
+  const [printerIntegrations, setPrinterIntegrations] = useState<PrinterIntegrationConfig[]>(() => {
+    const stored = loadStoredJson<PrinterIntegrationConfig[]>(STORAGE_PRINTER_INTEGRATIONS_KEY, []);
+    if (!Array.isArray(stored) || stored.length === 0) {
+      return DEFAULT_PRINTER_INTEGRATIONS;
+    }
+    return DEFAULT_PRINTER_INTEGRATIONS.map(
+      (def) => stored.find((s) => s.id === def.id || s.brand === def.brand) ?? def
+    );
+  });
+  const [viralReels, setViralReels] = useState<ViralReelRecord[]>(() =>
+    loadStoredJson<ViralReelRecord[]>(STORAGE_VIRAL_REELS_KEY, [])
+  );
   const [automationRules, setAutomationRules] = useState<AutomationRule[]>(() => {
     const stored = loadStoredJson<AutomationRule[]>(STORAGE_AUTOMATION_RULES_KEY, []);
     if (!Array.isArray(stored) || stored.length === 0) {
@@ -392,60 +456,33 @@ export default function App() {
   const [supabaseCustomer, setSupabaseCustomer] = useState<CustomerProfile | null>(null);
   const [authRecoveryMode, setAuthRecoveryMode] = useState(false);
   const [authVerificationNotice, setAuthVerificationNotice] = useState('');
+  const [authBlockError, setAuthBlockError] = useState<string | null>(null);
   const isSupabaseAdmin = isSupabaseAdminUser(supabaseUser);
   const guestWishlistRef = useRef<string[]>(guestWishlistIds);
   guestWishlistRef.current = guestWishlistIds;
 
-  const initialAdminRoute = useMemo(() => parseAdminRouteFromLocation(), []);
+  const initialRoute = useMemo(() => resolveCurrentLocationRoute(), []);
 
   const [activeAdminModule, setActiveAdminModule] = useState<AdminModuleRoute>(
-    initialAdminRoute.module
+    initialRoute.adminRoute
   );
 
-  const [activePage, setActivePage] = useState<StorePage>(() => {
-    if (typeof window !== 'undefined') {
-      if (initialAdminRoute.isAdminPath) {
-        return 'manager';
-      }
-      const cleanPath = window.location.pathname.replace(/\/+$/, '');
-      if (cleanPath === '/account') {
-        return 'account';
-      }
-      const params = new URLSearchParams(window.location.search);
-      const productParam = params.get('product');
-      if (productParam && INITIAL_PRODUCTS.some((p) => p.id === productParam)) {
-        return 'product';
-      }
-      const pageParam = params.get('page');
-      if (
-        pageParam === 'shop' ||
-        pageParam === 'gifts' ||
-        pageParam === 'about' ||
-        pageParam === 'contact' ||
-        pageParam === 'account'
-      ) {
-        return pageParam;
-      }
-      if (params.get('category') || params.get('age')) {
-        return 'shop';
-      }
-    }
-    return 'home';
-  });
+  const [activePage, setActivePage] = useState<StorePage>(initialRoute.page);
+  const [selectedOrderNumber, setSelectedOrderNumber] = useState<string | null>(
+    initialRoute.orderNumber ?? null
+  );
   const [selectedProductId, setSelectedProductId] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      const productParam = new URLSearchParams(window.location.search).get('product');
-      if (productParam && INITIAL_PRODUCTS.some((p) => p.id === productParam)) {
-        return productParam;
-      }
+    if (
+      initialRoute.productId &&
+      INITIAL_PRODUCTS.some((p) => p.id === initialRoute.productId)
+    ) {
+      return initialRoute.productId;
     }
     return INITIAL_PRODUCTS[0].id;
   });
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [isCategoriesSheetOpen, setIsCategoriesSheetOpen] = useState(false);
   const [requestedAccountTab, setRequestedAccountTab] = useState<CustomerAccountTab | null>(null);
-  const [currentAccountTab, setCurrentAccountTab] = useState<CustomerAccountTab>('overview');
   const isOnline = useOnlineStatus();
   const pwaInstall = usePwaInstall();
 
@@ -522,6 +559,11 @@ export default function App() {
     const unsubGiftCards = subscribeGiftCards((cloudCards) => {
       setGiftCards(cloudCards);
     });
+    const unsubPublicReels = subscribePublicViralReels((cloudReels) => {
+      if (!isSupabaseAdmin) {
+        setViralReels(cloudReels);
+      }
+    });
     return () => {
       unsubProducts();
       unsubSettings();
@@ -530,8 +572,9 @@ export default function App() {
       unsubPublicQuestions();
       unsubCoupons();
       unsubGiftCards();
+      unsubPublicReels();
     };
-  }, []);
+  }, [isSupabaseAdmin]);
 
   // Authenticated Supabase user profile + live personal orders & returns sync
   useEffect(() => {
@@ -541,7 +584,34 @@ export default function App() {
     void ensureSupabaseCustomerProfile(supabaseUser, guestWishlistRef.current)
       .then(({ profile }) => {
         if (cancelled) return;
-        setSupabaseCustomer(profile);
+        const access = evaluateCustomerAccess(profile);
+        if (!access.allowed) {
+          const msg =
+            access.status === 'permanent_block'
+              ? `Your BEE4 account has been permanently blocked. Reason: ${access.reason}`
+              : `Your BEE4 account is temporarily suspended${
+                  access.remainingHuman ? ` (${access.remainingHuman} remaining)` : ''
+                }. Reason: ${access.reason}`;
+          setAuthBlockError(msg);
+          setSupabaseCustomer(null);
+          setCurrentCustomerId(null);
+          setSessionIssuedAt(null);
+          void signOutFromSupabase().catch(() => {});
+          return;
+        }
+        // Clear expired temporary ban fields cleanly if needed
+        let activeProfile = profile;
+        if (profile.banType === 'temporary' && access.allowed) {
+          activeProfile = {
+            ...profile,
+            accountStatus: 'Active',
+            banType: null,
+            bannedUntil: null,
+            banReason: null,
+          };
+          void updateSupabaseCustomerProfile(activeProfile).catch(() => {});
+        }
+        setSupabaseCustomer(activeProfile);
         if (guestWishlistRef.current.length > 0) {
           setGuestWishlistIds([]);
         }
@@ -571,7 +641,8 @@ export default function App() {
       supabaseUser.email ?? undefined,
       (cloudMsgs) => {
         setCustomerMessages(cloudMsgs);
-      }
+      },
+      supabaseCustomer?.phone ?? supabaseUser.phone ?? undefined
     );
 
     return () => {
@@ -580,7 +651,7 @@ export default function App() {
       unsubUserReturns();
       unsubUserMessages();
     };
-  }, [supabaseAuthReady, supabaseUser, isSupabaseAdmin]);
+  }, [supabaseAuthReady, supabaseUser, isSupabaseAdmin, supabaseCustomer?.phone]);
 
   // Verified Admin Supabase Realtime sync (orders, returns, customers, messages, reviews, spools, audit logs)
   useEffect(() => {
@@ -648,6 +719,10 @@ export default function App() {
       setAdSpendLogs(cloudAdSpends);
     });
 
+    const unsubAdminReels = subscribeAllViralReelsAdmin((cloudReels) => {
+      setViralReels(cloudReels);
+    });
+
     return () => {
       unsubAdminOrders();
       unsubAdminReturns();
@@ -663,18 +738,23 @@ export default function App() {
       unsubIntegrations();
       unsubRules();
       unsubAdSpend();
+      unsubAdminReels();
     };
   }, [supabaseAuthReady, supabaseUser, isSupabaseAdmin]);
 
-  // Sync URL navigation (/admin/*, #admin, ?admin=1, browser back/forward)
+  // Sync URL navigation (/orders/*, /wallet, /cart, /legal/*, /admin/*, browser back/forward)
   useEffect(() => {
     const syncRoute = () => {
-      const parsed = parseAdminRouteFromLocation();
-      if (parsed.isAdminPath) {
-        setActivePage('manager');
-        setActiveAdminModule(parsed.module);
-      } else if (activePage === 'manager') {
-        setActivePage('home');
+      const next = resolveCurrentLocationRoute();
+      setActivePage(next.page);
+      if (next.page === 'manager') {
+        setActiveAdminModule(next.adminRoute);
+      }
+      if (next.orderNumber) {
+        setSelectedOrderNumber(next.orderNumber);
+      }
+      if (next.productId) {
+        setSelectedProductId(next.productId);
       }
     };
     window.addEventListener('hashchange', syncRoute);
@@ -683,7 +763,7 @@ export default function App() {
       window.removeEventListener('hashchange', syncRoute);
       window.removeEventListener('popstate', syncRoute);
     };
-  }, [activePage]);
+  }, []);
 
   // LocalStorage persistence hooks
   useEffect(() => {
@@ -846,6 +926,25 @@ export default function App() {
       // Ignore storage errors
     }
   }, [marketplaceIntegrations]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        STORAGE_PRINTER_INTEGRATIONS_KEY,
+        JSON.stringify(printerIntegrations)
+      );
+    } catch {
+      // Ignore storage errors
+    }
+  }, [printerIntegrations]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(STORAGE_VIRAL_REELS_KEY, JSON.stringify(viralReels));
+    } catch {
+      // Ignore storage errors
+    }
+  }, [viralReels]);
 
   useEffect(() => {
     try {
@@ -1043,30 +1142,22 @@ export default function App() {
     );
   };
 
-  const navigateTo = (page: StorePage) => {
+  const navigateTo = (page: StorePage, orderNumber?: string, productIdOverride?: string) => {
+    if (orderNumber !== undefined) {
+      setSelectedOrderNumber(orderNumber);
+    }
+    const resolvedProductId = productIdOverride ?? selectedProductId;
     setActivePage(page);
     if (typeof window !== 'undefined') {
-      if (page === 'manager') {
-        const targetPath =
-          activeAdminModule === 'dashboard' ? '/admin' : `/admin/${activeAdminModule}`;
-        if (!window.location.pathname.startsWith('/admin')) {
-          window.history.pushState(null, '', targetPath);
-        }
-      } else {
-        const params = new URLSearchParams(window.location.search);
-        if (params.has('admin')) params.delete('admin');
-        const query = params.toString();
-        const nextUrl =
-          window.location.pathname.startsWith('/admin')
-            ? `/${query ? `?${query}` : ''}`
-            : window.location.pathname + (query ? `?${query}` : '');
-        if (
-          window.location.pathname.startsWith('/admin') ||
-          window.location.hash === '#admin' ||
-          new URLSearchParams(window.location.search).has('admin')
-        ) {
-          window.history.pushState(null, '', nextUrl);
-        }
+      const targetUrl = buildAppRoutePath({
+        page,
+        orderNumber: orderNumber ?? selectedOrderNumber ?? undefined,
+        productId: page === 'product' ? resolvedProductId : undefined,
+        adminRoute: activeAdminModule,
+      });
+      const currentUrl = window.location.pathname + window.location.search;
+      if (currentUrl !== targetUrl || window.location.hash === '#admin') {
+        window.history.pushState(null, '', targetUrl);
       }
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1085,7 +1176,7 @@ export default function App() {
 
   const handleSelectProduct = (productId: string) => {
     setSelectedProductId(productId);
-    navigateTo('product');
+    navigateTo('product', undefined, productId);
   };
 
   const handleAddToCart = (
@@ -1170,6 +1261,13 @@ export default function App() {
   }, []);
 
   const handleOrderComplete = async (order: OrderRecord): Promise<void> => {
+    if (currentCustomer) {
+      const access = evaluateCustomerAccess(currentCustomer);
+      if (!access.allowed) {
+        throw new Error(access.reason || 'Your BEE4 account is currently restricted.');
+      }
+    }
+
     const channel: MarketplaceChannel = order.sourceChannel ?? 'bee4.in';
     const orderWithChannel: OrderRecord = {
       ...order,
@@ -1479,6 +1577,51 @@ export default function App() {
       'integration',
       config.key,
       `Saved ${config.name} (${config.active ? 'Active' : 'Paused'}).`
+    );
+  };
+
+  const handleSavePrinterIntegration = (printer: PrinterIntegrationConfig) => {
+    setPrinterIntegrations((prev) =>
+      prev.some((p) => p.id === printer.id)
+        ? prev.map((p) => (p.id === printer.id ? printer : p))
+        : [printer, ...prev]
+    );
+    recordAuditLog(
+      'PRINTER_INTEGRATION_UPDATED',
+      'integration',
+      printer.id,
+      `Updated 3D printer connector "${printer.name}" (${printer.active ? 'Active' : 'Paused'}).`
+    );
+  };
+
+  const handleSaveViralReel = (reel: ViralReelRecord) => {
+    setViralReels((prev) => {
+      const exists = prev.some((r) => r.id === reel.id);
+      const next = exists ? prev.map((r) => (r.id === reel.id ? reel : r)) : [reel, ...prev];
+      return next.slice().sort((a, b) => a.displayOrder - b.displayOrder);
+    });
+    if (isSupabaseAdmin) {
+      void saveViralReelToSupabase(reel).catch((err) => console.error(err));
+    }
+    recordAuditLog(
+      'VIRAL_REEL_SAVED',
+      'product',
+      reel.id,
+      `Saved storefront viral reel "${reel.title}" (${reel.active ? 'Live' : 'Hidden'}).`
+    );
+  };
+
+  const handleDeleteViralReel = (reelId: string) => {
+    const target = viralReels.find((r) => r.id === reelId);
+    setViralReels((prev) => prev.filter((r) => r.id !== reelId));
+    if (isSupabaseAdmin) {
+      void deleteViralReelFromSupabase(reelId).catch((err) => console.error(err));
+    }
+    recordAuditLog(
+      'VIRAL_REEL_DELETED',
+      'product',
+      reelId,
+      `Deleted viral reel "${target?.title || reelId}".`
     );
   };
 
@@ -1893,6 +2036,13 @@ export default function App() {
   };
 
   const handleAddTestimonial = (testimonial: Testimonial) => {
+    const matchedProduct = products.find((p) => p.title === testimonial.productName);
+    if (matchedProduct) {
+      const eligibility = canCustomerReviewProduct(orders, currentCustomer, matchedProduct.id);
+      if (!eligibility.eligible) return;
+    } else if (!currentCustomer) {
+      return;
+    }
     setTestimonials((prev) => [testimonial, ...prev]);
     if (supabaseDiagnostics.isConfigured) {
       void addTestimonialToSupabase(testimonial, supabaseUser?.id ?? null).catch((err) =>
@@ -1901,13 +2051,27 @@ export default function App() {
     }
   };
 
-  const handleSubmitCustomerMessage = (msg: CustomerMessageRecord) => {
-    setCustomerMessages((prev) => [msg, ...prev]);
+  const handleSubmitCustomerMessage = async (
+    msg: CustomerMessageRecord
+  ): Promise<{ ok: boolean; error?: string }> => {
+    const enriched: CustomerMessageRecord = {
+      ...msg,
+      userId: msg.userId ?? currentCustomer?.id ?? supabaseUser?.id ?? null,
+    };
     if (supabaseDiagnostics.isConfigured) {
-      void submitCustomerMessageToSupabase(msg, supabaseUser?.id ?? null).catch((err) =>
-        console.error(err)
+      const res = await submitCustomerMessageToSupabase(
+        enriched,
+        supabaseUser?.id ?? enriched.userId ?? null
       );
+      if (!res.ok) {
+        return {
+          ok: false,
+          error: res.error || 'Unable to send your message right now. Please try again.',
+        };
+      }
     }
+    setCustomerMessages((prev) => [enriched, ...prev]);
+    return { ok: true };
   };
 
   const handleUpdateCustomerMessage = (updated: CustomerMessageRecord) => {
@@ -1952,9 +2116,18 @@ export default function App() {
   };
 
   const handleSubmitProductReview = (review: ProductReviewRecord) => {
-    setProductReviews((prev) => [review, ...prev]);
+    const eligibility = canCustomerReviewProduct(orders, currentCustomer, review.productId);
+    if (!eligibility.eligible) {
+      console.warn('[BEE4 Review Policy] Blocked review from non-delivered buyer:', review.productId);
+      return;
+    }
+    const verifiedReview: ProductReviewRecord = {
+      ...review,
+      verifiedBuyer: true,
+    };
+    setProductReviews((prev) => [verifiedReview, ...prev]);
     if (supabaseDiagnostics.isConfigured) {
-      void submitProductReviewToSupabase(review, supabaseUser?.id ?? null).catch((err) =>
+      void submitProductReviewToSupabase(verifiedReview, supabaseUser?.id ?? null).catch((err) =>
         console.error(err)
       );
     }
@@ -2037,23 +2210,50 @@ export default function App() {
     ? supabaseCustomer
     : customers.find((c) => c.id === currentCustomerId) ?? null;
 
-  const isActiveCustomerBlocked = isSessionInvalidatedByAdmin(rawActiveCustomer, sessionIssuedAt);
+  const accessEvaluation = evaluateCustomerAccess(rawActiveCustomer);
+  const isActiveCustomerBlocked =
+    !accessEvaluation.allowed || isSessionInvalidatedByAdmin(rawActiveCustomer, sessionIssuedAt);
 
   useEffect(() => {
     if (!rawActiveCustomer || !isActiveCustomerBlocked) return;
-    const isSuspended = rawActiveCustomer.accountStatus === 'Suspended';
+    const msg =
+      accessEvaluation.status === 'permanent_block'
+        ? `Your BEE4 account has been permanently blocked. Reason: ${accessEvaluation.reason}`
+        : accessEvaluation.status === 'temporary_ban'
+          ? `Your BEE4 account is temporarily suspended${
+              accessEvaluation.remainingHuman ? ` (${accessEvaluation.remainingHuman} remaining)` : ''
+            }. Reason: ${accessEvaluation.reason}`
+          : 'Your BEE4 session was signed out for security. Please log in again.';
     setCurrentCustomerId(null);
     setSessionIssuedAt(null);
     setSupabaseCustomer(null);
-    setAuthVerificationNotice(
-      isSuspended
-        ? 'Your BEE4 account is currently suspended. Please contact BEE4 support for assistance.'
-        : 'Your BEE4 session was signed out for security. Please log in again.'
-    );
+    setAuthBlockError(msg);
     if (supabaseUser) {
       void signOutFromSupabase().catch(() => {});
     }
-  }, [rawActiveCustomer, isActiveCustomerBlocked, supabaseUser]);
+  }, [rawActiveCustomer, isActiveCustomerBlocked, accessEvaluation, supabaseUser]);
+
+  // Auto-heal local expired temporary bans when customer session resumes after expiry
+  useEffect(() => {
+    if (
+      rawActiveCustomer &&
+      rawActiveCustomer.banType === 'temporary' &&
+      accessEvaluation.allowed
+    ) {
+      const cleaned: CustomerProfile = {
+        ...rawActiveCustomer,
+        accountStatus: 'Active',
+        banType: null,
+        bannedUntil: null,
+        banReason: null,
+      };
+      setCustomers((prev) => prev.map((c) => (c.id === cleaned.id ? cleaned : c)));
+      if (supabaseUser && cleaned.id === supabaseUser.id) {
+        setSupabaseCustomer(cleaned);
+        void updateSupabaseCustomerProfile(cleaned).catch(() => {});
+      }
+    }
+  }, [rawActiveCustomer, accessEvaluation.allowed, supabaseUser]);
 
   const currentCustomer = isActiveCustomerBlocked ? null : rawActiveCustomer;
   const activeWishlistIds = currentCustomer ? currentCustomer.wishlistIds : guestWishlistIds;
@@ -2066,13 +2266,30 @@ export default function App() {
     sbUser: User,
     hints?: { fullName?: string; phone?: string }
   ) => {
-    setSupabaseUser(sbUser);
-    setSessionIssuedAt(new Date().toISOString());
     const { profile } = await ensureSupabaseCustomerProfile(
       sbUser,
       guestWishlistRef.current,
       hints
     );
+    const access = evaluateCustomerAccess(profile);
+    if (!access.allowed) {
+      const msg =
+        access.status === 'permanent_block'
+          ? `Your BEE4 account has been permanently blocked. Reason: ${access.reason}`
+          : `Your BEE4 account is temporarily suspended${
+              access.remainingHuman ? ` (${access.remainingHuman} remaining)` : ''
+            }. Reason: ${access.reason}`;
+      setAuthBlockError(msg);
+      setSupabaseCustomer(null);
+      setCurrentCustomerId(null);
+      setSessionIssuedAt(null);
+      await signOutFromSupabase().catch(() => {});
+      throw new Error(msg);
+    }
+
+    setAuthBlockError(null);
+    setSupabaseUser(sbUser);
+    setSessionIssuedAt(new Date().toISOString());
     setSupabaseCustomer(profile);
     setCustomers((prev) => {
       const exists = prev.some((c) => c.id === profile.id);
@@ -2087,11 +2304,31 @@ export default function App() {
   };
 
   const handleCompleteCustomerAuth = (profile: CustomerProfile) => {
+    const access = evaluateCustomerAccess(profile);
+    if (!access.allowed) {
+      const msg =
+        access.status === 'permanent_block'
+          ? `Your BEE4 account has been permanently blocked. Reason: ${access.reason}`
+          : `Your BEE4 account is temporarily suspended${
+              access.remainingHuman ? ` (${access.remainingHuman} remaining)` : ''
+            }. Reason: ${access.reason}`;
+      setAuthBlockError(msg);
+      setCurrentCustomerId(null);
+      setSessionIssuedAt(null);
+      setSupabaseCustomer(null);
+      return;
+    }
+
+    setAuthBlockError(null);
     const mergedWishlist = Array.from(
       new Set([...(profile.wishlistIds ?? []), ...guestWishlistRef.current])
     );
     const enriched: CustomerProfile = {
       ...profile,
+      accountStatus: 'Active',
+      banType: null,
+      bannedUntil: null,
+      banReason: null,
       wishlistIds: mergedWishlist,
     };
     setCustomers((prev) => {
@@ -2615,23 +2852,11 @@ export default function App() {
   }, [activePage, activeProduct, quickViewProduct, shopCategory, shopAgeGroup]);
 
   return (
-    <div className="relative isolate min-h-screen flex flex-col text-zinc-900 dark:text-zinc-100 overflow-x-clip">
-      {/* iOS 27 Ambient Frosted Bokeh & Soft Glass Bubble Backdrop */}
-      <div
-        aria-hidden="true"
-        className="fixed inset-0 -z-10 pointer-events-none overflow-hidden"
-      >
-        <div className="glass-bokeh-amber absolute -top-24 -left-20 w-[440px] h-[440px] rounded-full blur-3xl opacity-85 animate-bubble-slow" />
-        <div className="glass-bokeh-sky absolute top-[14%] -right-24 w-[520px] h-[520px] rounded-full blur-3xl opacity-85 animate-bubble-reverse" />
-        <div className="glass-bokeh-peach absolute top-[50%] -left-20 w-[430px] h-[430px] rounded-full blur-3xl opacity-80 animate-bubble-reverse" />
-        <div className="glass-bokeh-mint absolute -bottom-24 right-[8%] w-[480px] h-[480px] rounded-full blur-3xl opacity-80 animate-bubble-slow" />
-
-        <div className="absolute top-24 right-[4%] sm:right-[6%] w-16 h-16 sm:w-24 sm:h-24 rounded-full glass-orb opacity-85 animate-bubble-slow" />
-        <div className="hidden md:block absolute top-[44%] left-[2.5%] w-20 h-20 rounded-full glass-orb opacity-80 animate-bubble-reverse" />
-        <div className="hidden md:block absolute bottom-[22%] right-[11%] w-24 h-24 rounded-full glass-orb opacity-75 animate-bubble-reverse" />
-        <div className="absolute bottom-14 left-[5%] sm:left-[10%] w-12 h-12 sm:w-16 sm:h-16 rounded-full glass-orb opacity-80 animate-bubble-slow" />
-      </div>
-
+    <div
+      className={`relative isolate min-h-screen flex flex-col text-slate-900 dark:text-slate-100 overflow-x-clip ${
+        activePage !== 'manager' ? 'pb-20' : ''
+      }`}
+    >
       {activePage !== 'manager' && (
         <AppSplashScreen isStandalone={pwaInstall.isInstalled} />
       )}
@@ -2646,7 +2871,7 @@ export default function App() {
           theme={theme}
           onToggleTheme={handleToggleTheme}
           onNavigate={navigateTo}
-          onOpenCart={() => setIsCartOpen(true)}
+          onOpenCart={() => navigateTo('cart')}
         />
       )}
 
@@ -2664,6 +2889,9 @@ export default function App() {
             products={publicProducts}
             testimonials={testimonials}
             reviews={productReviews}
+            viralReels={viralReels}
+            orders={orders}
+            currentCustomer={currentCustomer}
             wishlistIds={activeWishlistIds}
             heroHeadline={settings.heroHeadline}
             heroSubheadline={settings.heroSubheadline}
@@ -2737,11 +2965,13 @@ export default function App() {
             relatedProducts={relatedProducts}
             reviews={productReviews}
             productQuestions={productQuestions}
+            orders={orders}
+            currentCustomer={currentCustomer}
             qaEnabled={settings.customerPanelControls?.enableProductQa ?? true}
             wishlistIds={activeWishlistIds}
             whatsappNumber={settings.whatsappNumber}
             cartCount={totalCartItems}
-            onOpenCart={() => setIsCartOpen(true)}
+            onOpenCart={() => navigateTo('cart')}
             onBackToShop={() => navigateTo('shop')}
             onSelectProduct={handleSelectProduct}
             onQuickView={setQuickViewProduct}
@@ -2750,6 +2980,19 @@ export default function App() {
             onToggleWishlist={handleToggleWishlist}
             onSubmitReview={handleSubmitProductReview}
             onSubmitProductQuestion={handleSubmitProductQuestion}
+          />
+        )}
+
+        {activePage === 'cart' && (
+          <CartPageView
+            items={cart}
+            whatsappNumber={settings.whatsappNumber}
+            freeShippingThreshold={settings.freeShippingThreshold}
+            standardShippingFee={settings.standardShippingFee}
+            onUpdateQuantity={handleUpdateCartQuantity}
+            onRemoveItem={handleRemoveCartItem}
+            onProceedToCheckout={() => navigateTo('checkout')}
+            onContinueShopping={() => navigateTo('shop')}
           />
         )}
 
@@ -2779,6 +3022,52 @@ export default function App() {
           />
         )}
 
+        {activePage === 'orders' && (
+          <OrdersListView
+            currentCustomer={currentCustomer}
+            orders={orders}
+            returns={returns}
+            onOpenOrderDetail={(orderNo) => navigateTo('order-detail', orderNo)}
+            onSubmitProductReview={handleSubmitProductReview}
+            onNavigateToAccount={() => navigateTo('account')}
+            onContinueShopping={() => navigateTo('shop')}
+            onRefreshOrders={handleRefreshUserOrders}
+          />
+        )}
+
+        {activePage === 'order-detail' && selectedOrderNumber && (
+          <OrderDetailView
+            orderNumber={selectedOrderNumber}
+            currentCustomer={currentCustomer}
+            orders={orders}
+            returns={returns}
+            whatsappNumber={settings.whatsappNumber}
+            supportEmail={settings.supportEmail}
+            customerPanelControls={settings.customerPanelControls}
+            onBackToOrders={() => navigateTo('orders')}
+            onSelectProduct={handleSelectProduct}
+            onReorderItems={handleReorderItems}
+            onCancelOrder={handleCancelCustomerOrder}
+            onCreateReturnRequest={handleCreateReturnRequest}
+            onSubmitProductReview={handleSubmitProductReview}
+          />
+        )}
+
+        {activePage === 'wallet' && (
+          <WalletView
+            currentCustomer={currentCustomer}
+            giftCards={giftCards}
+            onOpenBuyGiftCardModal={(mode = 'personal') => {
+              setGiftCardModalMode(mode);
+              setShowBuyGiftCardModal(true);
+            }}
+            onRedeemGiftCard={handleRedeemGiftCard}
+            onUpdateCustomer={handleUpdateCustomer}
+            onNavigateToAccount={() => navigateTo('account')}
+            onContinueShopping={() => navigateTo('shop')}
+          />
+        )}
+
         {activePage === 'account' && (
           <CustomerAccountView
             currentCustomer={currentCustomer}
@@ -2797,11 +3086,12 @@ export default function App() {
             customerPanelControls={settings.customerPanelControls}
             requestedTab={requestedAccountTab}
             onConsumeRequestedTab={() => setRequestedAccountTab(null)}
-            onTabChange={setCurrentAccountTab}
             showInstallApp={!pwaInstall.isInstalled}
             onInstallApp={() => void pwaInstall.triggerInstall()}
             authRecoveryMode={authRecoveryMode}
             authVerificationNotice={authVerificationNotice}
+            externalAuthError={authBlockError}
+            onClearExternalAuthError={() => setAuthBlockError(null)}
             onClearAuthVerificationNotice={() => setAuthVerificationNotice('')}
             onClearAuthRecoveryMode={() => setAuthRecoveryMode(false)}
             onGoogleSignIn={handleGoogleSignIn}
@@ -2823,6 +3113,7 @@ export default function App() {
             onSubmitProductReview={handleSubmitProductReview}
             onSubmitProductQuestion={handleSubmitProductQuestion}
             onSelectProduct={handleSelectProduct}
+            onNavigatePage={(p, orderNo) => navigateTo(p, orderNo)}
             onContinueShopping={() => navigateTo('shop')}
             onRefreshOrders={handleRefreshUserOrders}
           />
@@ -2834,8 +3125,21 @@ export default function App() {
           <ContactView
             whatsappNumber={settings.whatsappNumber}
             supportEmail={settings.supportEmail}
+            currentCustomer={currentCustomer}
             onSubmitInquiry={handleSubmitInquiry}
             onSubmitCustomerMessage={handleSubmitCustomerMessage}
+          />
+        )}
+
+        {(activePage === 'legal-terms' ||
+          activePage === 'legal-privacy' ||
+          activePage === 'legal-returns' ||
+          activePage === 'legal-shipping' ||
+          activePage === 'legal-copyright') && (
+          <LegalPagesView
+            page={activePage as LegalPageKind}
+            supportEmail={settings.supportEmail}
+            onNavigate={navigateTo}
           />
         )}
 
@@ -2872,6 +3176,8 @@ export default function App() {
               auditLogs={auditLogs}
               crmFlagsByPhone={crmFlagsByPhone}
               integrations={marketplaceIntegrations}
+              printerIntegrations={printerIntegrations}
+              viralReels={viralReels}
               automationRules={automationRules}
               adSpendLogs={adSpendLogs}
               settings={settings}
@@ -2913,7 +3219,10 @@ export default function App() {
               onSaveProductQuestion={handleSaveProductQuestionAdmin}
               onDeleteProductQuestion={handleDeleteProductQuestionAdmin}
               onSaveIntegration={handleSaveIntegration}
+              onSavePrinterIntegration={handleSavePrinterIntegration}
               onImportOrders={handleImportMarketplaceOrders}
+              onSaveViralReel={handleSaveViralReel}
+              onDeleteViralReel={handleDeleteViralReel}
               onSaveAutomationRule={handleSaveAutomationRule}
               onDeleteAutomationRule={handleDeleteAutomationRule}
               onRunAutomationRulesNow={handleRunAutomationRulesNow}
@@ -2952,48 +3261,14 @@ export default function App() {
         />
       )}
 
-      {activePage !== 'manager' && activePage !== 'product' && activePage !== 'checkout' && (
-        <MobileBottomNav
+      {activePage !== 'manager' && (
+        <AppBottomNav
           activePage={activePage}
-          activeAccountTab={currentAccountTab}
-          categoriesOpen={isCategoriesSheetOpen}
           cartCount={totalCartItems}
-          isSignedIn={Boolean(currentCustomer)}
-          onSelectHome={() => {
-            setIsCategoriesSheetOpen(false);
-            navigateTo('home');
-          }}
-          onOpenCategories={() => setIsCategoriesSheetOpen(true)}
-          onOpenCart={() => {
-            setIsCategoriesSheetOpen(false);
-            setIsCartOpen(true);
-          }}
-          onSelectOrders={() => {
-            setIsCategoriesSheetOpen(false);
-            setRequestedAccountTab('orders');
-            navigateTo('account');
-          }}
-          onSelectAccount={() => {
-            setIsCategoriesSheetOpen(false);
-            setRequestedAccountTab('overview');
-            navigateTo('account');
-          }}
+          whatsappNumber={settings.whatsappNumber}
+          onNavigate={navigateTo}
         />
       )}
-
-      <MobileCategoriesSheet
-        isOpen={isCategoriesSheetOpen}
-        selectedCategory={shopCategory}
-        selectedAgeGroup={shopAgeGroup}
-        searchQuery={shopSearch}
-        onClose={() => setIsCategoriesSheetOpen(false)}
-        onApplyFilter={({ category, ageGroup, search, page }) => {
-          if (category !== undefined) setShopCategory(category);
-          if (ageGroup !== undefined) setShopAgeGroup(ageGroup);
-          if (search !== undefined) setShopSearch(search);
-          navigateTo(page ?? 'shop');
-        }}
-      />
 
       <PwaInstallModal
         isOpen={pwaInstall.showGuideModal}

@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Cloud,
+  Film,
   IndianRupee,
   LayoutDashboard,
   Lock,
@@ -64,6 +65,7 @@ const MODULE_META: Record<AdminModuleRoute, { title: string; group: string }> = 
   reconciliation: { title: 'Payment Reconciliation & P&L', group: 'Finance & Analytics' },
   analytics: { title: 'Region, Monthly & GSTR-1 Analytics', group: 'Finance & Analytics' },
   products: { title: 'Product Catalog', group: 'Merchandising' },
+  reels: { title: 'Product Viral Reels', group: 'Merchandising' },
   discounts: { title: 'Discounts & Gifting', group: 'Merchandising' },
   customers: { title: 'Customers & CRM', group: 'Merchandising' },
   'messages-reviews': { title: 'Messages & Reviews', group: 'Merchandising' },
@@ -161,6 +163,7 @@ export function AdminShell({
           badge: totalProductsCount,
           badgeTone: 'neutral',
         },
+        { id: 'reels', label: 'Viral Reels', icon: Film },
         { id: 'discounts', label: 'Discounts & Gifts', icon: Tag },
         { id: 'customers', label: 'Customers CRM', icon: Users },
         {
@@ -353,7 +356,7 @@ export function AdminShell({
       {/* Mobile Drawer Navigation */}
       {mobileMenuOpen && (
         <div
-          className="lg:hidden fixed inset-0 z-50 bg-zinc-950/50 backdrop-blur-sm flex"
+          className="lg:hidden fixed inset-0 z-50 bg-slate-950/55 flex"
           onClick={() => setMobileMenuOpen(false)}
         >
           <div

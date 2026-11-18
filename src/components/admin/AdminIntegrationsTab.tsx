@@ -6,6 +6,7 @@ import {
   Globe,
   Link2,
   PlugZap,
+  Printer,
   RefreshCw,
   Settings2,
   Truck,
@@ -16,6 +17,7 @@ import type {
   MarketplaceChannel,
   MarketplaceIntegrationConfig,
   OrderRecord,
+  PrinterIntegrationConfig,
   Product,
 } from '../../types';
 import {
@@ -27,9 +29,11 @@ import { formatINR } from '../../utils/storeLogic';
 
 interface AdminIntegrationsTabProps {
   integrations: MarketplaceIntegrationConfig[];
+  printerIntegrations?: PrinterIntegrationConfig[];
   orders: OrderRecord[];
   products: Product[];
   onSaveIntegration: (config: MarketplaceIntegrationConfig) => void;
+  onSavePrinterIntegration?: (printer: PrinterIntegrationConfig) => void;
   onImportOrders: (orders: OrderRecord[], channel: MarketplaceChannel) => void;
 }
 
@@ -50,15 +54,21 @@ function triggerCsvDownload(filename: string, content: string) {
 
 export function AdminIntegrationsTab({
   integrations,
+  printerIntegrations = [],
   orders,
   products,
   onSaveIntegration,
+  onSavePrinterIntegration,
   onImportOrders,
 }: AdminIntegrationsTabProps) {
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'website' | 'marketplace' | 'courier'>(
     'all'
   );
   const [editingConn, setEditingConn] = useState<MarketplaceIntegrationConfig | null>(null);
+  const [editingPrinter, setEditingPrinter] = useState<PrinterIntegrationConfig | null>(null);
+  const [printerApiDraft, setPrinterApiDraft] = useState('');
+  const [printerEndpointDraft, setPrinterEndpointDraft] = useState('');
+  const [printerActiveDraft, setPrinterActiveDraft] = useState(true);
   const [sellerIdDraft, setSellerIdDraft] = useState('');
   const [apiKeyDraft, setApiKeyDraft] = useState('');
   const [webhookDraft, setWebhookDraft] = useState('');
@@ -398,12 +408,189 @@ export function AdminIntegrationsTab({
         )}
       </div>
 
+      {/* 3D Printer Integrations (Bambu Lab, OctoPrint, Klipper, Moonraker, Manual) */}
+      {printerIntegrations.length > 0 && (
+        <div className="glass-surface rounded-2xl p-5 sm:p-6 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-500/30 flex items-center justify-center shrink-0">
+                <Printer className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div>
+                <h2 className="font-display text-base font-bold text-slate-900 dark:text-white">
+                  3D Printer Integrations (Bambu Lab / OctoPrint / Klipper / Moonraker)
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-zinc-400">
+                  Sync completed print jobs to automatically deduct filament grams and calculate exact product COGS
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+            {printerIntegrations.map((prn) => (
+              <div key={prn.id} className="glass-subtle rounded-2xl p-4 flex flex-col justify-between gap-3">
+                <div>
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <h3 className="font-display text-sm font-bold text-slate-900 dark:text-white">
+                        {prn.name}
+                      </h3>
+                      <p className="text-[11px] font-semibold text-amber-700 dark:text-amber-300">
+                        {prn.brand}
+                      </p>
+                    </div>
+                    <span
+                      className={`px-2 py-0.5 rounded-lg text-[10px] font-bold ${
+                        prn.active
+                          ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                          : 'bg-slate-200 dark:bg-white/10 text-slate-600 dark:text-zinc-300'
+                      }`}
+                    >
+                      {prn.active ? 'Connected' : 'Ready'}
+                    </span>
+                  </div>
+                  {prn.printerSerialOrHost && (
+                    <p className="mt-2 text-[11px] font-mono text-slate-500 dark:text-zinc-400 truncate">
+                      {prn.printerSerialOrHost}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-200 dark:border-white/10">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingPrinter(prn);
+                      setPrinterEndpointDraft(prn.printerSerialOrHost || '');
+                      setPrinterApiDraft(prn.apiKeyOrToken || '');
+                      setPrinterActiveDraft(prn.active);
+                    }}
+                    className="px-2.5 py-1.5 rounded-xl glass-btn-secondary text-[11px] font-semibold inline-flex items-center gap-1"
+                  >
+                    <Settings2 className="w-3 h-3" />
+                    <span>Configure</span>
+                  </button>
+                  {onSavePrinterIntegration && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onSavePrinterIntegration({
+                          ...prn,
+                          active: !prn.active,
+                          lastSyncedAt: new Date().toISOString(),
+                        })
+                      }
+                      className={`px-2.5 py-1.5 rounded-xl text-[11px] font-semibold ${
+                        prn.active
+                          ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                          : 'glass-btn-amber text-white'
+                      }`}
+                    >
+                      {prn.active ? 'Active' : 'Enable'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Printer Config Modal */}
+      {editingPrinter && onSavePrinterIntegration && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 bg-slate-950/55 flex items-center justify-center p-4"
+          onClick={() => setEditingPrinter(null)}
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              onSavePrinterIntegration({
+                ...editingPrinter,
+                active: printerActiveDraft,
+                printerSerialOrHost: printerEndpointDraft.trim(),
+                apiKeyOrToken: printerApiDraft.trim(),
+                lastSyncedAt: new Date().toISOString(),
+              });
+              setEditingPrinter(null);
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md glass-drawer rounded-2xl p-6 space-y-4"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <h3 className="font-display text-base font-bold text-slate-900 dark:text-white">
+                  Configure {editingPrinter.name}
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-zinc-400">
+                  {editingPrinter.brand} API / Webhook bridge
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingPrinter(null)}
+                className="p-1 text-slate-500"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <label className="flex items-center justify-between p-3 rounded-xl glass-subtle text-xs font-semibold">
+              <span>Printer Auto-Sync Enabled</span>
+              <input
+                type="checkbox"
+                checked={printerActiveDraft}
+                onChange={(e) => setPrinterActiveDraft(e.target.checked)}
+                className="w-4 h-4 accent-amber-600"
+              />
+            </label>
+            <div>
+              <label className="block text-xs font-semibold mb-1">Local IP / Moonraker / OctoPrint URL</label>
+              <input
+                type="url"
+                value={printerEndpointDraft}
+                onChange={(e) => setPrinterEndpointDraft(e.target.value)}
+                placeholder="http://192.168.1.42:7125"
+                className="w-full px-3.5 py-2 rounded-xl glass-input text-xs focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold mb-1">API Key / Bambu Access Token</label>
+              <input
+                type="password"
+                value={printerApiDraft}
+                onChange={(e) => setPrinterApiDraft(e.target.value)}
+                placeholder="Stored locally in Admin Studio"
+                className="w-full px-3.5 py-2 rounded-xl glass-input text-xs focus:outline-none"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setEditingPrinter(null)}
+                className="px-4 py-2 rounded-xl glass-btn-secondary text-xs font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 rounded-xl glass-btn-amber text-white text-xs font-semibold"
+              >
+                Save Printer
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {/* API / Webhook Configuration Modal */}
       {editingConn && (
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 bg-zinc-950/55 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-slate-950/55 flex items-center justify-center p-4"
           onClick={() => setEditingConn(null)}
         >
           <form

@@ -58,7 +58,7 @@ export function ProductCard({
         </button>
 
         {ratingStats.reviewCount > 0 && (
-          <div className="absolute top-3 left-3 z-10 px-2 py-0.5 rounded-full bg-white/85 dark:bg-zinc-900/85 backdrop-blur-md border border-white/70 dark:border-white/15 inline-flex items-center gap-1 text-[11px] font-bold text-zinc-900 dark:text-white tabular-nums shadow-sm">
+          <div className="absolute top-3 left-3 z-10 px-2 py-0.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 inline-flex items-center gap-1 text-[11px] font-bold text-slate-900 dark:text-white tabular-nums shadow-sm">
             <Star className="w-3 h-3 fill-amber-500 text-amber-500" aria-hidden="true" />
             <span>{ratingStats.averageRating.toFixed(1)}</span>
             <span className="text-zinc-500 dark:text-zinc-400 font-medium">

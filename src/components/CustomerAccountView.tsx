@@ -1,20 +1,24 @@
 import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import {
+  AlertCircle,
   ArrowLeft,
   BadgeCheck,
   Bell,
   Building2,
   Check,
   ChevronDown,
+  ChevronRight,
   ChevronUp,
   Copy,
   Download,
+  FileText,
   Gift,
   Globe,
   Heart,
   HelpCircle,
   Image as ImageIcon,
+  Info,
   KeyRound,
   Laptop,
   LifeBuoy,
@@ -31,9 +35,9 @@ import {
   ShieldCheck,
   ShoppingBag,
   Smartphone,
-  Sparkles,
   Star,
   Trash2,
+  Truck,
   Upload,
   User,
   Wallet,
@@ -64,6 +68,7 @@ import {
   ReturnRequestRecord,
   SavedAddress,
   SavedAddressErrors,
+  StorePage,
 } from '../types';
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
@@ -75,6 +80,7 @@ import {
   validateUpiId,
 } from '../utils/customerAccountLogic';
 import { canCustomerCancelOrder } from '../utils/giftCardWalletLogic';
+import { canCustomerReviewProduct } from '../utils/reviewsPolicyLogic';
 import {
   CUSTOMER_RETURN_TRACKER_STEPS,
   buildCustomerReturnStepIndex,
@@ -131,6 +137,8 @@ interface CustomerAccountViewProps {
   onInstallApp?: () => void;
   authRecoveryMode?: boolean;
   authVerificationNotice?: string;
+  externalAuthError?: string | null;
+  onClearExternalAuthError?: () => void;
   onClearAuthVerificationNotice?: () => void;
   onClearAuthRecoveryMode?: () => void;
   onGoogleSignIn?: () => Promise<void>;
@@ -151,10 +159,13 @@ interface CustomerAccountViewProps {
     code: string,
     pin: string
   ) => Promise<{ ok: boolean; creditedAmount?: number; error?: string }>;
-  onSubmitCustomerMessage?: (msg: CustomerMessageRecord) => void;
+  onSubmitCustomerMessage?: (
+    msg: CustomerMessageRecord
+  ) => Promise<{ ok: boolean; error?: string } | void> | void;
   onSubmitProductReview?: (review: ProductReviewRecord) => void;
   onSubmitProductQuestion?: (question: ProductQuestionRecord) => void;
   onSelectProduct: (productId: string) => void;
+  onNavigatePage?: (page: StorePage, orderNumber?: string) => void;
   onContinueShopping: () => void;
   onRefreshOrders?: () => Promise<void>;
 }
@@ -228,6 +239,8 @@ export function CustomerAccountView({
   onInstallApp,
   authRecoveryMode = false,
   authVerificationNotice = '',
+  externalAuthError = null,
+  onClearExternalAuthError,
   onClearAuthVerificationNotice,
   onClearAuthRecoveryMode,
   onGoogleSignIn,
@@ -246,6 +259,7 @@ export function CustomerAccountView({
   onSubmitProductReview,
   onSubmitProductQuestion,
   onSelectProduct,
+  onNavigatePage,
   onContinueShopping,
   onRefreshOrders,
 }: CustomerAccountViewProps) {
@@ -335,6 +349,9 @@ export function CustomerAccountView({
   // Support + FAQ accordion
   const [supportTopic, setSupportTopic] = useState<CustomerMessageTopic>('Order Status Inquiry');
   const [supportNote, setSupportNote] = useState('');
+  const [supportSubmitError, setSupportSubmitError] = useState<string | null>(null);
+  const [supportSubmitSuccess, setSupportSubmitSuccess] = useState<string | null>(null);
+  const [isSubmittingSupport, setIsSubmittingSupport] = useState(false);
   const [openFaqIdx, setOpenFaqIdx] = useState<number | null>(0);
 
   // Privacy / Password
@@ -357,6 +374,8 @@ export function CustomerAccountView({
         initialOpenGuestTracker={guestOrdersRequested}
         authRecoveryMode={authRecoveryMode}
         authVerificationNotice={authVerificationNotice}
+        externalAuthError={externalAuthError}
+        onClearExternalAuthError={onClearExternalAuthError}
         onClearAuthVerificationNotice={onClearAuthVerificationNotice}
         onClearAuthRecoveryMode={onClearAuthRecoveryMode}
         onGoogleSignIn={onGoogleSignIn}
@@ -427,9 +446,12 @@ export function CustomerAccountView({
         (g.purchaserEmail.toLowerCase() === currentCustomer.email.toLowerCase() ||
           g.recipientEmail.toLowerCase() === currentCustomer.email.toLowerCase()))
   );
+  const customerPhone10 = normalizeIndianPhone10(currentCustomer.phone);
   const myMessages = customerMessages.filter(
     (m) =>
-      normalizeIndianPhone10(m.phone) === normalizeIndianPhone10(currentCustomer.phone) ||
+      (m.userId && m.userId === currentCustomer.id) ||
+      (customerPhone10.length === 10 &&
+        normalizeIndianPhone10(m.phone) === customerPhone10) ||
       (currentCustomer.email &&
         (m.email ?? '').toLowerCase() === currentCustomer.email.toLowerCase())
   );
@@ -639,6 +661,10 @@ export function CustomerAccountView({
     productId: string,
     productTitle: string
   ) => {
+    if (!canCustomerReviewProduct(orders, currentCustomer, productId)) {
+      showToast('Ratings can only be submitted after your order is delivered.');
+      return;
+    }
     const selectedStars = (inlineRatings[itemKey] ?? 5) as 1 | 2 | 3 | 4 | 5;
     const commentText =
       (inlineComments[itemKey] ?? '').trim() ||
@@ -788,56 +814,40 @@ export function CustomerAccountView({
     }
   };
 
-  const navTabs: { id: CustomerAccountTab; label: string; badge?: number | string }[] = [
-    { id: 'overview', label: lang === 'hi' ? 'अवलोकन' : 'Overview' },
-    { id: 'orders', label: ui.myOrdersLabel, badge: myOrders.length },
-    ...(controls.enableGiftCards
-      ? [
-          {
-            id: 'wallet' as CustomerAccountTab,
-            label: ui.giftWalletLabel,
-            badge: formatINR(currentCustomer.walletBalance ?? 0),
-          },
-        ]
-      : []),
-    { id: 'wishlist', label: ui.wishlistLabel, badge: wishlistedProducts.length },
-    { id: 'addresses', label: ui.savedAddressesLabel, badge: currentCustomer.addresses.length },
-    {
-      id: 'uploads',
-      label: ui.customUploadsLabel,
-      badge: (currentCustomer.customDesigns ?? []).length,
-    },
-    ...(controls.enableProductQa
-      ? [{ id: 'qa' as CustomerAccountTab, label: ui.qaLabel }]
-      : []),
-    { id: 'privacy', label: ui.privacyHeading },
-    { id: 'support', label: ui.faqsPoliciesLabel },
-    { id: 'profile', label: ui.accountSettingsHeading },
-  ];
-
   return (
-    <section className="max-w-[1200px] mx-auto px-4 sm:px-6 py-8 sm:py-12 space-y-6">
+    <section className="max-w-[1160px] mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-6">
       {/* Top Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <button
-          type="button"
-          onClick={onContinueShopping}
-          className="inline-flex items-center gap-2 text-sm font-semibold text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Back to BEE4 Store</span>
-        </button>
+        {activeTab === 'overview' ? (
+          <button
+            type="button"
+            onClick={onContinueShopping}
+            className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back to BEE4 Store</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setActiveTab('overview')}
+            className="inline-flex items-center gap-2 text-sm font-semibold text-amber-700 dark:text-amber-300 hover:text-amber-800 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back to Account</span>
+          </button>
+        )}
 
         {controls.enableLanguageSwitcher && (
-          <div className="inline-flex items-center gap-1.5 p-1 rounded-xl glass-subtle text-xs font-semibold">
+          <div className="inline-flex items-center gap-1.5 p-1 rounded-xl border border-slate-200 dark:border-white/15 bg-white dark:bg-slate-900 text-xs font-semibold">
             <Globe className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 ml-1.5" />
             <button
               type="button"
               onClick={() => handleToggleLanguage('en')}
               className={`px-2.5 py-1 rounded-lg transition ${
                 lang === 'en'
-                  ? 'bg-white dark:bg-amber-600 text-zinc-900 dark:text-white shadow-sm'
-                  : 'text-zinc-600 dark:text-zinc-300'
+                  ? 'bg-slate-900 text-white dark:bg-amber-600'
+                  : 'text-slate-600 dark:text-zinc-300'
               }`}
             >
               English
@@ -847,8 +857,8 @@ export function CustomerAccountView({
               onClick={() => handleToggleLanguage('hi')}
               className={`px-2.5 py-1 rounded-lg transition ${
                 lang === 'hi'
-                  ? 'bg-white dark:bg-amber-600 text-zinc-900 dark:text-white shadow-sm'
-                  : 'text-zinc-600 dark:text-zinc-300'
+                  ? 'bg-slate-900 text-white dark:bg-amber-600'
+                  : 'text-slate-600 dark:text-zinc-300'
               }`}
             >
               हिन्दी
@@ -860,17 +870,17 @@ export function CustomerAccountView({
       {accountToast && (
         <div
           role="status"
-          className="p-3.5 rounded-2xl bg-emerald-500/12 border border-emerald-500/30 text-xs font-semibold text-emerald-800 dark:text-emerald-200 flex items-center gap-2"
+          className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-500/30 text-xs font-semibold text-emerald-800 dark:text-emerald-200 flex items-center gap-2"
         >
           <BadgeCheck className="w-4 h-4 shrink-0" />
           <span>{accountToast}</span>
         </div>
       )}
 
-      {/* Account Header Identity Banner */}
-      <div className="glass-surface rounded-3xl p-6 sm:p-7 flex flex-col md:flex-row md:items-center justify-between gap-5">
+      {/* Flipkart-Style Clean Identity Header (Hey, Full Name — zero badge above name) */}
+      <div className="glass-surface rounded-2xl p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4 min-w-0">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500/25 to-orange-500/15 border border-amber-500/30 flex items-center justify-center text-2xl font-bold text-amber-800 dark:text-amber-200 overflow-hidden shrink-0">
+          <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-500/30 flex items-center justify-center text-xl font-bold text-amber-800 dark:text-amber-200 overflow-hidden shrink-0">
             {currentCustomer.avatarUrl ? (
               currentCustomer.avatarUrl.startsWith('http') ||
               currentCustomer.avatarUrl.startsWith('data:') ? (
@@ -887,19 +897,15 @@ export function CustomerAccountView({
             )}
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-amber-700 dark:text-amber-300 inline-flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>BEE4 Account</span>
-            </p>
-            <h1 className="font-display text-2xl sm:text-3xl font-extrabold text-zinc-900 dark:text-white truncate">
-              {ui.greetingPrefix} {displayFirstName}!
+            <h1 className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white truncate">
+              {lang === 'hi' ? `नमस्ते, ${currentCustomer.fullName}` : `Hey, ${currentCustomer.fullName}`}
             </h1>
-            <p className="text-xs text-zinc-600 dark:text-zinc-300 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+            <p className="text-xs text-slate-500 dark:text-zinc-300 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
               {currentCustomer.phone && (
                 <span className="tabular-nums font-medium">+91 {currentCustomer.phone}</span>
               )}
               {currentCustomer.phone && currentCustomer.email && <span>·</span>}
-              {currentCustomer.email && <span>{currentCustomer.email}</span>}
+              {currentCustomer.email && <span className="truncate">{currentCustomer.email}</span>}
               {currentCustomer.emailVerified && (
                 <>
                   <span>·</span>
@@ -913,11 +919,11 @@ export function CustomerAccountView({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={() => setActiveTab('profile')}
-            className="px-3.5 py-2 rounded-xl glass-btn-secondary text-xs font-semibold text-zinc-800 dark:text-zinc-100 inline-flex items-center gap-1.5"
+            className="px-3.5 py-2 rounded-xl glass-btn-secondary text-xs font-semibold text-slate-800 dark:text-zinc-100 inline-flex items-center gap-1.5"
           >
             <Pencil className="w-3.5 h-3.5" />
             <span>Edit Profile</span>
@@ -933,27 +939,31 @@ export function CustomerAccountView({
         </div>
       </div>
 
-      {/* Flipkart-Style 4 Quick-Tap Action Cards */}
+      {/* 4 Flipkart-Style Quick Action Cards */}
       <div
         className={`grid grid-cols-2 ${
           controls.enableGiftCards ? 'lg:grid-cols-4' : 'lg:grid-cols-3'
-        } gap-3.5`}
+        } gap-3`}
       >
         <button
           type="button"
-          onClick={() => setActiveTab('orders')}
-          className={`p-4 rounded-2xl glass-surface text-left transition-all hover:scale-[1.01] ${
-            activeTab === 'orders' ? 'ring-2 ring-amber-500' : ''
-          }`}
+          onClick={() => {
+            if (onNavigatePage) {
+              onNavigatePage('orders');
+            } else {
+              setActiveTab('orders');
+            }
+          }}
+          className="p-4 rounded-2xl glass-surface text-left hover:border-amber-400 transition-colors"
         >
           <div className="flex items-center justify-between">
             <Package className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-            <span className="text-lg font-extrabold tabular-nums text-zinc-900 dark:text-white">
+            <span className="text-lg font-extrabold tabular-nums text-slate-900 dark:text-white">
               {myOrders.length}
             </span>
           </div>
-          <p className="mt-2 text-sm font-bold text-zinc-900 dark:text-white">{ui.ordersLabel}</p>
-          <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+          <p className="mt-2 text-sm font-bold text-slate-900 dark:text-white">My Orders</p>
+          <p className="text-[11px] text-slate-500 dark:text-zinc-400">
             Track, cancel &amp; GST invoices
           </p>
         </button>
@@ -961,18 +971,18 @@ export function CustomerAccountView({
         <button
           type="button"
           onClick={() => setActiveTab('wishlist')}
-          className={`p-4 rounded-2xl glass-surface text-left transition-all hover:scale-[1.01] ${
+          className={`p-4 rounded-2xl glass-surface text-left hover:border-amber-400 transition-colors ${
             activeTab === 'wishlist' ? 'ring-2 ring-amber-500' : ''
           }`}
         >
           <div className="flex items-center justify-between">
             <Heart className="w-5 h-5 text-rose-500" />
-            <span className="text-lg font-extrabold tabular-nums text-zinc-900 dark:text-white">
+            <span className="text-lg font-extrabold tabular-nums text-slate-900 dark:text-white">
               {wishlistedProducts.length}
             </span>
           </div>
-          <p className="mt-2 text-sm font-bold text-zinc-900 dark:text-white">{ui.wishlistLabel}</p>
-          <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+          <p className="mt-2 text-sm font-bold text-slate-900 dark:text-white">{ui.wishlistLabel}</p>
+          <p className="text-[11px] text-slate-500 dark:text-zinc-400">
             Saved brain-training picks
           </p>
         </button>
@@ -980,21 +990,25 @@ export function CustomerAccountView({
         {controls.enableGiftCards && (
           <button
             type="button"
-            onClick={() => setActiveTab('wallet')}
-            className={`p-4 rounded-2xl glass-surface text-left transition-all hover:scale-[1.01] ${
-              activeTab === 'wallet' ? 'ring-2 ring-amber-500' : ''
-            }`}
+            onClick={() => {
+              if (onNavigatePage) {
+                onNavigatePage('wallet');
+              } else {
+                setActiveTab('wallet');
+              }
+            }}
+            className="p-4 rounded-2xl glass-surface text-left hover:border-amber-400 transition-colors"
           >
             <div className="flex items-center justify-between">
               <Gift className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-              <span className="text-lg font-extrabold tabular-nums text-zinc-900 dark:text-white">
+              <span className="text-lg font-extrabold tabular-nums text-slate-900 dark:text-white">
                 {formatINR(currentCustomer.walletBalance ?? 0)}
               </span>
             </div>
-            <p className="mt-2 text-sm font-bold text-zinc-900 dark:text-white">
-              {ui.giftCardsLabel}
+            <p className="mt-2 text-sm font-bold text-slate-900 dark:text-white">
+              Gift Cards &amp; Wallet
             </p>
-            <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+            <p className="text-[11px] text-slate-500 dark:text-zinc-400">
               Redeem vouchers &amp; BEE4 Wallet
             </p>
           </button>
@@ -1003,7 +1017,7 @@ export function CustomerAccountView({
         <button
           type="button"
           onClick={() => setActiveTab('support')}
-          className={`p-4 rounded-2xl glass-surface text-left transition-all hover:scale-[1.01] ${
+          className={`p-4 rounded-2xl glass-surface text-left hover:border-amber-400 transition-colors ${
             activeTab === 'support' ? 'ring-2 ring-amber-500' : ''
           }`}
         >
@@ -1011,75 +1025,44 @@ export function CustomerAccountView({
             <LifeBuoy className="w-5 h-5 text-sky-600 dark:text-sky-400" />
             <span className="text-xs font-bold text-sky-700 dark:text-sky-300">24×7</span>
           </div>
-          <p className="mt-2 text-sm font-bold text-zinc-900 dark:text-white">
-            {ui.helpCenterLabel}
-          </p>
-          <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-            Support tickets, FAQs &amp; WhatsApp
+          <p className="mt-2 text-sm font-bold text-slate-900 dark:text-white">Help Center</p>
+          <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+            Support messages &amp; FAQs
           </p>
         </button>
       </div>
 
-      {/* Sub-Navigation Pills */}
-      <nav
-        aria-label="BEE4 Account sections"
-        className="flex flex-nowrap sm:flex-wrap items-center gap-1.5 p-1.5 rounded-2xl glass-subtle overflow-x-auto"
-      >
-        {navTabs.map((t) => {
-          const active = activeTab === t.id;
-          return (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setActiveTab(t.id)}
-              className={`px-3.5 py-2 rounded-xl text-xs font-semibold inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 transition-all ${
-                active
-                  ? 'bg-white dark:bg-amber-600 text-zinc-900 dark:text-white shadow-sm'
-                  : 'text-zinc-600 dark:text-zinc-300 hover:bg-white/55 dark:hover:bg-white/10'
-              }`}
-            >
-              <span>{t.label}</span>
-              {t.badge !== undefined && (
-                <span className="tabular-nums opacity-75">({t.badge})</span>
-              )}
-            </button>
-          );
-        })}
-      </nav>
-
-      {/* TAB: OVERVIEW */}
+      {/* TAB: OVERVIEW (Clean Flipkart Menu + Delivered Ratings + Recent Orders) */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
-          {/* Delivered Order Inline Star Rating Strip */}
+          {/* Delivered Order Inline Star Rating Strip — Verified Delivery Only */}
           {deliveredItemsForRating.length > 0 && (
-            <div className="glass-surface rounded-3xl p-6 space-y-4">
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <h2 className="font-display text-lg font-bold text-zinc-900 dark:text-white">
-                    {ui.rateDeliveredHeading}
-                  </h2>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                    Share quick 1–5 star ratings for your delivered BEE4 kits
-                  </p>
-                </div>
+            <div className="glass-surface rounded-2xl p-5 space-y-4">
+              <div>
+                <h2 className="font-display text-base font-bold text-slate-900 dark:text-white">
+                  {ui.rateDeliveredHeading}
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-zinc-400">
+                  Verified delivery ratings for your completed BEE4 orders
+                </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
                 {deliveredItemsForRating.map(({ key, deliveredDate, item }) => {
                   const currentStar = inlineRatings[key] ?? 5;
                   const alreadyRated = ratedProductIds[key];
                   return (
-                    <div key={key} className="p-4 rounded-2xl glass-subtle space-y-3">
+                    <div key={key} className="p-3.5 rounded-xl glass-subtle space-y-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-xl overflow-hidden bg-white/70 dark:bg-slate-900/60 shrink-0">
+                        <div className="w-12 h-12 rounded-xl overflow-hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 shrink-0">
                           <ProductImage
                             src={item.image}
                             alt={item.title}
                             className="w-full h-full object-cover"
                           />
                         </div>
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold text-zinc-900 dark:text-white truncate">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
                             {item.title}
                           </p>
                           <p className="text-[11px] text-emerald-700 dark:text-emerald-300 font-semibold">
@@ -1110,7 +1093,7 @@ export function CustomerAccountView({
                                   className={`w-4 h-4 ${
                                     star <= currentStar
                                       ? 'fill-amber-500 text-amber-500'
-                                      : 'text-zinc-300 dark:text-zinc-600'
+                                      : 'text-slate-300 dark:text-zinc-600'
                                   }`}
                                 />
                               </button>
@@ -1123,17 +1106,17 @@ export function CustomerAccountView({
                               onChange={(e) =>
                                 setInlineComments((prev) => ({ ...prev, [key]: e.target.value }))
                               }
-                              placeholder="Quick note (optional)"
-                              className="flex-1 h-8 px-2.5 rounded-lg glass-input text-xs focus:outline-none"
+                              placeholder="Quick review (optional)"
+                              className="flex-1 min-w-0 h-8 px-2.5 rounded-lg glass-input text-xs focus:outline-none"
                             />
                             <button
                               type="button"
                               onClick={() =>
                                 handleInlineRatingSubmit(key, item.productId, item.title)
                               }
-                              className="px-2.5 h-8 rounded-lg glass-btn-amber text-white text-[11px] font-semibold"
+                              className="px-3 h-8 rounded-lg glass-btn-amber text-white text-[11px] font-semibold shrink-0"
                             >
-                              Rate
+                              Submit
                             </button>
                           </div>
                         </div>
@@ -1145,143 +1128,268 @@ export function CustomerAccountView({
             </div>
           )}
 
-          {/* Latest Order & Quick Account Shortcuts */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div className="lg:col-span-7 glass-surface rounded-3xl p-6 space-y-4">
-              <div className="flex items-center justify-between gap-2">
-                <h2 className="font-display text-lg font-bold text-zinc-900 dark:text-white">
-                  Recent Orders
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('orders')}
-                  className="text-xs font-semibold text-amber-700 dark:text-amber-300 hover:underline"
-                >
-                  View all
-                </button>
-              </div>
-
-              {myOrders.length === 0 ? (
-                <div className="p-6 rounded-2xl glass-subtle text-center space-y-3">
-                  <p className="text-sm text-zinc-600 dark:text-zinc-300">
-                    No BEE4 orders placed on this account yet.
-                  </p>
+          {/* Structured Flipkart-Inspired Account Menu */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* Column 1: Profile Settings + Payments & Wallets */}
+            <div className="space-y-5">
+              <div className="glass-surface rounded-2xl overflow-hidden">
+                <div className="px-5 py-3.5 border-b border-slate-200 dark:border-white/10">
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+                    Profile Settings
+                  </h2>
+                </div>
+                <div className="divide-y divide-slate-100 dark:divide-white/10">
                   <button
                     type="button"
-                    onClick={onContinueShopping}
-                    className="px-4 py-2 rounded-xl glass-btn-amber text-white text-xs font-semibold"
+                    onClick={() => setActiveTab('profile')}
+                    className="w-full px-5 py-3.5 flex items-center justify-between gap-3 text-left hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
                   >
-                    Browse Brain Toys
+                    <span className="inline-flex items-center gap-3 text-sm font-semibold text-slate-900 dark:text-white">
+                      <User className="w-4 h-4 text-amber-600 shrink-0" />
+                      Edit Profile &amp; Notification Settings
+                    </span>
+                    <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
                   </button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {myOrders.slice(0, 2).map((order) => (
-                    <div key={order.orderNumber} className="p-4 rounded-2xl glass-subtle space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-mono text-xs font-bold text-zinc-900 dark:text-white">
-                          {order.orderNumber}
-                        </span>
-                        <span className="text-xs font-semibold px-2.5 py-0.5 rounded-lg bg-amber-500/15 text-amber-800 dark:text-amber-200">
-                          {order.status}
-                        </span>
-                      </div>
-                      <p className="text-xs text-zinc-600 dark:text-zinc-300">
-                        {order.items.map((i) => `${i.title} × ${i.quantity}`).join(', ')}
-                      </p>
-                      <div className="flex items-center justify-between pt-1 text-xs">
-                        <span className="tabular-nums font-bold text-zinc-900 dark:text-white">
-                          {formatINR(order.total)}
-                        </span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('addresses')}
+                    className="w-full px-5 py-3.5 flex items-center justify-between gap-3 text-left hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
+                  >
+                    <span className="inline-flex items-center gap-3 text-sm font-semibold text-slate-900 dark:text-white">
+                      <MapPin className="w-4 h-4 text-amber-600 shrink-0" />
+                      {ui.savedAddressesLabel}
+                    </span>
+                    <span className="inline-flex items-center gap-2 text-xs text-slate-500">
+                      <span className="tabular-nums">{currentCustomer.addresses.length}</span>
+                      <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                    </span>
+                  </button>
+                  {controls.enableLanguageSwitcher && (
+                    <div className="px-5 py-3 flex items-center justify-between gap-3">
+                      <span className="inline-flex items-center gap-3 text-sm font-semibold text-slate-900 dark:text-white">
+                        <Globe className="w-4 h-4 text-amber-600 shrink-0" />
+                        Change Language
+                      </span>
+                      <div className="inline-flex items-center gap-1 text-xs font-semibold">
                         <button
                           type="button"
-                          onClick={() => downloadOrderInvoice(order)}
-                          className="font-semibold text-amber-700 dark:text-amber-300 hover:underline inline-flex items-center gap-1"
+                          onClick={() => handleToggleLanguage('en')}
+                          className={`px-2.5 py-1 rounded-lg ${
+                            lang === 'en'
+                              ? 'bg-amber-600 text-white'
+                              : 'bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-zinc-300'
+                          }`}
                         >
-                          <Download className="w-3.5 h-3.5" />
-                          Invoice
+                          EN
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleLanguage('hi')}
+                          className={`px-2.5 py-1 rounded-lg ${
+                            lang === 'hi'
+                              ? 'bg-amber-600 text-white'
+                              : 'bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-zinc-300'
+                          }`}
+                        >
+                          हिन्दी
                         </button>
                       </div>
                     </div>
-                  ))}
+                  )}
+                </div>
+              </div>
+
+              {controls.enableGiftCards && (
+                <div className="glass-surface rounded-2xl overflow-hidden">
+                  <div className="px-5 py-3.5 border-b border-slate-200 dark:border-white/10">
+                    <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+                      Payments &amp; Wallets
+                    </h2>
+                  </div>
+                  <div className="divide-y divide-slate-100 dark:divide-white/10">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (onNavigatePage) {
+                          onNavigatePage('wallet');
+                        } else {
+                          setActiveTab('wallet');
+                        }
+                      }}
+                      className="w-full px-5 py-3.5 flex items-center justify-between gap-3 text-left hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
+                    >
+                      <span className="inline-flex items-center gap-3 text-sm font-semibold text-slate-900 dark:text-white">
+                        <Wallet className="w-4 h-4 text-emerald-600 shrink-0" />
+                        BEE4 Wallet &amp; Gift Cards
+                      </span>
+                      <span className="inline-flex items-center gap-2 text-xs font-bold tabular-nums text-emerald-700 dark:text-emerald-300">
+                        {formatINR(currentCustomer.walletBalance ?? 0)}
+                        <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('wallet')}
+                      className="w-full px-5 py-3.5 flex items-center justify-between gap-3 text-left hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
+                    >
+                      <span className="inline-flex items-center gap-3 text-sm font-semibold text-slate-900 dark:text-white">
+                        <Smartphone className="w-4 h-4 text-amber-600 shrink-0" />
+                        Saved UPI IDs &amp; Checkout Preference
+                      </span>
+                      <span className="inline-flex items-center gap-2 text-xs text-slate-500">
+                        <span className="tabular-nums">
+                          {(currentCustomer.savedUpiIds ?? []).length} UPI
+                        </span>
+                        <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                      </span>
+                    </button>
+                  </div>
                 </div>
               )}
+
+              <div className="glass-surface rounded-2xl overflow-hidden">
+                <div className="px-5 py-3.5 border-b border-slate-200 dark:border-white/10">
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+                    Privacy &amp; Security
+                  </h2>
+                </div>
+                <div className="divide-y divide-slate-100 dark:divide-white/10">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('privacy')}
+                    className="w-full px-5 py-3.5 flex items-center justify-between gap-3 text-left hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
+                  >
+                    <span className="inline-flex items-center gap-3 text-sm font-semibold text-slate-900 dark:text-white">
+                      <ShieldCheck className="w-4 h-4 text-indigo-600 shrink-0" />
+                      Privacy Center, Devices &amp; Password
+                    </span>
+                    <span className="inline-flex items-center gap-2 text-xs text-slate-500">
+                      <span className="tabular-nums">
+                        {(currentCustomer.devices ?? []).length} devices
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                    </span>
+                  </button>
+                </div>
+              </div>
             </div>
 
-            <div className="lg:col-span-5 glass-surface rounded-3xl p-6 space-y-3">
-              <h2 className="font-display text-lg font-bold text-zinc-900 dark:text-white">
-                Account Shortcuts
-              </h2>
-              <div className="space-y-2">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('addresses')}
-                  className="w-full p-3 rounded-2xl glass-subtle flex items-center justify-between text-xs font-semibold text-zinc-800 dark:text-zinc-100 hover:bg-white/75 dark:hover:bg-white/10"
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-amber-600" />
-                    {ui.savedAddressesLabel}
-                  </span>
-                  <span className="tabular-nums text-zinc-500">
-                    {currentCustomer.addresses.length} saved
-                  </span>
-                </button>
-                {controls.enableGiftCards && (
+            {/* Column 2: My Activity + FAQ & Terms + Recent Orders */}
+            <div className="space-y-5">
+              <div className="glass-surface rounded-2xl overflow-hidden">
+                <div className="px-5 py-3.5 border-b border-slate-200 dark:border-white/10">
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+                    My Activity
+                  </h2>
+                </div>
+                <div className="divide-y divide-slate-100 dark:divide-white/10">
+                  {controls.enableProductQa && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('qa')}
+                      className="w-full px-5 py-3.5 flex items-center justify-between gap-3 text-left hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
+                    >
+                      <span className="inline-flex items-center gap-3 text-sm font-semibold text-slate-900 dark:text-white">
+                        <HelpCircle className="w-4 h-4 text-sky-600 shrink-0" />
+                        Questions &amp; Answers
+                      </span>
+                      <span className="inline-flex items-center gap-2 text-xs text-slate-500">
+                        <span className="tabular-nums">{myQuestions.length}</span>
+                        <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                      </span>
+                    </button>
+                  )}
                   <button
                     type="button"
-                    onClick={() => setActiveTab('wallet')}
-                    className="w-full p-3 rounded-2xl glass-subtle flex items-center justify-between text-xs font-semibold text-zinc-800 dark:text-zinc-100 hover:bg-white/75 dark:hover:bg-white/10"
+                    onClick={() => setActiveTab('wishlist')}
+                    className="w-full px-5 py-3.5 flex items-center justify-between gap-3 text-left hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
                   >
-                    <span className="inline-flex items-center gap-2">
-                      <Wallet className="w-4 h-4 text-emerald-600" />
-                      {ui.savedPaymentsLabel}
+                    <span className="inline-flex items-center gap-3 text-sm font-semibold text-slate-900 dark:text-white">
+                      <Heart className="w-4 h-4 text-rose-500 shrink-0" />
+                      Saved Wishlist
                     </span>
-                    <span className="tabular-nums text-zinc-500">
-                      {(currentCustomer.savedUpiIds ?? []).length} UPI
+                    <span className="inline-flex items-center gap-2 text-xs text-slate-500">
+                      <span className="tabular-nums">{wishlistedProducts.length}</span>
+                      <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
                     </span>
                   </button>
-                )}
-                {controls.enableProductQa && (
                   <button
                     type="button"
-                    onClick={() => setActiveTab('qa')}
-                    className="w-full p-3 rounded-2xl glass-subtle flex items-center justify-between text-xs font-semibold text-zinc-800 dark:text-zinc-100 hover:bg-white/75 dark:hover:bg-white/10"
+                    onClick={() => setActiveTab('uploads')}
+                    className="w-full px-5 py-3.5 flex items-center justify-between gap-3 text-left hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
                   >
-                    <span className="inline-flex items-center gap-2">
-                      <HelpCircle className="w-4 h-4 text-sky-600" />
-                      {ui.qaLabel}
+                    <span className="inline-flex items-center gap-3 text-sm font-semibold text-slate-900 dark:text-white">
+                      <ImageIcon className="w-4 h-4 text-amber-600 shrink-0" />
+                      Custom 3D Design Uploads
                     </span>
-                    <span className="tabular-nums text-zinc-500">{myQuestions.length}</span>
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('privacy')}
-                  className="w-full p-3 rounded-2xl glass-subtle flex items-center justify-between text-xs font-semibold text-zinc-800 dark:text-zinc-100 hover:bg-white/75 dark:hover:bg-white/10"
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <Laptop className="w-4 h-4 text-indigo-600" />
-                    {ui.privacyHeading}
-                  </span>
-                  <span className="tabular-nums text-zinc-500">
-                    {(currentCustomer.devices ?? []).length}{' '}
-                    {(currentCustomer.devices ?? []).length === 1 ? 'device' : 'devices'}
-                  </span>
-                </button>
-                {showInstallApp && onInstallApp && (
-                  <button
-                    type="button"
-                    onClick={onInstallApp}
-                    className="w-full p-3 rounded-2xl glass-btn-amber text-white flex items-center justify-between text-xs font-bold"
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      <Smartphone className="w-4 h-4" />
-                      Install BEE4 App
+                    <span className="inline-flex items-center gap-2 text-xs text-slate-500">
+                      <span className="tabular-nums">
+                        {(currentCustomer.customDesigns ?? []).length}
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
                     </span>
-                    <span className="text-[11px] opacity-90">Faster Checkout →</span>
                   </button>
-                )}
+                </div>
               </div>
+
+              <div className="glass-surface rounded-2xl overflow-hidden">
+                <div className="px-5 py-3.5 border-b border-slate-200 dark:border-white/10">
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+                    FAQ &amp; Terms
+                  </h2>
+                </div>
+                <div className="divide-y divide-slate-100 dark:divide-white/10">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('support')}
+                    className="w-full px-5 py-3.5 flex items-center justify-between gap-3 text-left hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
+                  >
+                    <span className="inline-flex items-center gap-3 text-sm font-semibold text-slate-900 dark:text-white">
+                      <LifeBuoy className="w-4 h-4 text-sky-600 shrink-0" />
+                      Help Center &amp; FAQs
+                    </span>
+                    <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                  </button>
+                  {(
+                    [
+                      { label: 'Terms & Conditions', page: 'legal-terms', Icon: FileText },
+                      { label: 'Privacy Policy', page: 'legal-privacy', Icon: ShieldCheck },
+                      { label: 'Return & Refund Policy', page: 'legal-returns', Icon: RotateCcw },
+                      { label: 'Shipping Policy', page: 'legal-shipping', Icon: Truck },
+                      { label: 'About BEE4', page: 'about', Icon: Info },
+                    ] as const
+                  ).map(({ label, page, Icon }) => (
+                    <button
+                      key={page}
+                      type="button"
+                      onClick={() =>
+                        onNavigatePage ? onNavigatePage(page) : setActiveTab('support')
+                      }
+                      className="w-full px-5 py-3 flex items-center justify-between gap-3 text-left hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
+                    >
+                      <span className="inline-flex items-center gap-3 text-xs sm:text-sm font-medium text-slate-700 dark:text-zinc-200">
+                        <Icon className="w-4 h-4 text-slate-400 shrink-0" />
+                        {label}
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {showInstallApp && onInstallApp && (
+                <button
+                  type="button"
+                  onClick={onInstallApp}
+                  className="w-full p-4 rounded-2xl glass-btn-amber text-white flex items-center justify-between text-xs font-bold"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <Smartphone className="w-4 h-4" />
+                    Install BEE4 App
+                  </span>
+                  <span className="text-[11px] opacity-90">Faster Checkout →</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -2343,29 +2451,77 @@ export function CustomerAccountView({
       {/* TAB: SUPPORT TICKETS & FAQs */}
       {activeTab === 'support' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="lg:col-span-6 glass-surface rounded-3xl p-6 space-y-5">
-            <h2 className="font-display text-lg font-bold text-zinc-900 dark:text-white">
-              Send a Support Note to Team BEE4
-            </h2>
+          <div className="lg:col-span-6 glass-surface rounded-2xl p-6 space-y-5">
+            <div>
+              <h2 className="font-display text-lg font-bold text-slate-900 dark:text-white">
+                Send a Support Message to BEE4
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+                Messages go straight to our Banka studio team and replies show here.
+              </p>
+            </div>
+
+            {supportSubmitError && (
+              <div
+                role="alert"
+                className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-500/35 text-xs font-semibold text-rose-700 dark:text-rose-200 flex items-start gap-2"
+              >
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{supportSubmitError}</span>
+              </div>
+            )}
+
+            {supportSubmitSuccess && (
+              <div
+                role="status"
+                className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-500/35 text-xs font-semibold text-emerald-800 dark:text-emerald-200 flex items-start gap-2"
+              >
+                <BadgeCheck className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{supportSubmitSuccess}</span>
+              </div>
+            )}
 
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
-                if (!supportNote.trim()) return;
+                setSupportSubmitError(null);
+                setSupportSubmitSuccess(null);
+                const cleanNote = supportNote.trim();
+                if (cleanNote.length < 4) {
+                  setSupportSubmitError('Please write at least 4 characters in your message.');
+                  return;
+                }
                 const now = new Date().toISOString();
-                onSubmitCustomerMessage?.({
-                  id: `msg-${Date.now()}`,
-                  customerName: currentCustomer.fullName,
-                  phone: currentCustomer.phone || '9800000000',
-                  email: currentCustomer.email,
-                  topic: supportTopic,
-                  message: supportNote.trim(),
-                  status: 'Unread',
-                  createdAt: now,
-                  updatedAt: now,
-                });
-                setSupportNote('');
-                showToast('Support ticket delivered to Team BEE4.');
+                setIsSubmittingSupport(true);
+                try {
+                  const res = await onSubmitCustomerMessage?.({
+                    id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                    userId: currentCustomer.id,
+                    customerName: currentCustomer.fullName,
+                    phone: normalizeIndianPhone10(currentCustomer.phone) || '9800000000',
+                    email: currentCustomer.email || undefined,
+                    topic: supportTopic,
+                    message: cleanNote,
+                    status: 'Unread',
+                    createdAt: now,
+                    updatedAt: now,
+                  });
+                  if (res && typeof res === 'object' && 'ok' in res && !res.ok) {
+                    setSupportSubmitError(
+                      res.error || 'Could not send message right now. Please try again.'
+                    );
+                    return;
+                  }
+                  setSupportNote('');
+                  setSupportSubmitSuccess('Your message has been delivered to BEE4 Support!');
+                  showToast('Support message delivered to Team BEE4.');
+                } catch (err) {
+                  setSupportSubmitError(
+                    err instanceof Error ? err.message : 'Could not send your message.'
+                  );
+                } finally {
+                  setIsSubmittingSupport(false);
+                }
               }}
               className="space-y-3"
             >
@@ -2383,16 +2539,20 @@ export function CustomerAccountView({
               <textarea
                 rows={3}
                 value={supportNote}
-                onChange={(e) => setSupportNote(e.target.value)}
+                onChange={(e) => {
+                  setSupportNote(e.target.value);
+                  if (supportSubmitError) setSupportSubmitError(null);
+                }}
                 placeholder="Share your Order ID or question for our Banka studio team..."
                 className="w-full p-3 rounded-xl glass-input text-sm"
               />
               <div className="flex flex-wrap gap-2">
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl glass-btn-amber text-white text-xs font-semibold"
+                  disabled={isSubmittingSupport}
+                  className="px-4 py-2 rounded-xl glass-btn-amber text-white text-xs font-semibold disabled:opacity-60"
                 >
-                  Submit Ticket
+                  {isSubmittingSupport ? 'Sending...' : 'Send Message'}
                 </button>
                 <a
                   href={buildWhatsAppUrl(
@@ -2410,21 +2570,21 @@ export function CustomerAccountView({
             </form>
 
             {myMessages.length > 0 && (
-              <div className="space-y-2 pt-2 border-t border-zinc-900/10 dark:border-white/10">
-                <h3 className="text-xs font-bold uppercase tracking-wide text-zinc-500">
-                  Your Support History
+              <div className="space-y-2 pt-3 border-t border-slate-200 dark:border-white/10">
+                <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">
+                  Your Support History ({myMessages.length})
                 </h3>
                 {myMessages.map((m) => (
                   <div key={m.id} className="p-3 rounded-xl glass-subtle text-xs space-y-1">
-                    <div className="flex justify-between">
-                      <span className="font-bold">{m.topic}</span>
-                      <span className="text-amber-700 dark:text-amber-300 font-semibold">
+                    <div className="flex justify-between gap-2">
+                      <span className="font-bold text-slate-900 dark:text-white">{m.topic}</span>
+                      <span className="text-amber-700 dark:text-amber-300 font-semibold shrink-0">
                         {m.status}
                       </span>
                     </div>
-                    <p className="text-zinc-600 dark:text-zinc-300">{m.message}</p>
+                    <p className="text-slate-600 dark:text-zinc-300">{m.message}</p>
                     {m.adminNote && (
-                      <p className="text-emerald-700 dark:text-emerald-300 font-medium">
+                      <p className="text-emerald-700 dark:text-emerald-300 font-medium pt-1 border-t border-slate-200 dark:border-white/10">
                         Team BEE4: {m.adminNote}
                       </p>
                     )}

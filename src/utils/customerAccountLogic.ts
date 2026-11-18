@@ -5,6 +5,7 @@ import type {
   CustomerProfile,
   StoreSettings,
 } from '../types';
+import { evaluateCustomerAccess } from './customerModerationLogic';
 import { maskContactTarget, parseContactIdentifier } from './storeLogic';
 
 export const DEFAULT_CUSTOMER_PANEL_CONTROLS: CustomerPanelControls = {
@@ -134,6 +135,8 @@ export function isSessionInvalidatedByAdmin(
   sessionIssuedAtIso?: string | null
 ): boolean {
   if (!profile) return false;
+  const access = evaluateCustomerAccess(profile);
+  if (!access.allowed) return true;
   if (profile.accountStatus === 'Suspended') return true;
   if (!profile.forceLoggedOutAt || !sessionIssuedAtIso) return false;
   const forceMs = Date.parse(profile.forceLoggedOutAt);

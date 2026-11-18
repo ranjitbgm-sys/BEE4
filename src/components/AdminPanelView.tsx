@@ -20,12 +20,14 @@ import type {
   OrderSettlementRecord,
   PackingVerificationProof,
   PrintJobRecord,
+  PrinterIntegrationConfig,
   Product,
   ProductQuestionRecord,
   ProductReviewRecord,
   ReturnRequestRecord,
   StoreSettings,
   ThemeMode,
+  ViralReelRecord,
 } from '../types';
 import {
   buildCustomerCrmList,
@@ -47,6 +49,7 @@ import { AdminIntegrationsTab } from './admin/AdminIntegrationsTab';
 import { AdminAutomationsTab } from './admin/AdminAutomationsTab';
 import { AdminReconciliationTab } from './admin/AdminReconciliationTab';
 import { AdminAnalyticsTab } from './admin/AdminAnalyticsTab';
+import { AdminReelsTab } from './admin/AdminReelsTab';
 import { AdminSettingsTab } from './admin/AdminSettingsTab';
 
 interface AdminPanelViewProps {
@@ -68,6 +71,8 @@ interface AdminPanelViewProps {
   auditLogs: AdminAuditLog[];
   crmFlagsByPhone: Record<string, CrmCustomerFlag>;
   integrations?: MarketplaceIntegrationConfig[];
+  printerIntegrations?: PrinterIntegrationConfig[];
+  viralReels?: ViralReelRecord[];
   automationRules?: AutomationRule[];
   adSpendLogs?: MonthlyAdSpendRecord[];
   settings: StoreSettings;
@@ -143,7 +148,10 @@ interface AdminPanelViewProps {
   onSaveProductQuestion?: (question: ProductQuestionRecord) => void;
   onDeleteProductQuestion?: (id: string) => void;
   onSaveIntegration?: (config: MarketplaceIntegrationConfig) => void;
+  onSavePrinterIntegration?: (printer: PrinterIntegrationConfig) => void;
   onImportOrders?: (orders: OrderRecord[], channel: MarketplaceChannel) => void;
+  onSaveViralReel?: (reel: ViralReelRecord) => void;
+  onDeleteViralReel?: (id: string) => void;
   onSaveAutomationRule?: (rule: AutomationRule) => void;
   onDeleteAutomationRule?: (ruleId: string) => void;
   onRunAutomationRulesNow?: () => string;
@@ -174,6 +182,8 @@ export function AdminPanelView({
   auditLogs,
   crmFlagsByPhone,
   integrations = [],
+  printerIntegrations = [],
+  viralReels = [],
   automationRules = [],
   adSpendLogs = [],
   settings,
@@ -215,7 +225,10 @@ export function AdminPanelView({
   onSaveProductQuestion,
   onDeleteProductQuestion,
   onSaveIntegration,
+  onSavePrinterIntegration,
   onImportOrders,
+  onSaveViralReel,
+  onDeleteViralReel,
   onSaveAutomationRule,
   onDeleteAutomationRule,
   onRunAutomationRulesNow,
@@ -463,15 +476,35 @@ export function AdminPanelView({
         {activeModule === 'integrations' && (
           <AdminIntegrationsTab
             integrations={integrations}
+            printerIntegrations={printerIntegrations}
             orders={orders}
             products={products}
             onSaveIntegration={(config) => {
               onSaveIntegration?.(config);
               notify(`Saved ${config.name} connector settings.`);
             }}
+            onSavePrinterIntegration={(printer) => {
+              onSavePrinterIntegration?.(printer);
+              notify(`Saved 3D printer connector "${printer.name}".`);
+            }}
             onImportOrders={(imported, channel) => {
               onImportOrders?.(imported, channel);
               notify(`Imported ${imported.length} order(s) from ${channel} & synced stock.`);
+            }}
+          />
+        )}
+
+        {activeModule === 'reels' && (
+          <AdminReelsTab
+            reels={viralReels}
+            products={products}
+            onSaveReel={(reel) => {
+              onSaveViralReel?.(reel);
+              notify(`Saved viral reel "${reel.title}".`);
+            }}
+            onDeleteReel={(id) => {
+              onDeleteViralReel?.(id);
+              notify('Deleted viral reel from storefront carousel.');
             }}
           />
         )}
@@ -559,6 +592,8 @@ export function AdminPanelView({
           <AdminCustomersTab
             crmCustomers={crmCustomers}
             customers={customers}
+            orders={orders}
+            customerMessages={customerMessages}
             onSetCustomerFlag={(phoneKey, flag) => {
               onSetCustomerFlag(phoneKey, flag);
               notify(`Updated CRM flag to ${flag}.`);

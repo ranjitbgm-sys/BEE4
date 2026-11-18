@@ -238,6 +238,78 @@ export function resolvePageSeoMetadata(params: {
     };
   }
 
+  if (
+    page === 'orders' ||
+    page === 'order-detail' ||
+    page === 'wallet' ||
+    page === 'cart' ||
+    page === 'account'
+  ) {
+    const titleMap: Record<string, string> = {
+      orders: 'My Orders | BEE4 Official Store',
+      'order-detail': 'Order Details & Tracking | BEE4',
+      wallet: 'Gift Cards & BEE4 Wallet | BEE4',
+      cart: 'Shopping Cart | BEE4 Official Store',
+      account: 'My BEE4 Account | BEE4',
+    };
+    const docTitle = titleMap[page] || 'BEE4 Official Store';
+    return {
+      title: clampTitle(docTitle),
+      description: clampDescription(
+        'Manage your BEE4 orders, wallet credits, gift cards, and account preferences securely.'
+      ),
+      keywords: BASE_KEYWORDS,
+      ogType: 'website',
+      imagePath: DEFAULT_OG_IMAGE_PATH,
+      imageAlt: 'BEE4 Official Store',
+      structuredData: {
+        '@context': 'https://schema.org',
+        '@graph': [
+          buildBreadcrumbListSchema(pageUrl, [
+            { name: 'Home' },
+            { name: docTitle.replace(' | BEE4 Official Store', '').replace(' | BEE4', '') },
+          ]),
+        ],
+      },
+    };
+  }
+
+  if (
+    page === 'legal-terms' ||
+    page === 'legal-privacy' ||
+    page === 'legal-returns' ||
+    page === 'legal-shipping' ||
+    page === 'legal-copyright'
+  ) {
+    const legalTitleMap: Record<string, string> = {
+      'legal-terms': 'Terms & Conditions | BEE4',
+      'legal-privacy': 'Privacy Policy | BEE4',
+      'legal-returns': 'Return & Refund Policy | BEE4',
+      'legal-shipping': 'Shipping Policy | BEE4',
+      'legal-copyright': 'Copyrights & IP | BEE4',
+    };
+    const legalTitle = legalTitleMap[page] || 'BEE4 Policies';
+    return {
+      title: clampTitle(legalTitle),
+      description: clampDescription(
+        'Official BEE4 terms, privacy commitments, return & replacement rules, and shipping policy.'
+      ),
+      keywords: BASE_KEYWORDS,
+      ogType: 'website',
+      imagePath: DEFAULT_OG_IMAGE_PATH,
+      imageAlt: 'BEE4 Official Store Policies',
+      structuredData: {
+        '@context': 'https://schema.org',
+        '@graph': [
+          buildBreadcrumbListSchema(pageUrl, [
+            { name: 'Home' },
+            { name: legalTitle.replace(' | BEE4', '') },
+          ]),
+        ],
+      },
+    };
+  }
+
   if (page === 'about' || page === 'contact') {
     const label = page === 'about' ? 'About Our 3D-Printed Studio' : 'Contact BEE4 India';
     return {

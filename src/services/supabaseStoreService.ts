@@ -62,6 +62,7 @@ import {
   SavedAddress,
   StoreSettings,
   Testimonial,
+  ViralReelRecord,
   WalletTransactionRecord,
 } from '../types';
 import { sanitizeRichInput, sanitizeSingleLine } from '../utils/adminLogic';
@@ -100,6 +101,14 @@ const DEVANAGARI_RE = /[\u0900-\u097F]/;
 function sanitizeId(raw: string, fallbackPrefix: string): string {
   const cleaned = raw.replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 120);
   return cleaned.length >= 2 ? cleaned : `${fallbackPrefix}-${Date.now()}`;
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function asUuidOrNull(raw?: string | null): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  return UUID_RE.test(trimmed) ? trimmed : null;
 }
 
 function clampStr(val: string | undefined | null, maxLen: number, fallback = ''): string {
@@ -572,10 +581,15 @@ function toProductRow(product: Product): Record<string, unknown> {
     damaged_scrap_count: Math.max(0, Number(product.damagedScrapCount ?? 0)),
     cogs_cost:
       typeof product.cogsCost === 'number' && product.cogsCost >= 0 ? product.cogsCost : null,
+    filament_cost_inr:
+      typeof product.filamentCostInr === 'number' && product.filamentCostInr >= 0
+        ? product.filamentCostInr
+        : null,
     reserve_for_website: Math.max(0, Math.round(Number(product.reserveForWebsite ?? 0))),
     marketplace_listings: Array.isArray(product.marketplaceListings)
       ? product.marketplaceListings
       : [],
+    curated_tags: Array.isArray(product.curatedTags) ? product.curatedTags.slice(0, 3) : [],
     in_stock: Boolean(product.inStock),
     featured: Boolean(product.featured),
     tag: product.tag && product.tag.trim() ? clampSingleLine(product.tag, 40) : null,
@@ -699,12 +713,19 @@ function fromProductRow(data: Record<string, unknown>, idx: number): Product | n
       typeof (data.cogs_cost ?? data.cogsCost) === 'number'
         ? Number(data.cogs_cost ?? data.cogsCost)
         : undefined,
+    filamentCostInr:
+      typeof (data.filament_cost_inr ?? data.filamentCostInr) === 'number'
+        ? Number(data.filament_cost_inr ?? data.filamentCostInr)
+        : undefined,
     reserveForWebsite:
       typeof (data.reserve_for_website ?? data.reserveForWebsite) === 'number'
         ? Number(data.reserve_for_website ?? data.reserveForWebsite)
         : 0,
     marketplaceListings: Array.isArray(data.marketplace_listings ?? data.marketplaceListings)
       ? ((data.marketplace_listings ?? data.marketplaceListings) as MarketplaceListingMap[])
+      : undefined,
+    curatedTags: Array.isArray(data.curated_tags ?? data.curatedTags)
+      ? ((data.curated_tags ?? data.curatedTags) as Product['curatedTags'])
       : undefined,
     inStock: Boolean(data.in_stock ?? data.inStock),
     featured: Boolean(data.featured),
@@ -757,8 +778,10 @@ export async function saveProductToSupabase(product: Product): Promise<void> {
   if (error && isMissingSchemaError(error)) {
     const legacyRow = { ...row };
     delete legacyRow.cogs_cost;
+    delete legacyRow.filament_cost_inr;
     delete legacyRow.reserve_for_website;
     delete legacyRow.marketplace_listings;
+    delete legacyRow.curated_tags;
     await supabase.from('products').upsert(legacyRow, { onConflict: 'id' });
   } else if (error) {
     console.error('Supabase saveProduct error:', error.message);
@@ -2149,6 +2172,27 @@ function normalizeProfileRowToCustomer(d: Record<string, unknown>): CustomerProf
       (d.account_status ?? d.accountStatus) === 'Suspended'
         ? ('Suspended' as CustomerAccountStatus)
         : ('Active' as CustomerAccountStatus),
+    banType:
+      d.ban_type === 'temporary' || d.ban_type === 'permanent'
+        ? (d.ban_type as 'temporary' | 'permanent')
+        : d.banType === 'temporary' || d.banType === 'permanent'
+          ? (d.banType as 'temporary' | 'permanent')
+          : null,
+    bannedUntil:
+      typeof (d.banned_until ?? d.bannedUntil) === 'string' &&
+      String(d.banned_until ?? d.bannedUntil).trim()
+        ? String(d.banned_until ?? d.bannedUntil)
+        : null,
+    banReason:
+      typeof (d.ban_reason ?? d.banReason) === 'string' &&
+      String(d.ban_reason ?? d.banReason).trim()
+        ? String(d.ban_reason ?? d.banReason)
+        : null,
+    bannedAt:
+      typeof (d.banned_at ?? d.bannedAt) === 'string' &&
+      String(d.banned_at ?? d.bannedAt).trim()
+        ? String(d.banned_at ?? d.bannedAt)
+        : null,
     deactivationRequested: Boolean(d.deactivation_requested ?? d.deactivationRequested),
     deactivationRequestedAt:
       typeof (d.deactivation_requested_at ?? d.deactivationRequestedAt) === 'string'
@@ -2192,6 +2236,10 @@ function buildExtendedCustomerFields(profile: CustomerProfile): Record<string, u
     saved_upi_ids: (profile.savedUpiIds ?? []).slice(0, 10),
     devices: (profile.devices ?? []).slice(0, 12),
     account_status: profile.accountStatus === 'Suspended' ? 'Suspended' : 'Active',
+    ban_type: profile.banType ?? null,
+    banned_until: profile.bannedUntil ?? null,
+    ban_reason: profile.banReason ? clampSingleLine(profile.banReason, 300) : null,
+    banned_at: profile.bannedAt ?? null,
     deactivation_requested: Boolean(profile.deactivationRequested),
     deactivation_requested_at: profile.deactivationRequestedAt ?? null,
     force_logged_out_at: profile.forceLoggedOutAt ?? null,
@@ -2207,7 +2255,7 @@ async function syncCustomerRecordToSupabaseCustomersTable(
   try {
     const baseRow = {
       id: sanitizeId(profile.id, 'cust'),
-      user_id: userId ?? profile.id,
+      user_id: asUuidOrNull(userId ?? profile.id),
       full_name: clampSingleLine(profile.fullName, 100, 'BEE4 Customer'),
       phone: clampSingleLine(profile.phone, 20),
       email: clampSingleLine(profile.email, 160),
@@ -2865,6 +2913,9 @@ function fromCustomerMessageRow(d: Record<string, unknown>): CustomerMessageReco
 
   return {
     id: String(d.id ?? ''),
+    userId: typeof (d.user_id ?? d.userId) === 'string' && String(d.user_id ?? d.userId).trim()
+      ? String(d.user_id ?? d.userId)
+      : null,
     customerName: String(d.customer_name ?? d.customerName ?? ''),
     phone: String(d.phone ?? ''),
     email: typeof d.email === 'string' ? d.email : '',
@@ -2885,9 +2936,9 @@ function toCustomerMessageRow(
 ): Record<string, unknown> {
   return {
     id: sanitizeId(msg.id, 'msg'),
-    user_id: userId || null,
+    user_id: asUuidOrNull(userId ?? msg.userId),
     customer_name: clampSingleLine(msg.customerName, 120, 'Customer'),
-    phone: clampSingleLine(msg.phone, 20, '9800000000'),
+    phone: clampSingleLine(msg.phone, 20, ''),
     email: clampSingleLine(msg.email ?? '', 160),
     topic: clampSingleLine(msg.topic, 100, 'General Note'),
     message: clampStr(msg.message, 2000, 'Customer inquiry note'),
@@ -2938,18 +2989,30 @@ export function subscribeAllCustomerMessagesAdmin(
 export async function submitCustomerMessageToSupabase(
   msg: CustomerMessageRecord,
   userId?: string | null
-): Promise<void> {
+): Promise<{ ok: boolean; error?: string }> {
   const client = supabase;
-  if (!client) return;
+  if (!client) return { ok: true };
   try {
+    const row = toCustomerMessageRow(msg, userId);
     const { error } = await client
       .from('customer_messages')
-      .upsert(toCustomerMessageRow(msg, userId), { onConflict: 'id' });
-    if (error && !isMissingSchemaError(error)) {
-      console.error('Supabase submitCustomerMessage error:', error.message);
+      .upsert(row, { onConflict: 'id' });
+    if (error && isMissingSchemaError(error)) {
+      const fallbackRow = { ...row };
+      delete fallbackRow.user_id;
+      const retry = await client.from('customer_messages').upsert(fallbackRow, { onConflict: 'id' });
+      if (!retry.error) return { ok: true };
+      return { ok: false, error: retry.error.message };
     }
-  } catch {
-    // Fallback safely to local storage
+    if (error) {
+      return { ok: false, error: error.message };
+    }
+    return { ok: true };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Could not deliver support message right now.',
+    };
   }
 }
 
@@ -3660,22 +3723,28 @@ export async function redeemGiftCardViaSupabaseRpc(
 export function subscribeUserCustomerMessages(
   userId: string,
   email: string | undefined,
-  onData: (messages: CustomerMessageRecord[]) => void
+  onData: (messages: CustomerMessageRecord[]) => void,
+  phone?: string | undefined
 ): () => void {
   const client = supabase;
-  if (!client || (!userId && !email)) return () => {};
+  const safeUuid = asUuidOrNull(userId);
+  const cleanEmail = (email ?? '').trim().toLowerCase();
+  const cleanPhone = (phone ?? '').replace(/\D/g, '').slice(-10);
+  if (!client || (!safeUuid && !cleanEmail && !cleanPhone)) return () => {};
 
   const load = async () => {
     try {
-      const cleanEmail = (email ?? '').trim().toLowerCase();
-      const query = client
+      const filters: string[] = [];
+      if (safeUuid) filters.push(`user_id.eq.${safeUuid}`);
+      if (cleanEmail) filters.push(`email.ilike.${cleanEmail}`);
+      if (cleanPhone) filters.push(`phone.eq.${cleanPhone}`);
+      if (filters.length === 0) return;
+
+      const { data, error } = await client
         .from('customer_messages')
         .select('*')
+        .or(filters.join(','))
         .order('created_at', { ascending: false });
-
-      const { data, error } = cleanEmail
-        ? await query.or(`user_id.eq.${userId},email.ilike.${cleanEmail}`)
-        : await query.eq('user_id', userId);
 
       if (error || !data) return;
       onData(data.map((r) => fromCustomerMessageRow(r as Record<string, unknown>)));
@@ -3687,7 +3756,7 @@ export function subscribeUserCustomerMessages(
   void load();
 
   const channel = client
-    .channel(`bee4-user-messages-${userId}`)
+    .channel(`bee4-user-messages-${safeUuid || cleanPhone || 'guest'}`)
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'customer_messages' },
@@ -3911,4 +3980,179 @@ export async function deleteProductQuestionFromSupabase(id: string): Promise<voi
   }
 }
 
+// ============================================================================
+// Product Viral Reels (Storefront <-> Admin Reels Manager)
+// ============================================================================
 
+function fromViralReelRow(d: Record<string, unknown>): ViralReelRecord {
+  return {
+    id: String(d.id ?? ''),
+    title: String(d.title ?? 'BEE4 Product Reel'),
+    videoUrl: String(d.video_url ?? d.videoUrl ?? ''),
+    posterUrl: typeof (d.poster_url ?? d.posterUrl) === 'string' && String(d.poster_url ?? d.posterUrl).trim()
+      ? normalizeAssetPath(String(d.poster_url ?? d.posterUrl))
+      : undefined,
+    productId: String(d.product_id ?? d.productId ?? ''),
+    displayOrder: Math.max(0, Math.round(Number(d.display_order ?? d.displayOrder ?? 0))),
+    active: d.active !== false,
+    createdAt: String(d.created_at ?? d.createdAt ?? new Date().toISOString()),
+    updatedAt: String(d.updated_at ?? d.updatedAt ?? new Date().toISOString()),
+  };
+}
+
+export function subscribePublicViralReels(
+  onData: (reels: ViralReelRecord[]) => void
+): () => void {
+  const client = supabase;
+  if (!client) return () => {};
+
+  const load = async () => {
+    try {
+      const { data, error } = await client
+        .from('viral_reels')
+        .select('*')
+        .eq('active', true)
+        .order('display_order', { ascending: true });
+      if (error || !data) return;
+      onData(data.map((r) => fromViralReelRow(r as Record<string, unknown>)));
+    } catch {
+      // Optional table fallback
+    }
+  };
+
+  void load();
+
+  const channel = client
+    .channel('bee4-public-viral-reels')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'viral_reels' }, () => {
+      void load();
+    })
+    .subscribe();
+
+  return () => {
+    void client.removeChannel(channel);
+  };
+}
+
+export function subscribeAllViralReelsAdmin(
+  onData: (reels: ViralReelRecord[]) => void
+): () => void {
+  const client = supabase;
+  if (!client) return () => {};
+
+  const load = async () => {
+    try {
+      const { data, error } = await client
+        .from('viral_reels')
+        .select('*')
+        .order('display_order', { ascending: true });
+      if (error || !data) return;
+      onData(data.map((r) => fromViralReelRow(r as Record<string, unknown>)));
+    } catch {
+      // Optional table fallback
+    }
+  };
+
+  void load();
+
+  const channel = client
+    .channel('bee4-admin-viral-reels')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'viral_reels' }, () => {
+      void load();
+    })
+    .subscribe();
+
+  return () => {
+    void client.removeChannel(channel);
+  };
+}
+
+export async function saveViralReelToSupabase(reel: ViralReelRecord): Promise<void> {
+  const client = supabase;
+  if (!client) return;
+  try {
+    const { error } = await client.from('viral_reels').upsert(
+      {
+        id: sanitizeId(reel.id, 'reel'),
+        title: clampSingleLine(reel.title, 120, 'BEE4 Viral Reel'),
+        video_url: clampSingleLine(reel.videoUrl, 2000, ''),
+        poster_url: clampSingleLine(reel.posterUrl ?? '', 2000),
+        product_id: sanitizeId(reel.productId, 'prod'),
+        display_order: Math.max(0, Math.round(Number(reel.displayOrder) || 0)),
+        active: Boolean(reel.active),
+        created_at: reel.createdAt || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'id' }
+    );
+    if (error && !isMissingSchemaError(error)) {
+      console.error('[BEE4 Reels] save error:', error.message);
+    }
+  } catch {
+    // Graceful local fallback
+  }
+}
+
+export async function deleteViralReelFromSupabase(reelId: string): Promise<void> {
+  const client = supabase;
+  if (!client) return;
+  try {
+    const { error } = await client
+      .from('viral_reels')
+      .delete()
+      .eq('id', sanitizeId(reelId, 'reel'));
+    if (error && !isMissingSchemaError(error)) {
+      console.error('[BEE4 Reels] delete error:', error.message);
+    }
+  } catch {
+    // Graceful local fallback
+  }
+}
+
+export async function uploadReelVideoToSupabaseStorage(
+  file: File,
+  reelId: string
+): Promise<{ url: string; storageMode: 'supabase' | 'local-fallback'; note?: string }> {
+  const client = supabase;
+  const fallbackObjectUrl =
+    typeof URL !== 'undefined' ? URL.createObjectURL(file) : '';
+
+  if (!client) {
+    return {
+      url: fallbackObjectUrl,
+      storageMode: 'local-fallback',
+      note: 'Local preview video URL generated.',
+    };
+  }
+
+  try {
+    const ext = file.type === 'video/webm' ? 'webm' : 'mp4';
+    const filePath = `reels/${sanitizeId(reelId, 'reel')}/${Date.now()}.${ext}`;
+    const { error: uploadError } = await client.storage
+      .from(SUPABASE_PRODUCT_BUCKET)
+      .upload(filePath, file, {
+        contentType: file.type || 'video/mp4',
+        cacheControl: '3600',
+        upsert: true,
+      });
+
+    if (uploadError) {
+      return {
+        url: fallbackObjectUrl,
+        storageMode: 'local-fallback',
+        note: `Storage fallback (${uploadError.message}). Paste an external MP4/WebM link for multi-device playback.`,
+      };
+    }
+
+    const { data: publicData } = client.storage
+      .from(SUPABASE_PRODUCT_BUCKET)
+      .getPublicUrl(filePath);
+
+    if (publicData?.publicUrl) {
+      return { url: publicData.publicUrl, storageMode: 'supabase' };
+    }
+    return { url: fallbackObjectUrl, storageMode: 'local-fallback' };
+  } catch {
+    return { url: fallbackObjectUrl, storageMode: 'local-fallback' };
+  }
+}

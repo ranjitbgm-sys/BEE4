@@ -87,7 +87,7 @@ export function ProductQuickViewModal({
       aria-label={`Quick view for ${product.title}`}
     >
       <div
-        className="fixed inset-0 bg-zinc-950/55 backdrop-blur-md"
+        className="fixed inset-0 bg-slate-950/60"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -112,7 +112,7 @@ export function ProductQuickViewModal({
                 objectPosition={activeAngle.objectPosition}
                 className="w-full h-full object-cover transition-transform duration-300"
               />
-              <span className="absolute bottom-3 left-3 px-2.5 py-1 rounded-lg bg-zinc-950/75 backdrop-blur-md text-[11px] font-semibold text-white">
+              <span className="absolute bottom-3 left-3 px-2.5 py-1 rounded-lg bg-slate-900 text-[11px] font-semibold text-white">
                 {activeAngle.label}
               </span>
             </div>

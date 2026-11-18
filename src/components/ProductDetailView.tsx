@@ -18,15 +18,20 @@ import {
   Upload,
   X,
 } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import { AGE_GROUP_META } from '../data/catalog';
 import { uploadReviewPhotoToSupabaseStorage } from '../services/supabaseStoreService';
-import { Product, ProductQuestionRecord, ProductReviewRecord } from '../types';
+import { CustomerProfile, OrderRecord, Product, ProductQuestionRecord, ProductReviewRecord } from '../types';
 import {
   ProductReviewFormErrors,
   computeProductRatingStats,
   getPublishedReviewsForProduct,
   validateProductReviewForm,
 } from '../utils/messagesReviewsLogic';
+import {
+  VERIFIED_DELIVERY_REVIEW_MESSAGE,
+  canCustomerReviewProduct,
+} from '../utils/reviewsPolicyLogic';
 import {
   buildWhatsAppUrl,
   formatINR,
@@ -40,6 +45,8 @@ interface ProductDetailViewProps {
   relatedProducts: Product[];
   reviews?: ProductReviewRecord[];
   productQuestions?: ProductQuestionRecord[];
+  orders?: OrderRecord[];
+  currentCustomer?: CustomerProfile | null;
   qaEnabled?: boolean;
   wishlistIds: string[];
   whatsappNumber: string;
@@ -62,6 +69,8 @@ export function ProductDetailView({
   relatedProducts,
   reviews = [],
   productQuestions = [],
+  orders = [],
+  currentCustomer = null,
   qaEnabled = true,
   wishlistIds,
   whatsappNumber,
@@ -256,7 +265,7 @@ export function ProductDetailView({
                 objectPosition={activeAngle.objectPosition}
                 className="w-full h-full object-cover transition-transform duration-300"
               />
-              <span className="absolute bottom-3 left-3 px-3 py-1 rounded-xl bg-zinc-950/75 backdrop-blur-md text-xs font-semibold text-white">
+              <span className="absolute bottom-3 left-3 px-3 py-1 rounded-xl bg-slate-900 text-xs font-semibold text-white">
                 {activeAngle.label}
               </span>
             </div>
@@ -646,14 +655,42 @@ export function ProductDetailView({
             )}
           </div>
 
-          {/* Write a Review Form Pre-bound to Product */}
+          {/* Write a Review Form Pre-bound to Product (Strict Verified Delivery Only) */}
+          {(() => {
+            const eligibility = canCustomerReviewProduct(orders, currentCustomer, product.id);
+            if (!eligibility.eligible) {
+              return (
+                <div className="lg:col-span-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 space-y-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-500/15 flex items-center justify-center shrink-0">
+                      <Lock className="w-4 h-4 text-amber-700 dark:text-amber-400" />
+                    </div>
+                    <div>
+                      <h3 className="font-display text-base font-bold text-slate-900 dark:text-white">
+                        Verified Buyer Reviews Only
+                      </h3>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate max-w-[260px]">
+                        {product.title}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed bg-slate-50 dark:bg-slate-800 p-3.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                    {VERIFIED_DELIVERY_REVIEW_MESSAGE}
+                  </p>
+                </div>
+              );
+            }
+            return null;
+          })()}
+
+          {canCustomerReviewProduct(orders, currentCustomer, product.id).eligible && (
           <form
             onSubmit={handleReviewSubmit}
             noValidate
-            className="lg:col-span-5 glass-surface rounded-3xl p-6 space-y-3.5"
+            className="lg:col-span-5 glass-surface rounded-xl p-6 space-y-3.5"
           >
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full glass-orb flex items-center justify-center shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-500/15 flex items-center justify-center shrink-0">
                 <MessageSquarePlus className="w-4 h-4 text-amber-700 dark:text-amber-400" />
               </div>
               <div>
@@ -671,7 +708,7 @@ export function ProductDetailView({
                 role="status"
                 className="p-3 rounded-xl bg-emerald-50/85 dark:bg-emerald-950/70 border border-emerald-200/80 dark:border-emerald-500/30 text-xs font-medium text-emerald-800 dark:text-emerald-200"
               >
-                Dhanyavaad! Your review is pending Team BEE4 approval and will be published shortly.
+                Thank you! Your review has been submitted for BEE4 quality verification.
               </div>
             )}
 
@@ -851,6 +888,7 @@ export function ProductDetailView({
               Submit Product Review
             </button>
           </form>
+          )}
         </div>
       </div>
 
@@ -994,7 +1032,7 @@ export function ProductDetailView({
           role="dialog"
           aria-modal="true"
           aria-label="Customer review photo preview"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/75 backdrop-blur-md"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75"
           onClick={() => setLightboxPhoto(null)}
         >
           <div
@@ -1023,8 +1061,8 @@ export function ProductDetailView({
         </div>
       )}
 
-      {/* Mobile Sticky Bottom Action Bar (Add to Cart | Buy Now) */}
-      <div className="md:hidden fixed bottom-0 inset-x-0 z-40 glass-bar border-t border-b-0 border-white/75 dark:border-white/12 px-3 py-2 pwa-safe-bottom select-none-nav">
+      {/* Mobile Sticky Action Bar sitting cleanly above AppBottomNav */}
+      <div className="md:hidden fixed bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px))] inset-x-0 z-40 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-3 py-2 select-none-nav shadow-sm">
         <div className="max-w-lg mx-auto flex items-center gap-2">
           {onOpenCart && (
             <button

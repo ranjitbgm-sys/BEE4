@@ -46,6 +46,7 @@ import {
   validateCheckoutForm,
   WELCOME_PROMO_CODE,
 } from '../utils/storeLogic';
+import { evaluateCustomerAccess } from '../utils/customerModerationLogic';
 import { OrderSuccessConfetti } from './OrderSuccessConfetti';
 import { ProductImage } from './ProductImage';
 
@@ -198,9 +199,19 @@ export function CheckoutView({
     useWalletBalance,
   });
 
+  const customerAccess = evaluateCustomerAccess(currentCustomer);
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (items.length === 0 || isSubmittingOrder) return;
+
+    if (!customerAccess.allowed) {
+      setOrderSubmitError(
+        customerAccess.message ||
+          'Your BEE4 account is currently restricted from placing new orders.'
+      );
+      return;
+    }
 
     const validationErrors = validateCheckoutForm(form);
     if (Object.keys(validationErrors).length > 0) {
@@ -758,7 +769,17 @@ export function CheckoutView({
         <span>Back to Store</span>
       </button>
 
-      <h1 className="font-display text-3xl font-bold text-zinc-900 dark:text-white mb-8">Checkout</h1>
+      <h1 className="font-display text-3xl font-bold text-zinc-900 dark:text-white mb-6">Checkout</h1>
+
+      {!customerAccess.allowed && (
+        <div
+          role="alert"
+          className="mb-6 p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-500/35 text-xs sm:text-sm font-semibold text-rose-800 dark:text-rose-200 flex items-start gap-2.5"
+        >
+          <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+          <span>{customerAccess.message}</span>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} noValidate className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Left: Shipping, Gift Wrap & Payment */}
@@ -1078,8 +1099,8 @@ export function CheckoutView({
                       onClick={() => setForm({ ...form, paymentMethod: method.id })}
                       className={`p-3.5 rounded-2xl border text-left transition-all ${
                         active
-                          ? 'border-amber-600 bg-amber-50/75 dark:bg-amber-950/50 backdrop-blur-md shadow-sm'
-                          : 'border-white/75 dark:border-white/15 bg-white/55 dark:bg-slate-900/45 hover:bg-white/85 dark:hover:bg-slate-800/70'
+                          ? 'border-amber-600 bg-amber-50 dark:bg-amber-950/60 shadow-sm'
+                          : 'border-slate-200 dark:border-white/15 bg-white dark:bg-slate-900/60 hover:bg-slate-50 dark:hover:bg-slate-800/70'
                       }`}
                     >
                       <p className="text-sm font-semibold text-zinc-900 dark:text-white">{method.label}</p>
@@ -1193,7 +1214,7 @@ export function CheckoutView({
           {orderSubmitError && (
             <div
               role="alert"
-              className="p-3.5 rounded-2xl bg-red-50/90 dark:bg-red-950/55 backdrop-blur-md border border-red-200 dark:border-red-500/35 text-xs text-red-700 dark:text-red-300 font-medium flex items-start gap-2.5"
+              className="p-3.5 rounded-2xl bg-red-50 dark:bg-red-950/55 border border-red-200 dark:border-red-500/35 text-xs text-red-700 dark:text-red-300 font-medium flex items-start gap-2.5"
             >
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <div>
@@ -1205,7 +1226,7 @@ export function CheckoutView({
 
           <button
             type="submit"
-            disabled={isSubmittingOrder}
+            disabled={isSubmittingOrder || !customerAccess.allowed}
             className="w-full py-3.5 px-6 rounded-xl glass-btn-amber text-white text-sm font-semibold transition-all disabled:opacity-60 inline-flex items-center justify-center gap-2"
           >
             {isSubmittingOrder ? (

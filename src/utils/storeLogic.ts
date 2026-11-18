@@ -940,23 +940,27 @@ export function validateSavedAddress(address: Omit<SavedAddress, 'id' | 'isDefau
   return errors;
 }
 
+export function doesOrderBelongToCustomer(
+  order: OrderRecord,
+  customer: CustomerProfile
+): boolean {
+  if (order.userId && customer.id && order.userId === customer.id) {
+    return true;
+  }
+  const customerPhone10 = normalizeIndianPhone10(customer.phone);
+  const customerEmail = (customer.email ?? '').trim().toLowerCase();
+  const orderPhone10 = normalizeIndianPhone10(order.customer.phone);
+  const orderEmail = (order.customer.email ?? '').trim().toLowerCase();
+  const phoneMatch = customerPhone10.length === 10 && orderPhone10 === customerPhone10;
+  const emailMatch = customerEmail.length > 0 && orderEmail === customerEmail;
+  return phoneMatch || emailMatch;
+}
+
 export function getCustomerOrders(
   orders: OrderRecord[],
   customer: CustomerProfile
 ): OrderRecord[] {
-  const customerPhone10 = normalizeIndianPhone10(customer.phone);
-  const customerEmail = customer.email.trim().toLowerCase();
-
-  return orders.filter((order) => {
-    if (order.userId && customer.id && order.userId === customer.id) {
-      return true;
-    }
-    const orderPhone10 = normalizeIndianPhone10(order.customer.phone);
-    const orderEmail = order.customer.email.trim().toLowerCase();
-    const phoneMatch = customerPhone10.length === 10 && orderPhone10 === customerPhone10;
-    const emailMatch = customerEmail.length > 0 && orderEmail === customerEmail;
-    return phoneMatch || emailMatch;
-  });
+  return orders.filter((order) => doesOrderBelongToCustomer(order, customer));
 }
 
 export const ORDER_TRACKING_STEPS: Exclude<OrderStatus, 'Cancelled'>[] = [

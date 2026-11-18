@@ -8,18 +8,26 @@ import {
   Upload,
   X,
 } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import { uploadReviewPhotoToSupabaseStorage } from '../services/supabaseStoreService';
-import { Product, ProductReviewRecord, Testimonial } from '../types';
+import { CustomerProfile, OrderRecord, Product, ProductReviewRecord, StorePage, Testimonial } from '../types';
 import {
   ProductReviewFormErrors,
   getPublishedHomepageReviews,
   validateProductReviewForm,
 } from '../utils/messagesReviewsLogic';
+import {
+  VERIFIED_DELIVERY_REVIEW_MESSAGE,
+  canCustomerReviewProduct,
+} from '../utils/reviewsPolicyLogic';
 
 interface TestimonialsProps {
   testimonials: Testimonial[];
   reviews?: ProductReviewRecord[];
   products: Product[];
+  orders?: OrderRecord[];
+  currentCustomer?: CustomerProfile | null;
+  onNavigate?: (page: StorePage) => void;
   onAddTestimonial: (testimonial: Testimonial) => void;
   onSubmitReview?: (review: ProductReviewRecord) => void;
 }
@@ -30,6 +38,9 @@ export function Testimonials({
   testimonials,
   reviews,
   products,
+  orders = [],
+  currentCustomer = null,
+  onNavigate,
   onAddTestimonial,
   onSubmitReview,
 }: TestimonialsProps) {
@@ -74,6 +85,12 @@ export function Testimonials({
   const activeProduct =
     products.find((p) => p.id === selectedProductId) ?? products[0];
 
+  const reviewEligibility = canCustomerReviewProduct(
+    orders,
+    currentCustomer,
+    activeProduct?.id ?? ''
+  );
+
   const handlePhotoUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -100,6 +117,7 @@ export function Testimonials({
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
+    if (!reviewEligibility.eligible) return;
     const productObj = activeProduct;
     const targetProductId = productObj?.id ?? selectedProductId ?? 'bee4-general';
     const targetProductName = productObj?.title ?? 'BEE4 Brain-Training Toy';
@@ -307,14 +325,14 @@ export function Testimonials({
           )}
         </div>
 
-        {/* Share Product Review Form */}
+        {/* Share Product Review Form (Strict Verified Delivery Only) */}
         <form
           onSubmit={handleSubmit}
           noValidate
-          className="lg:col-span-5 p-6 rounded-3xl glass-surface space-y-3.5"
+          className="lg:col-span-5 p-6 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3.5"
         >
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full glass-orb flex items-center justify-center shrink-0">
+            <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-500/15 flex items-center justify-center shrink-0">
               <MessageSquarePlus
                 className="w-4 h-4 text-amber-700 dark:text-amber-400"
                 aria-hidden="true"
@@ -325,17 +343,37 @@ export function Testimonials({
                 Share a Product Review
               </h3>
               <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                Attach a play photo and rate your BEE4 kit
+                Verified buyers can rate and review delivered BEE4 kits
               </p>
             </div>
           </div>
 
+          {!reviewEligibility.eligible ? (
+            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 space-y-3">
+              <div className="flex items-start gap-2.5 text-slate-700 dark:text-slate-200">
+                <Lock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <p className="text-xs leading-relaxed font-medium">
+                  {VERIFIED_DELIVERY_REVIEW_MESSAGE}
+                </p>
+              </div>
+              {onNavigate && (
+                <button
+                  type="button"
+                  onClick={() => onNavigate(currentCustomer ? 'orders' : 'account')}
+                  className="w-full h-9 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-900 dark:text-white hover:bg-slate-50"
+                >
+                  {currentCustomer ? 'View My Delivered Orders' : 'Sign In to Check Delivered Orders'}
+                </button>
+              )}
+            </div>
+          ) : (
+            <>
           {submittedNotice && (
             <div
               role="status"
-              className="p-3 rounded-xl bg-emerald-50/85 dark:bg-emerald-950/70 backdrop-blur-md border border-emerald-200/80 dark:border-emerald-500/30 text-xs text-emerald-800 dark:text-emerald-200 font-medium"
+              className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-500/30 text-xs text-emerald-800 dark:text-emerald-200 font-medium"
             >
-              Dhanyavaad! Your review is pending Team BEE4 verification and will go live shortly.
+              Thank you! Your verified review has been saved.
             </div>
           )}
 
@@ -534,6 +572,8 @@ export function Testimonials({
           >
             Submit Review
           </button>
+          </>
+          )}
         </form>
       </div>
 
@@ -542,7 +582,7 @@ export function Testimonials({
           role="dialog"
           aria-modal="true"
           aria-label="Customer review photo preview"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/75 backdrop-blur-md"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75"
           onClick={() => setLightboxPhoto(null)}
         >
           <div

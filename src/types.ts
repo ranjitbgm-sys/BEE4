@@ -62,6 +62,7 @@ export type AdminModuleRoute =
   | 'reconciliation'
   | 'analytics'
   | 'messages-reviews'
+  | 'reels'
   | 'products'
   | 'inventory'
   | 'discounts'
@@ -74,8 +75,17 @@ export type StorePage =
   | 'gifts'
   | 'product'
   | 'checkout'
+  | 'cart'
+  | 'orders'
+  | 'order-detail'
+  | 'wallet'
   | 'about'
   | 'contact'
+  | 'legal-terms'
+  | 'legal-privacy'
+  | 'legal-returns'
+  | 'legal-shipping'
+  | 'legal-copyright'
   | 'account'
   | 'manager';
 
@@ -122,8 +132,10 @@ export interface Product {
   status?: ProductVisibilityStatus;
   damagedScrapCount?: number;
   cogsCost?: number;
+  filamentCostInr?: number;
   reserveForWebsite?: number;
   marketplaceListings?: MarketplaceListingMap[];
+  curatedTags?: ('Best Selling' | 'Newly Launched' | 'Trendy')[];
   inStock: boolean;
   featured?: boolean;
   tag?: string;
@@ -285,6 +297,7 @@ export interface OrderRecord {
   cancellationReason?: string;
   cancelledBy?: CancelledByRole;
   cancelledAt?: string;
+  deliveredAt?: string;
   fulfillmentStage?: FulfillmentStage;
   operationalBucket?: OperationalOrderBucket;
   slaDispatchBy?: string;
@@ -321,6 +334,7 @@ export type CustomerMessageStatus = 'Unread' | 'Read' | 'Replied / Resolved' | '
 
 export interface CustomerMessageRecord {
   id: string;
+  userId?: string | null;
   customerName: string;
   phone: string;
   email?: string;
@@ -409,9 +423,39 @@ export interface PrintJobRecord {
   orderNumber?: string;
   batchQty: number;
   material: string;
+  spoolId?: string;
   estimatedGrams: number;
+  gramsUsed?: number;
+  filamentCostInr?: number;
   stage: PrintJobStage;
   printerName: string;
+  updatedAt: string;
+}
+
+export type PrinterBrand = 'Bambu Lab' | 'OctoPrint' | 'Klipper' | 'Moonraker' | 'Manual';
+
+export interface PrinterIntegrationConfig {
+  id: string;
+  name: string;
+  brand: PrinterBrand;
+  active: boolean;
+  printerSerialOrHost: string;
+  apiKeyOrToken: string;
+  webhookUrl: string;
+  defaultSpoolId: string;
+  lastSyncedAt?: string;
+  notes?: string;
+}
+
+export interface ViralReelRecord {
+  id: string;
+  title: string;
+  videoUrl: string;
+  posterUrl?: string;
+  productId: string;
+  displayOrder: number;
+  active: boolean;
+  createdAt: string;
   updatedAt: string;
 }
 
@@ -729,6 +773,10 @@ export interface CustomerProfile {
   savedUpiIds?: string[];
   devices?: CustomerDeviceSession[];
   accountStatus?: CustomerAccountStatus;
+  banType?: 'temporary' | 'permanent' | null;
+  bannedUntil?: string | null;
+  banReason?: string | null;
+  bannedAt?: string | null;
   deactivationRequested?: boolean;
   deactivationRequestedAt?: string;
   forceLoggedOutAt?: string;

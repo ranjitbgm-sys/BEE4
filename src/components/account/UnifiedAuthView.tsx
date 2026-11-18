@@ -44,6 +44,7 @@ import {
   getOrderRmaStatusBadge,
   lookupGuestOrderByOrderAndPhone,
 } from '../../utils/rmaLogic';
+import { evaluateCustomerAccess } from '../../utils/customerModerationLogic';
 import { formatINR, normalizeIndianPhone10 } from '../../utils/storeLogic';
 
 export type UnifiedAuthStep = 'entry' | 'verify' | 'profile';
@@ -58,6 +59,8 @@ export interface UnifiedAuthViewProps {
   initialOpenGuestTracker?: boolean;
   authRecoveryMode?: boolean;
   authVerificationNotice?: string;
+  externalAuthError?: string | null;
+  onClearExternalAuthError?: () => void;
   onClearAuthVerificationNotice?: () => void;
   onClearAuthRecoveryMode?: () => void;
   onGoogleSignIn?: () => Promise<void>;
@@ -80,6 +83,8 @@ export function UnifiedAuthView({
   initialOpenGuestTracker = false,
   authRecoveryMode = false,
   authVerificationNotice = '',
+  externalAuthError = null,
+  onClearExternalAuthError,
   onClearAuthVerificationNotice,
   onClearAuthRecoveryMode,
   onGoogleSignIn,
@@ -170,9 +175,11 @@ export function UnifiedAuthView({
       }
       setIdentifierValue(normalized);
       const matched = findMatchedCustomer('phone', normalized);
-      if (matched?.accountStatus === 'Suspended') {
+      const access = evaluateCustomerAccess(matched);
+      if (!access.allowed) {
         setErrorMsg(
-          'Your BEE4 account has been paused. Please contact BEE4 Support for assistance.'
+          access.message ||
+            'Your BEE4 account has been restricted. Please contact BEE4 Support for assistance.'
         );
         return;
       }
@@ -214,9 +221,11 @@ export function UnifiedAuthView({
     }
     setIdentifierValue(cleanEmail);
     const matched = findMatchedCustomer('email', cleanEmail);
-    if (matched?.accountStatus === 'Suspended') {
+    const emailAccess = evaluateCustomerAccess(matched);
+    if (!emailAccess.allowed) {
       setErrorMsg(
-        'Your BEE4 account has been paused. Please contact BEE4 Support for assistance.'
+        emailAccess.message ||
+          'Your BEE4 account has been restricted. Please contact BEE4 Support for assistance.'
       );
       return;
     }
@@ -308,9 +317,11 @@ export function UnifiedAuthView({
   };
 
   const completeLoginForExistingCustomer = (customer: CustomerProfile) => {
-    if (customer.accountStatus === 'Suspended') {
+    const access = evaluateCustomerAccess(customer);
+    if (!access.allowed) {
       setErrorMsg(
-        'Your BEE4 account is currently paused. Please contact BEE4 Support.'
+        access.message ||
+          'Your BEE4 account is currently restricted. Please contact BEE4 Support.'
       );
       return;
     }
@@ -396,6 +407,16 @@ export function UnifiedAuthView({
       entryMode === 'email'
         ? identifierValue
         : findMatchedCustomer('phone', identifierValue)?.email ?? '';
+
+    const matchedBeforeCloud = findMatchedCustomer(
+      entryMode,
+      entryMode === 'email' ? identifierValue : identifierValue
+    );
+    const preCheck = evaluateCustomerAccess(matchedBeforeCloud);
+    if (!preCheck.allowed) {
+      setErrorMsg(preCheck.message || 'Your BEE4 account is restricted.');
+      return;
+    }
 
     setIsBusy(true);
     try {
@@ -790,13 +811,24 @@ export function UnifiedAuthView({
       <div className="max-w-[560px] mx-auto">
         {/* Interactive Auth Flow */}
         <div className="glass-surface rounded-3xl p-6 sm:p-9 space-y-6">
-          {errorMsg && (
+          {(errorMsg || externalAuthError) && (
             <div
               role="alert"
-              className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-xs font-semibold text-rose-700 dark:text-rose-200 flex items-start gap-2.5"
+              className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-500/35 text-xs font-semibold text-rose-700 dark:text-rose-200 flex items-start justify-between gap-2.5"
             >
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>{errorMsg}</span>
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{errorMsg || externalAuthError}</span>
+              </div>
+              {externalAuthError && !errorMsg && onClearExternalAuthError && (
+                <button
+                  type="button"
+                  onClick={onClearExternalAuthError}
+                  className="text-[11px] font-bold underline shrink-0"
+                >
+                  Dismiss
+                </button>
+              )}
             </div>
           )}
 

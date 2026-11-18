@@ -63,7 +63,7 @@ export function CartDrawer({
       aria-label="Shopping Bag"
     >
       <div
-        className="fixed inset-0 bg-zinc-900/35 backdrop-blur-md"
+        className="fixed inset-0 bg-slate-900/45"
         onClick={onClose}
         aria-hidden="true"
       />

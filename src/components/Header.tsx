@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Menu, Moon, ShoppingBag, Sun, X } from 'lucide-react';
+import { Moon, ShoppingCart, Sun, User, X } from 'lucide-react';
 import { BRAND_LOGO_URL } from '../data/catalog';
 import { StorePage, ThemeMode } from '../types';
 
@@ -24,29 +24,21 @@ export function Header({
   theme,
   onToggleTheme,
   onNavigate,
-  onOpenCart,
 }: HeaderProps) {
-  const navItems: { page: StorePage; label: string }[] = [
+  const desktopNav: { page: StorePage; label: string }[] = [
     { page: 'home', label: 'Home' },
     { page: 'shop', label: 'Shop All' },
-    { page: 'gifts', label: 'Gift Ideas' },
-    { page: 'contact', label: 'Contact' },
-    { page: 'account', label: customerFirstName ? customerFirstName : 'Account' },
+    { page: 'gifts', label: 'Gifts' },
+    { page: 'orders', label: 'My Orders' },
+    { page: 'contact', label: 'Support' },
   ];
   const [showBanner, setShowBanner] = useState(true);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  const handleNavClick = (page: StorePage) => {
-    onNavigate(page);
-    setMobileMenuOpen(false);
-  };
-
   const isAurora = theme === 'aurora';
 
   return (
     <>
       {announcementEnabled && showBanner && (
-        <div className="h-9 glass-banner text-zinc-100 text-xs flex items-center justify-between px-4 sm:px-8">
+        <div className="h-8 bg-slate-900 dark:bg-slate-950 text-slate-100 text-xs flex items-center justify-between px-4 sm:px-8 border-b border-slate-800">
           <div className="w-6 shrink-0 hidden sm:block" aria-hidden="true" />
           <p className="min-w-0 flex-1 truncate text-center font-medium tracking-wide">
             {announcementText}
@@ -54,23 +46,23 @@ export function Header({
           <button
             type="button"
             onClick={() => setShowBanner(false)}
-            aria-label="Dismiss shipping announcement"
-            className="p-1 rounded-full text-zinc-300 hover:text-white hover:bg-white/10 transition-colors shrink-0"
+            aria-label="Dismiss announcement"
+            className="p-1 rounded text-slate-300 hover:text-white transition-colors shrink-0"
           >
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
       )}
 
-      <header className="sticky top-0 z-40 glass-bar">
-        <div className="max-w-[1200px] mx-auto px-4 sm:px-6 h-14 md:h-16 flex items-center justify-between gap-4">
-          {/* Zone 1: Brand logo lockup */}
+      <header className="sticky top-0 z-40 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-[0_1px_3px_rgba(15,23,42,0.05)]">
+        <div className="max-w-[1200px] mx-auto px-3 sm:px-6 h-14 flex items-center justify-between gap-3">
+          {/* Left: Crisp BEE4 Brand Logo & Name */}
           <button
             type="button"
-            onClick={() => handleNavClick('home')}
-            className="inline-flex items-center gap-2.5 font-display text-xl font-extrabold tracking-tight text-zinc-900 dark:text-white whitespace-nowrap shrink-0 hover:text-amber-700 dark:hover:text-amber-300 transition-colors"
+            onClick={() => onNavigate('home')}
+            className="inline-flex items-center gap-2.5 font-display text-lg sm:text-xl font-extrabold tracking-tight text-slate-900 dark:text-white whitespace-nowrap shrink-0 hover:text-amber-700 dark:hover:text-amber-400 transition-colors"
           >
-            <span className="w-8 h-8 rounded-xl bg-white p-0.5 shadow-sm ring-1 ring-black/8 dark:ring-white/20 flex items-center justify-center overflow-hidden shrink-0">
+            <span className="w-8 h-8 rounded-lg bg-white border border-slate-200 dark:border-slate-700 p-0.5 flex items-center justify-center overflow-hidden shrink-0">
               <img
                 src={BRAND_LOGO_URL}
                 alt="BEE4 logo"
@@ -80,23 +72,20 @@ export function Header({
             <span>BEE4</span>
           </button>
 
-          {/* Zone 2: 5 concise single-line navigation links */}
-          <nav
-            aria-label="Primary navigation"
-            className="hidden md:flex items-center gap-1.5 p-1 rounded-2xl glass-subtle text-sm font-medium text-zinc-600 dark:text-zinc-300"
-          >
-            {navItems.map((item) => {
+          {/* Center (Desktop): Minimal 5 storefront links */}
+          <nav aria-label="Primary navigation" className="hidden md:flex items-center gap-1">
+            {desktopNav.map((item) => {
               const isActive = activePage === item.page;
               return (
                 <button
                   key={item.page}
                   type="button"
-                  onClick={() => handleNavClick(item.page)}
+                  onClick={() => onNavigate(item.page)}
                   aria-current={isActive ? 'page' : undefined}
-                  className={`px-3.5 py-1.5 rounded-xl whitespace-nowrap shrink-0 transition-all duration-200 ${
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
                     isActive
-                      ? 'bg-white/95 dark:bg-amber-500 text-zinc-900 dark:text-zinc-950 font-semibold shadow-sm border border-white dark:border-amber-400'
-                      : 'text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-white/55 dark:hover:bg-white/10'
+                      ? 'bg-slate-100 dark:bg-slate-800 text-amber-700 dark:text-amber-400 font-semibold'
+                      : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/60'
                   }`}
                 >
                   {item.label}
@@ -105,76 +94,52 @@ export function Header({
             })}
           </nav>
 
-          {/* Zone 3: Theme Toggle + Bag + Mobile menu trigger */}
+          {/* Right: Login / Account icon + Cart icon + Compact Theme toggle */}
           <div className="flex items-center gap-2 shrink-0">
-
             <button
               type="button"
               onClick={onToggleTheme}
-              aria-label={isAurora ? 'Switch to Daylight theme' : 'Switch to Dark Aurora theme'}
-              title={isAurora ? 'Daylight Theme' : 'Dark Aurora Theme'}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl glass-btn-secondary text-xs font-semibold text-zinc-800 dark:text-zinc-100 whitespace-nowrap shrink-0"
+              aria-label={isAurora ? 'Switch to light theme' : 'Switch to dark theme'}
+              title={isAurora ? 'Light Mode' : 'Dark Mode'}
+              className="w-9 h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 inline-flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shrink-0"
             >
               {isAurora ? (
-                <>
-                  <Sun className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                  <span className="hidden sm:inline">Daylight</span>
-                </>
+                <Sun className="w-4 h-4 text-amber-400" />
               ) : (
-                <>
-                  <Moon className="w-3.5 h-3.5 text-indigo-700 shrink-0" />
-                  <span className="hidden sm:inline">Aurora</span>
-                </>
+                <Moon className="w-4 h-4 text-slate-700" />
               )}
             </button>
 
             <button
               type="button"
-              onClick={onOpenCart}
-              aria-label={`Open shopping bag, ${cartCount} items`}
-              className="inline-flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl glass-btn-amber text-white text-sm font-semibold transition-all whitespace-nowrap shrink-0"
+              onClick={() => onNavigate('account')}
+              aria-label={customerFirstName ? `Account: ${customerFirstName}` : 'Sign in to BEE4'}
+              className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 h-9 rounded-lg border text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap shrink-0 ${
+                activePage === 'account'
+                  ? 'border-amber-500 bg-amber-50 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300'
+                  : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700'
+              }`}
             >
-              <ShoppingBag className="w-4 h-4 shrink-0" />
-              <span className="tabular-nums">Bag ({cartCount})</span>
+              <User className="w-4 h-4 shrink-0" />
+              <span className="max-w-[84px] truncate">
+                {customerFirstName ? customerFirstName : 'Sign In'}
+              </span>
             </button>
 
             <button
               type="button"
-              onClick={() => setMobileMenuOpen((prev) => !prev)}
-              aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
-              aria-expanded={mobileMenuOpen}
-              className="md:hidden p-2 rounded-xl glass-btn-secondary text-zinc-800 dark:text-zinc-100 transition-colors shrink-0"
+              onClick={() => onNavigate('cart')}
+              aria-label={`Shopping cart with ${cartCount} items`}
+              className="relative inline-flex items-center gap-1.5 px-3 h-9 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap shrink-0"
             >
-              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              <ShoppingCart className="w-4 h-4 shrink-0" />
+              <span className="hidden sm:inline">Cart</span>
+              <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded bg-white text-amber-800 text-[11px] font-bold tabular-nums leading-none">
+                {cartCount}
+              </span>
             </button>
           </div>
         </div>
-
-        {mobileMenuOpen && (
-          <nav
-            aria-label="Mobile navigation"
-            className="md:hidden border-t border-white/60 dark:border-white/10 bg-white/85 dark:bg-slate-900/95 backdrop-blur-2xl px-4 py-3 flex flex-col gap-1.5 shadow-lg"
-          >
-            {navItems.map((item) => {
-              const isActive = activePage === item.page;
-              return (
-                <button
-                  key={item.page}
-                  type="button"
-                  onClick={() => handleNavClick(item.page)}
-                  aria-current={isActive ? 'page' : undefined}
-                  className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                    isActive
-                      ? 'bg-white/95 dark:bg-amber-500 text-zinc-900 font-semibold shadow-sm border border-white'
-                      : 'text-zinc-700 dark:text-zinc-200 hover:bg-white/60 dark:hover:bg-white/10'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              );
-            })}
-          </nav>
-        )}
       </header>
     </>
   );

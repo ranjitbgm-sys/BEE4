@@ -238,7 +238,7 @@ export function CustomerReturnModal({
       role="dialog"
       aria-modal="true"
       aria-label={`Request return or replacement for ${order.orderNumber}`}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60"
       onClick={onClose}
     >
       <div

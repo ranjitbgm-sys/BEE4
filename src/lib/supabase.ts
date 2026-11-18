@@ -127,6 +127,10 @@ alter table public.profiles add column if not exists account_status text not nul
 alter table public.profiles add column if not exists deactivation_requested boolean not null default false;
 alter table public.profiles add column if not exists deactivation_requested_at timestamptz;
 alter table public.profiles add column if not exists force_logged_out_at timestamptz;
+alter table public.profiles add column if not exists ban_type text;
+alter table public.profiles add column if not exists banned_until timestamptz;
+alter table public.profiles add column if not exists ban_reason text;
+alter table public.profiles add column if not exists banned_at timestamptz;
 
 create table if not exists public.customers (
   id text primary key,
@@ -165,6 +169,10 @@ alter table public.customers add column if not exists account_status text not nu
 alter table public.customers add column if not exists deactivation_requested boolean not null default false;
 alter table public.customers add column if not exists deactivation_requested_at timestamptz;
 alter table public.customers add column if not exists force_logged_out_at timestamptz;
+alter table public.customers add column if not exists ban_type text;
+alter table public.customers add column if not exists banned_until timestamptz;
+alter table public.customers add column if not exists ban_reason text;
+alter table public.customers add column if not exists banned_at timestamptz;
 
 create or replace function public.is_bee4_admin()
 returns boolean
@@ -220,13 +228,18 @@ create table if not exists public.products (
   status text not null default 'Active',
   damaged_scrap_count integer not null default 0,
   cogs_cost numeric,
+  filament_cost_inr numeric,
   reserve_for_website integer not null default 0,
   marketplace_listings jsonb not null default '[]'::jsonb,
+  curated_tags jsonb not null default '[]'::jsonb,
   in_stock boolean not null default true,
   featured boolean not null default false,
   tag text,
   updated_at timestamptz not null default now()
 );
+
+alter table public.products add column if not exists filament_cost_inr numeric;
+alter table public.products add column if not exists curated_tags jsonb not null default '[]'::jsonb;
 
 -- 3. Orders Table (Checkout + Omnichannel Fulfillment + Settlement + GST State Data)
 create table if not exists public.orders (
@@ -742,10 +755,13 @@ values (
   'product-images',
   'product-images',
   true,
-  5242880,
-  array['image/jpeg', 'image/png', 'image/webp']
+  52428800,
+  array['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm']
 )
-on conflict (id) do update set public = true;
+on conflict (id) do update set
+  public = true,
+  file_size_limit = 52428800,
+  allowed_mime_types = array['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm'];
 
 drop policy if exists "Public view product-images" on storage.objects;
 create policy "Public view product-images" on storage.objects
@@ -1027,6 +1043,35 @@ create policy "Admins manage product_questions" on public.product_questions
 do $$
 begin
   alter publication supabase_realtime add table public.product_questions;
+exception when duplicate_object then null;
+end $$;
+
+-- 12. Product Viral Reels Table & Policies
+create table if not exists public.viral_reels (
+  id text primary key,
+  title text not null,
+  video_url text not null,
+  poster_url text not null default '',
+  product_id text not null,
+  display_order integer not null default 0,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.viral_reels enable row level security;
+
+drop policy if exists "Public read active viral_reels" on public.viral_reels;
+create policy "Public read active viral_reels" on public.viral_reels
+  for select using (active = true or public.is_bee4_admin());
+
+drop policy if exists "Admins manage viral_reels" on public.viral_reels;
+create policy "Admins manage viral_reels" on public.viral_reels
+  for all using (public.is_bee4_admin()) with check (public.is_bee4_admin());
+
+do $$
+begin
+  alter publication supabase_realtime add table public.viral_reels;
 exception when duplicate_object then null;
 end $$;
 `;

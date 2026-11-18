@@ -147,7 +147,7 @@ export const BuyGiftCardModal: React.FC<BuyGiftCardModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/60 p-4 backdrop-blur-sm overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 overflow-y-auto"
       role="dialog"
       aria-modal="true"
       aria-labelledby="buy-gift-card-title"

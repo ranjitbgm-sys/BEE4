@@ -58,7 +58,7 @@ export function WhatsAppWidget({
   );
 
   return (
-    <div className="fixed bottom-[76px] right-4 md:bottom-6 md:right-6 z-40 flex flex-col items-end gap-3">
+    <div className="fixed bottom-[76px] right-4 md:bottom-[76px] md:right-6 z-40 flex flex-col items-end gap-3">
       {isOpen && (
         <div
           role="dialog"
@@ -66,7 +66,7 @@ export function WhatsAppWidget({
           aria-label="WhatsApp quick order and support"
           className="w-[calc(100vw-2rem)] max-w-[340px] glass-drawer rounded-3xl overflow-hidden"
         >
-          <div className="px-4 py-3.5 bg-zinc-900/90 backdrop-blur-xl border-b border-white/15 text-white flex items-center justify-between gap-3">
+          <div className="px-4 py-3.5 bg-slate-900 border-b border-slate-800 text-white flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="font-display text-sm font-bold truncate">BEE4 on WhatsApp</p>
               <p className="text-xs text-zinc-300 tabular-nums truncate">{displayNumber}</p>

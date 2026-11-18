@@ -106,31 +106,43 @@ export function AboutView({ onNavigate }: AboutViewProps) {
 interface ContactViewProps {
   whatsappNumber: string;
   supportEmail: string;
+  currentCustomer?: {
+    id: string;
+    fullName: string;
+    phone: string;
+    email: string;
+  } | null;
   onSubmitInquiry?: (inquiry: {
     name: string;
     contact: string;
     topic: string;
     message: string;
   }) => void;
-  onSubmitCustomerMessage?: (msg: CustomerMessageRecord) => void;
+  onSubmitCustomerMessage?: (
+    msg: CustomerMessageRecord
+  ) => Promise<{ ok: boolean; error?: string } | void> | void;
 }
 
 export function ContactView({
   whatsappNumber,
   supportEmail,
+  currentCustomer,
   onSubmitInquiry,
   onSubmitCustomerMessage,
 }: ContactViewProps) {
-  const [customerName, setCustomerName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
+  const [customerName, setCustomerName] = useState(currentCustomer?.fullName ?? '');
+  const [phone, setPhone] = useState(currentCustomer?.phone ?? '');
+  const [email, setEmail] = useState(currentCustomer?.email ?? '');
   const [topic, setTopic] = useState<CustomerMessageTopic>('Order Status Inquiry');
   const [message, setMessage] = useState('');
   const [errors, setErrors] = useState<CustomerNoteFormErrors>({});
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isSending, setIsSending] = useState(false);
   const [sent, setSent] = useState(false);
 
-  const handleSubmit = (event: FormEvent) => {
+  const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
+    setSubmitError(null);
     const validation = validateCustomerNoteForm({
       customerName,
       phone,
@@ -152,6 +164,7 @@ export function ContactView({
 
     const record: CustomerMessageRecord = {
       id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      userId: currentCustomer?.id,
       customerName: cleanName,
       phone: validation.normalizedPhone,
       email: cleanEmail || undefined,
@@ -163,21 +176,36 @@ export function ContactView({
       updatedAt: now,
     };
 
-    onSubmitCustomerMessage?.(record);
-    onSubmitInquiry?.({
-      name: cleanName,
-      contact: cleanEmail ? `${validation.normalizedPhone} · ${cleanEmail}` : validation.normalizedPhone,
-      topic,
-      message: cleanMessage,
-    });
+    setIsSending(true);
+    try {
+      const res = await onSubmitCustomerMessage?.(record);
+      if (res && typeof res === 'object' && 'ok' in res && !res.ok) {
+        setSubmitError(res.error || 'Could not deliver your message. Please retry.');
+        setSent(false);
+        return;
+      }
 
-    setCustomerName('');
-    setPhone('');
-    setEmail('');
-    setTopic('Order Status Inquiry');
-    setMessage('');
-    setErrors({});
-    setSent(true);
+      onSubmitInquiry?.({
+        name: cleanName,
+        contact: cleanEmail
+          ? `${validation.normalizedPhone} · ${cleanEmail}`
+          : validation.normalizedPhone,
+        topic,
+        message: cleanMessage,
+      });
+
+      setCustomerName(currentCustomer?.fullName ?? '');
+      setPhone(currentCustomer?.phone ?? '');
+      setEmail(currentCustomer?.email ?? '');
+      setTopic('Order Status Inquiry');
+      setMessage('');
+      setErrors({});
+      setSent(true);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : 'Unable to send your message right now.');
+    } finally {
+      setIsSending(false);
+    }
   };
 
   return (
@@ -411,12 +439,22 @@ export function ContactView({
                 )}
               </div>
 
+              {submitError && (
+                <div
+                  role="alert"
+                  className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-500/35 text-xs font-semibold text-rose-700 dark:text-rose-200"
+                >
+                  {submitError}
+                </div>
+              )}
+
               <button
                 type="submit"
-                className="px-6 py-3 rounded-xl glass-btn-amber text-white text-sm font-semibold inline-flex items-center gap-2 transition-all"
+                disabled={isSending}
+                className="px-6 py-3 rounded-xl glass-btn-amber text-white text-sm font-semibold inline-flex items-center gap-2 transition-all disabled:opacity-60"
               >
                 <Send className="w-4 h-4" />
-                <span>Send Note to Team BEE4</span>
+                <span>{isSending ? 'Sending Note...' : 'Send Note to Team BEE4'}</span>
               </button>
             </form>
           )}

@@ -378,27 +378,37 @@ export function AdminReconciliationTab({
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-900/6 dark:divide-white/8">
-              {report.productPnl.map((row) => (
-                <tr key={row.productId} className="hover:bg-white/40 dark:hover:bg-white/5">
-                  <td className="py-3 px-4">
-                    <p className="font-semibold text-zinc-900 dark:text-white">{row.title}</p>
-                    <p className="text-[11px] font-mono text-zinc-500 dark:text-zinc-400">{row.sku}</p>
-                  </td>
-                  <td className="py-3 px-4 text-right tabular-nums">{row.unitsSold}</td>
-                  <td className="py-3 px-4 text-right tabular-nums">{formatINR(row.grossRevenue)}</td>
-                  <td className="py-3 px-4 text-right tabular-nums">{formatINR(row.cogsTotal)}</td>
-                  <td className="py-3 px-4 text-right tabular-nums">{formatINR(row.feesAndShipping)}</td>
-                  <td className="py-3 px-4 text-right tabular-nums text-red-600 dark:text-red-400">
-                    {formatINR(row.returnsLoss)}
-                  </td>
-                  <td className="py-3 px-4 text-right tabular-nums font-bold text-emerald-700 dark:text-emerald-300">
-                    {formatINR(row.netProfit)}
-                  </td>
-                  <td className="py-3 px-4 text-right tabular-nums font-semibold">
-                    {row.marginPercent}%
-                  </td>
-                </tr>
-              ))}
+              {report.productPnl.map((row) => {
+                const matchedProd = products.find((p) => p.id === row.productId);
+                return (
+                  <tr key={row.productId} className="hover:bg-white/40 dark:hover:bg-white/5">
+                    <td className="py-3 px-4">
+                      <p className="font-semibold text-zinc-900 dark:text-white">{row.title}</p>
+                      <p className="text-[11px] font-mono text-zinc-500 dark:text-zinc-400">{row.sku}</p>
+                    </td>
+                    <td className="py-3 px-4 text-right tabular-nums">{row.unitsSold}</td>
+                    <td className="py-3 px-4 text-right tabular-nums">{formatINR(row.grossRevenue)}</td>
+                    <td className="py-3 px-4 text-right tabular-nums">
+                      <div>{formatINR(row.cogsTotal)}</div>
+                      {matchedProd?.filamentCostInr ? (
+                        <p className="text-[10px] font-semibold text-amber-700 dark:text-amber-300">
+                          3D PLA ₹{matchedProd.filamentCostInr}/u
+                        </p>
+                      ) : null}
+                    </td>
+                    <td className="py-3 px-4 text-right tabular-nums">{formatINR(row.feesAndShipping)}</td>
+                    <td className="py-3 px-4 text-right tabular-nums text-red-600 dark:text-red-400">
+                      {formatINR(row.returnsLoss)}
+                    </td>
+                    <td className="py-3 px-4 text-right tabular-nums font-bold text-emerald-700 dark:text-emerald-300">
+                      {formatINR(row.netProfit)}
+                    </td>
+                    <td className="py-3 px-4 text-right tabular-nums font-semibold">
+                      {row.marginPercent}%
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -468,7 +478,7 @@ export function AdminReconciliationTab({
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 bg-zinc-950/55 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-slate-950/55 flex items-center justify-center p-4"
           onClick={() => setEditingOrder(null)}
         >
           <form

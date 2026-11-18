@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react';
-import { History, Link2, Minus, Plus, Printer, RefreshCw, X } from 'lucide-react';
+import { CheckCircle2, History, Link2, Minus, Plus, Printer, RefreshCw, X } from 'lucide-react';
 import type {
   FilamentSpool,
   InventoryAdjustmentRecord,
@@ -11,6 +11,10 @@ import type {
 } from '../../types';
 import { hydrateProductAdminFields } from '../../data/catalog';
 import { estimateSpoolRemainingUnits } from '../../utils/adminLogic';
+import {
+  applyPrintJobFilamentCost,
+  calculateFilamentMaterialCostInr,
+} from '../../utils/filamentCostLogic';
 import {
   calculateChannelAvailableStock,
   MARKETPLACE_CHANNELS,
@@ -44,6 +48,12 @@ export function AdminInventoryTab({
   const [newJobQty, setNewJobQty] = useState('4');
   const [newJobOrderNo, setNewJobOrderNo] = useState('');
   const [newJobPrinter, setNewJobPrinter] = useState('Bambu P1S #2 (Banka Lab)');
+  const [syncProductId, setSyncProductId] = useState(products[0]?.id ?? '');
+  const [syncSpoolId, setSyncSpoolId] = useState(spools[0]?.id ?? '');
+  const [syncBatchQty, setSyncBatchQty] = useState('4');
+  const [syncGramsUsed, setSyncGramsUsed] = useState('680');
+  const [syncPrinterLabel, setSyncPrinterLabel] = useState('Bambu Lab P1S · Banka');
+  const [syncNotice, setSyncNotice] = useState('');
   const [mappingProductId, setMappingProductId] = useState<string | null>(null);
   const [mapChannel, setMapChannel] = useState<MarketplaceChannel>('Flipkart');
   const [mapRemoteSku, setMapRemoteSku] = useState('');
@@ -93,6 +103,47 @@ export function AdminInventoryTab({
       updatedAt: new Date().toISOString(),
     });
     setNewJobOrderNo('');
+  };
+
+  const selectedSyncSpool = spools.find((s) => s.id === syncSpoolId) ?? spools[0];
+  const selectedSyncProduct = products.find((p) => p.id === syncProductId) ?? products[0];
+  const previewMaterialCostTotal = selectedSyncSpool
+    ? calculateFilamentMaterialCostInr({
+        gramsUsed: Math.max(0, Number(syncGramsUsed) || 0),
+        costPerKg: selectedSyncSpool.costPerKg,
+      })
+    : 0;
+
+  const handleSyncCompletedPrintJob = (e: FormEvent) => {
+    e.preventDefault();
+    if (!selectedSyncSpool || !selectedSyncProduct) return;
+    const qty = Math.max(1, Math.round(Number(syncBatchQty) || 1));
+    const grams = Math.max(1, Math.round(Number(syncGramsUsed) || 1));
+    const res = applyPrintJobFilamentCost({
+      product: selectedSyncProduct,
+      spool: selectedSyncSpool,
+      gramsUsed: grams,
+      batchQty: qty,
+    });
+    onSaveFilamentSpool(res.updatedSpool);
+    onSaveProduct?.(res.updatedProduct);
+    onSavePrintJob({
+      id: `job-sync-${Date.now()}`,
+      productId: selectedSyncProduct.id,
+      productTitle: selectedSyncProduct.title,
+      batchQty: qty,
+      material: selectedSyncSpool.material,
+      estimatedGrams: grams,
+      gramsUsed: grams,
+      spoolId: selectedSyncSpool.id,
+      filamentCostInr: res.unitMaterialCostInr,
+      stage: 'Ready to Pack',
+      printerName: syncPrinterLabel.trim() || 'Bambu P1S (Banka Lab)',
+      updatedAt: new Date().toISOString(),
+    });
+    setSyncNotice(
+      `Synced ${grams}g (${formatINR(res.totalMaterialCostInr)} total · ${formatINR(res.unitMaterialCostInr)}/unit COGS) for ${selectedSyncProduct.title}. Spool remaining: ${res.updatedSpool.remainingGrams}g.`
+    );
   };
 
   return (
@@ -163,22 +214,29 @@ export function AdminInventoryTab({
                       </div>
                     </td>
                     <td className="py-3 px-4 whitespace-nowrap">
-                      <input
-                        type="number"
-                        min={0}
-                        aria-label={`COGS cost for ${p.title}`}
-                        value={cogsVal}
-                        onChange={(e) => {
-                          if (!onSaveProduct) return;
-                          const nextCogs = Math.max(0, Math.round(Number(e.target.value) || 0));
-                          onSaveProduct({
-                            ...p,
-                            cogsCost: nextCogs,
-                            manufacturingCost: nextCogs,
-                          });
-                        }}
-                        className="w-20 px-2 py-1 rounded-lg glass-input text-xs font-semibold tabular-nums focus:outline-none"
-                      />
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="number"
+                          min={0}
+                          aria-label={`COGS cost for ${p.title}`}
+                          value={cogsVal}
+                          onChange={(e) => {
+                            if (!onSaveProduct) return;
+                            const nextCogs = Math.max(0, Math.round(Number(e.target.value) || 0));
+                            onSaveProduct({
+                              ...p,
+                              cogsCost: nextCogs,
+                              manufacturingCost: nextCogs,
+                            });
+                          }}
+                          className="w-20 px-2 py-1 rounded-lg glass-input text-xs font-semibold tabular-nums focus:outline-none"
+                        />
+                        {typeof p.filamentCostInr === 'number' && p.filamentCostInr > 0 && (
+                          <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 tabular-nums">
+                            PLA ₹{p.filamentCostInr}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-3 px-4 whitespace-nowrap">
                       <input
@@ -420,6 +478,261 @@ export function AdminInventoryTab({
             })}
           </div>
         </div>
+      </div>
+
+      {/* 2B. 3D Printer Completed Print Log -> Auto-Deduct Spool & Update COGS */}
+      <div className="glass-surface rounded-2xl p-5 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="font-display text-sm font-bold text-slate-900 dark:text-white">
+              3D Printer Print-Job Costing Sync (Auto-Deduct Spool &amp; Update P&amp;L COGS)
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-zinc-400">
+              Sync a completed Bambu Lab / OctoPrint / Klipper / Moonraker job to deduct spool grams and update unit filament cost
+            </p>
+          </div>
+          {selectedSyncSpool && (
+            <span className="px-3 py-1 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-500/30 text-xs font-bold text-amber-800 dark:text-amber-300 tabular-nums">
+              Est. Material Cost: {formatINR(previewMaterialCostTotal)} ({formatINR(Math.round(previewMaterialCostTotal / Math.max(1, Number(syncBatchQty) || 1)))}/unit)
+            </span>
+          )}
+        </div>
+
+        {syncNotice && (
+          <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-500/30 text-xs font-semibold text-emerald-800 dark:text-emerald-200 flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            <span>{syncNotice}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSyncCompletedPrintJob} className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 text-xs">
+          <select
+            aria-label="Synced printed product"
+            value={syncProductId}
+            onChange={(e) => setSyncProductId(e.target.value)}
+            className="sm:col-span-3 px-3 py-2 rounded-xl glass-input font-semibold focus:outline-none"
+          >
+            {products.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.title}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="Filament spool used"
+            value={syncSpoolId}
+            onChange={(e) => setSyncSpoolId(e.target.value)}
+            className="sm:col-span-3 px-3 py-2 rounded-xl glass-input font-semibold focus:outline-none"
+          >
+            {spools.map((sp) => (
+              <option key={sp.id} value={sp.id}>
+                {sp.name} ({sp.remainingGrams}g · ₹{sp.costPerKg}/kg)
+              </option>
+            ))}
+          </select>
+          <input
+            type="number"
+            min={1}
+            value={syncBatchQty}
+            onChange={(e) => setSyncBatchQty(e.target.value)}
+            placeholder="Units"
+            aria-label="Completed batch units"
+            className="sm:col-span-1 px-2.5 py-2 rounded-xl glass-input tabular-nums focus:outline-none"
+          />
+          <input
+            type="number"
+            min={1}
+            value={syncGramsUsed}
+            onChange={(e) => setSyncGramsUsed(e.target.value)}
+            placeholder="Grams"
+            aria-label="Filament grams consumed"
+            className="sm:col-span-2 px-3 py-2 rounded-xl glass-input tabular-nums focus:outline-none"
+          />
+          <input
+            type="text"
+            value={syncPrinterLabel}
+            onChange={(e) => setSyncPrinterLabel(e.target.value)}
+            placeholder="Printer / Moonraker"
+            aria-label="Synced printer source"
+            className="sm:col-span-1 px-2.5 py-2 rounded-xl glass-input focus:outline-none"
+          />
+          <button
+            type="submit"
+            className="sm:col-span-2 px-3 py-2 rounded-xl glass-btn-amber text-white font-bold whitespace-nowrap"
+          >
+            Sync Cost &amp; Spool
+          </button>
+        </form>
+      </div>
+
+      {/* 2B. 3D Printer Completed Print Log -> Auto-Deduct Spool & Update COGS */}
+      <div className="glass-surface rounded-2xl p-5 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="font-display text-sm font-bold text-slate-900 dark:text-white">
+              3D Printer Print-Job Costing Sync (Auto-Deduct Spool &amp; Update P&amp;L COGS)
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-zinc-400">
+              Sync a completed Bambu Lab / OctoPrint / Klipper / Moonraker job to deduct spool grams and update unit filament cost
+            </p>
+          </div>
+          {selectedSyncSpool && (
+            <span className="px-3 py-1 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-500/30 text-xs font-bold text-amber-800 dark:text-amber-300 tabular-nums">
+              Est. Material Cost: {formatINR(previewMaterialCostTotal)} ({formatINR(Math.round(previewMaterialCostTotal / Math.max(1, Number(syncBatchQty) || 1)))}/unit)
+            </span>
+          )}
+        </div>
+
+        {syncNotice && (
+          <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-500/30 text-xs font-semibold text-emerald-800 dark:text-emerald-200 flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            <span>{syncNotice}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSyncCompletedPrintJob} className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 text-xs">
+          <select
+            aria-label="Synced printed product"
+            value={syncProductId}
+            onChange={(e) => setSyncProductId(e.target.value)}
+            className="sm:col-span-3 px-3 py-2 rounded-xl glass-input font-semibold focus:outline-none"
+          >
+            {products.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.title}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="Filament spool used"
+            value={syncSpoolId}
+            onChange={(e) => setSyncSpoolId(e.target.value)}
+            className="sm:col-span-3 px-3 py-2 rounded-xl glass-input font-semibold focus:outline-none"
+          >
+            {spools.map((sp) => (
+              <option key={sp.id} value={sp.id}>
+                {sp.name} ({sp.remainingGrams}g · ₹{sp.costPerKg}/kg)
+              </option>
+            ))}
+          </select>
+          <input
+            type="number"
+            min={1}
+            value={syncBatchQty}
+            onChange={(e) => setSyncBatchQty(e.target.value)}
+            placeholder="Units"
+            aria-label="Completed batch units"
+            className="sm:col-span-1 px-2.5 py-2 rounded-xl glass-input tabular-nums focus:outline-none"
+          />
+          <input
+            type="number"
+            min={1}
+            value={syncGramsUsed}
+            onChange={(e) => setSyncGramsUsed(e.target.value)}
+            placeholder="Grams"
+            aria-label="Filament grams consumed"
+            className="sm:col-span-2 px-3 py-2 rounded-xl glass-input tabular-nums focus:outline-none"
+          />
+          <input
+            type="text"
+            value={syncPrinterLabel}
+            onChange={(e) => setSyncPrinterLabel(e.target.value)}
+            placeholder="Printer / Moonraker"
+            aria-label="Synced printer source"
+            className="sm:col-span-1 px-2.5 py-2 rounded-xl glass-input focus:outline-none"
+          />
+          <button
+            type="submit"
+            className="sm:col-span-2 px-3 py-2 rounded-xl glass-btn-amber text-white font-bold whitespace-nowrap"
+          >
+            Sync Cost &amp; Spool
+          </button>
+        </form>
+      </div>
+
+      {/* 2B. 3D Printer Completed Print Log -> Auto-Deduct Spool & Update COGS */}
+      <div className="glass-surface rounded-2xl p-5 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="font-display text-sm font-bold text-slate-900 dark:text-white">
+              3D Printer Print-Job Costing Sync (Auto-Deduct Spool &amp; Update P&amp;L COGS)
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-zinc-400">
+              Sync a completed Bambu Lab / OctoPrint / Klipper / Moonraker job to deduct spool grams and update unit filament cost
+            </p>
+          </div>
+          {selectedSyncSpool && (
+            <span className="px-3 py-1 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-500/30 text-xs font-bold text-amber-800 dark:text-amber-300 tabular-nums">
+              Est. Material Cost: {formatINR(previewMaterialCostTotal)} ({formatINR(Math.round(previewMaterialCostTotal / Math.max(1, Number(syncBatchQty) || 1)))}/unit)
+            </span>
+          )}
+        </div>
+
+        {syncNotice && (
+          <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-500/30 text-xs font-semibold text-emerald-800 dark:text-emerald-200 flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            <span>{syncNotice}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSyncCompletedPrintJob} className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 text-xs">
+          <select
+            aria-label="Synced printed product"
+            value={syncProductId}
+            onChange={(e) => setSyncProductId(e.target.value)}
+            className="sm:col-span-3 px-3 py-2 rounded-xl glass-input font-semibold focus:outline-none"
+          >
+            {products.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.title}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="Filament spool used"
+            value={syncSpoolId}
+            onChange={(e) => setSyncSpoolId(e.target.value)}
+            className="sm:col-span-3 px-3 py-2 rounded-xl glass-input font-semibold focus:outline-none"
+          >
+            {spools.map((sp) => (
+              <option key={sp.id} value={sp.id}>
+                {sp.name} ({sp.remainingGrams}g · ₹{sp.costPerKg}/kg)
+              </option>
+            ))}
+          </select>
+          <input
+            type="number"
+            min={1}
+            value={syncBatchQty}
+            onChange={(e) => setSyncBatchQty(e.target.value)}
+            placeholder="Units"
+            aria-label="Completed batch units"
+            className="sm:col-span-1 px-2.5 py-2 rounded-xl glass-input tabular-nums focus:outline-none"
+          />
+          <input
+            type="number"
+            min={1}
+            value={syncGramsUsed}
+            onChange={(e) => setSyncGramsUsed(e.target.value)}
+            placeholder="Grams"
+            aria-label="Filament grams consumed"
+            className="sm:col-span-2 px-3 py-2 rounded-xl glass-input tabular-nums focus:outline-none"
+          />
+          <input
+            type="text"
+            value={syncPrinterLabel}
+            onChange={(e) => setSyncPrinterLabel(e.target.value)}
+            placeholder="Printer / Moonraker"
+            aria-label="Synced printer source"
+            className="sm:col-span-1 px-2.5 py-2 rounded-xl glass-input focus:outline-none"
+          />
+          <button
+            type="submit"
+            className="sm:col-span-2 px-3 py-2 rounded-xl glass-btn-amber text-white font-bold whitespace-nowrap"
+          >
+            Sync Cost &amp; Spool
+          </button>
+        </form>
       </div>
 
       {/* 3. Inventory Adjustment History (RMA Restocks & Scrap Quarantines) */}

@@ -27,7 +27,7 @@ export function PwaInstallModal({ isOpen, platform, onClose }: PwaInstallModalPr
       role="dialog"
       aria-modal="true"
       aria-label="How to Install BEE4 App"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/70 backdrop-blur-md"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/65"
       onClick={onClose}
     >
       <div
