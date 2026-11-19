@@ -1,3 +1,4 @@
+if (event.request.url.includes('/admin')) return;
 const SHELL_CACHE = 'bee4-app-shell-v1';
 const RUNTIME_ASSET_CACHE = 'bee4-runtime-assets-v1';
 
