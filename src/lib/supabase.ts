@@ -1074,5 +1074,103 @@ begin
   alter publication supabase_realtime add table public.viral_reels;
 exception when duplicate_object then null;
 end $$;
+
+-- 13. Live Chat Support Tickets & Messages Tables, Policies & Realtime
+create table if not exists public.support_tickets (
+  id text primary key,
+  token_number text not null unique,
+  user_id uuid references auth.users(id) on delete set null,
+  customer_name text not null,
+  customer_phone text not null default '',
+  customer_email text not null default '',
+  subject text not null default 'Customer Support Chat',
+  status text not null default 'Open',
+  needs_executive boolean not null default true,
+  linked_order_number text not null default '',
+  last_message_preview text not null default '',
+  satisfaction_rating integer,
+  satisfaction_feedback text not null default '',
+  closed_by text,
+  closed_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.support_messages (
+  id text primary key,
+  ticket_id text not null references public.support_tickets(id) on delete cascade,
+  token_number text not null,
+  sender text not null default 'customer',
+  sender_name text not null default 'Customer',
+  text text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.support_tickets enable row level security;
+alter table public.support_messages enable row level security;
+
+drop policy if exists "Customers create support_tickets" on public.support_tickets;
+create policy "Customers create support_tickets" on public.support_tickets
+  for insert with check (true);
+
+drop policy if exists "Customers read own support_tickets or admins read all" on public.support_tickets;
+create policy "Customers read own support_tickets or admins read all" on public.support_tickets
+  for select using (
+    auth.uid() = user_id
+    or (customer_email <> '' and lower(customer_email) = lower(coalesce(auth.jwt() ->> 'email', '')))
+    or public.is_bee4_admin()
+  );
+
+drop policy if exists "Customers update own support_tickets or admins manage all" on public.support_tickets;
+create policy "Customers update own support_tickets or admins manage all" on public.support_tickets
+  for update using (
+    auth.uid() = user_id
+    or (customer_email <> '' and lower(customer_email) = lower(coalesce(auth.jwt() ->> 'email', '')))
+    or public.is_bee4_admin()
+  )
+  with check (
+    auth.uid() = user_id
+    or (customer_email <> '' and lower(customer_email) = lower(coalesce(auth.jwt() ->> 'email', '')))
+    or public.is_bee4_admin()
+  );
+
+drop policy if exists "Admins delete support_tickets" on public.support_tickets;
+create policy "Admins delete support_tickets" on public.support_tickets
+  for delete using (public.is_bee4_admin());
+
+drop policy if exists "Anyone insert support_messages" on public.support_messages;
+create policy "Anyone insert support_messages" on public.support_messages
+  for insert with check (true);
+
+drop policy if exists "Ticket owners or admins read support_messages" on public.support_messages;
+create policy "Ticket owners or admins read support_messages" on public.support_messages
+  for select using (
+    public.is_bee4_admin()
+    or exists (
+      select 1 from public.support_tickets t
+      where t.id = support_messages.ticket_id
+        and (
+          t.user_id = auth.uid()
+          or (t.customer_email <> '' and lower(t.customer_email) = lower(coalesce(auth.jwt() ->> 'email', '')))
+        )
+    )
+  );
+
+drop policy if exists "Admins delete support_messages" on public.support_messages;
+create policy "Admins delete support_messages" on public.support_messages
+  for delete using (public.is_bee4_admin());
+
+do $$
+begin
+  alter publication supabase_realtime add table public.support_tickets;
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table public.support_messages;
+exception when duplicate_object then null;
+end $$;
 `;
 }
+

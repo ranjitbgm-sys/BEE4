@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { Smartphone } from 'lucide-react';
 import { BRAND_LOGO_URL } from '../data/catalog';
 import { StorePage } from '../types';
@@ -21,6 +22,22 @@ export function Footer({
   onInstallApp,
   onNavigate,
 }: FooterProps) {
+  const secretTapRef = useRef<{ count: number; lastTapMs: number }>({
+    count: 0,
+    lastTapMs: 0,
+  });
+
+  const handleCopyrightTap = () => {
+    const now = Date.now();
+    const withinWindow = now - secretTapRef.current.lastTapMs <= 2500;
+    const nextCount = withinWindow ? secretTapRef.current.count + 1 : 1;
+    secretTapRef.current = { count: nextCount, lastTapMs: now };
+    if (nextCount >= 5) {
+      secretTapRef.current = { count: 0, lastTapMs: 0 };
+      onNavigate('manager');
+    }
+  };
+
   return (
     <footer className="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 mt-14">
       <div className="max-w-[1200px] mx-auto px-4 sm:px-6 pt-8 pb-24 sm:pb-24">
@@ -101,7 +118,9 @@ export function Footer({
         </div>
 
         <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400">
-          <p>© {new Date().getFullYear()} BEE4 Studio (bee4.in). All rights reserved.</p>
+          <p onClick={handleCopyrightTap} className="select-none">
+            © {new Date().getFullYear()} BEE4 Studio (bee4.in). All rights reserved.
+          </p>
           <p className="tabular-nums">
             Support: {supportEmail} ·{' '}
             <a

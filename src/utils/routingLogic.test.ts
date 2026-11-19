@@ -38,4 +38,40 @@ test('buildAppRoutePath creates clean URL paths', () => {
     buildAppRoutePath({ page: 'manager', adminRoute: 'reels' }),
     '/admin/reels'
   );
+  assert.equal(
+    buildAppRoutePath({ page: 'manager', adminRoute: 'support' }),
+    '/admin/support'
+  );
+  assert.equal(
+    buildAppRoutePath({ page: 'manager', adminRoute: 'messages-qa' }),
+    '/admin/messages-qa'
+  );
+  assert.equal(
+    buildAppRoutePath({ page: 'manager', adminRoute: 'reviews' }),
+    '/admin/reviews'
+  );
 });
+
+test('supports fallback admin entry routes (/studio, ?admin=1, #admin) and split admin sections', () => {
+  assert.deepEqual(parseAppRoute('/admin'), { page: 'manager', adminRoute: 'dashboard' });
+  assert.deepEqual(parseAppRoute('/studio'), { page: 'manager', adminRoute: 'dashboard' });
+  assert.deepEqual(parseAppRoute('/studio/support'), { page: 'manager', adminRoute: 'support' });
+  assert.deepEqual(parseAppRoute('/', '?admin=1'), { page: 'manager', adminRoute: 'dashboard' });
+  assert.deepEqual(parseAppRoute('/', '?admin=1&module=reviews'), {
+    page: 'manager',
+    adminRoute: 'reviews',
+  });
+  assert.deepEqual(parseAppRoute('/', '', '#admin'), {
+    page: 'manager',
+    adminRoute: 'dashboard',
+  });
+  assert.deepEqual(parseAppRoute('/', '', '#admin/messages-qa'), {
+    page: 'manager',
+    adminRoute: 'messages-qa',
+  });
+  assert.deepEqual(parseAppRoute('/admin/messages-reviews'), {
+    page: 'manager',
+    adminRoute: 'messages-qa',
+  });
+});
+

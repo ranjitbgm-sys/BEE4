@@ -61,7 +61,9 @@ export type AdminModuleRoute =
   | 'automations'
   | 'reconciliation'
   | 'analytics'
-  | 'messages-reviews'
+  | 'support'
+  | 'messages-qa'
+  | 'reviews'
   | 'reels'
   | 'products'
   | 'inventory'
@@ -366,6 +368,44 @@ export interface ProductReviewRecord {
   updatedAt: string;
 }
 
+export type SupportTicketStatus =
+  | 'AI Handled'
+  | 'Open'
+  | 'Waiting for Executive'
+  | 'Closed';
+
+export type SupportMessageSender = 'customer' | 'bot' | 'executive';
+
+export interface SupportTicketRecord {
+  id: string;
+  tokenNumber: string;
+  userId?: string | null;
+  customerName: string;
+  customerPhone?: string;
+  customerEmail?: string;
+  subject: string;
+  status: SupportTicketStatus;
+  needsExecutive: boolean;
+  linkedOrderNumber?: string;
+  lastMessagePreview?: string;
+  satisfactionRating?: 1 | 2 | 3 | 4 | 5;
+  satisfactionFeedback?: string;
+  closedBy?: 'Customer' | 'Executive';
+  closedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SupportMessageRecord {
+  id: string;
+  ticketId: string;
+  tokenNumber: string;
+  sender: SupportMessageSender;
+  senderName: string;
+  text: string;
+  createdAt: string;
+}
+
 export interface CustomerPanelControls {
   enableGiftCards: boolean;
   enableLanguageSwitcher: boolean;
@@ -491,6 +531,7 @@ export interface AdminAuditLog {
     | 'automation'
     | 'settlement'
     | 'qa'
+    | 'support'
     | 'auth';
   entityId: string;
   summary: string;

@@ -121,9 +121,19 @@ export function AdminCommandPalette({
     { id: 'discounts', label: 'Discounts & Gifting', hint: 'Coupons & Gift Wrap fee' },
     { id: 'customers', label: 'Customers & CRM', hint: 'LTV, RTO flags & CSV export' },
     {
-      id: 'messages-reviews',
-      label: 'Messages & Reviews',
-      hint: 'Customer notes, WhatsApp replies & review moderation',
+      id: 'support',
+      label: 'Customer Support',
+      hint: 'Live chat desk, support tokens & executive replies',
+    },
+    {
+      id: 'messages-qa',
+      label: 'Messages & Q&A',
+      hint: 'General customer notes & product questions',
+    },
+    {
+      id: 'reviews',
+      label: 'Product Reviews',
+      hint: 'Verified ratings moderation & official BEE4 replies',
     },
     { id: 'settings', label: 'Storefront CMS & Security', hint: 'Hero copy, payments & audit logs' },
   ];

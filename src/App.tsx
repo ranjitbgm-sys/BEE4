@@ -35,6 +35,8 @@ import {
   savePrintJobToSupabase,
   saveProductToSupabase,
   saveStoreSettingsToSupabase,
+  saveSupportMessageToSupabase,
+  saveSupportTicketToSupabase,
   saveViralReelToSupabase,
   seedSupabaseDataAsAdmin,
   signInWithGoogleSupabase,
@@ -52,9 +54,13 @@ import {
   subscribeAllProductQuestionsAdmin,
   subscribeAllProductReviewsAdmin,
   subscribeAllReturnsAdmin,
+  subscribeAllSupportMessagesAdmin,
+  subscribeAllSupportTicketsAdmin,
   subscribeAllViralReelsAdmin,
   subscribeAutomationRulesAdmin,
   subscribeCoupons,
+  subscribeCustomerSupportMessages,
+  subscribeCustomerSupportTickets,
   subscribeFilamentSpoolsAdmin,
   subscribeGiftCards,
   subscribeInventoryAdjustmentsAdmin,
@@ -125,6 +131,9 @@ import {
   SortOption,
   StorePage,
   StoreSettings,
+  SupportMessageRecord,
+  SupportTicketRecord,
+  SupportTicketStatus,
   Testimonial,
   ThemeMode,
   ViralReelRecord,
@@ -179,6 +188,7 @@ import { canCustomerReviewProduct } from './utils/reviewsPolicyLogic';
 import { applyRmaTransitionSync, RmaTransitionUpdates } from './utils/rmaLogic';
 import { buildAppRoutePath, parseAppRoute } from './utils/routingLogic';
 import { applyDocumentSeoMetadata, resolvePageSeoMetadata } from './utils/seoMeta';
+import { generateSupportTokenNumber, mergeSupportMessages } from './utils/supportChatLogic';
 
 const STORAGE_PRODUCTS_KEY = 'bee4_products_v3';
 const STORAGE_CART_KEY = 'bee4_cart_v1';
@@ -189,6 +199,8 @@ const STORAGE_INQUIRIES_KEY = 'bee4_inquiries_v1';
 const STORAGE_CUSTOMER_MESSAGES_KEY = 'bee4_customer_messages_v1';
 const STORAGE_PRODUCT_REVIEWS_KEY = 'bee4_product_reviews_v1';
 const STORAGE_PRODUCT_QUESTIONS_KEY = 'bee4_product_questions_v1';
+const STORAGE_SUPPORT_TICKETS_KEY = 'bee4_support_tickets_v1';
+const STORAGE_SUPPORT_MESSAGES_KEY = 'bee4_support_messages_v1';
 const STORAGE_SETTINGS_KEY = 'bee4_settings_v3';
 const STORAGE_TESTIMONIALS_KEY = 'bee4_testimonials_v2';
 const STORAGE_CUSTOMERS_KEY = 'bee4_customers_v2';
@@ -276,9 +288,8 @@ function resolveCurrentLocationRoute(): {
     return { page: 'home', adminRoute: 'dashboard' };
   }
   const { pathname, search, hash } = window.location;
-  const params = new URLSearchParams(search);
-  const parsed = parseAppRoute(pathname, search);
-  if (parsed.page === 'manager' || hash === '#admin' || params.get('admin') === '1') {
+  const parsed = parseAppRoute(pathname, search, hash);
+  if (parsed.page === 'manager') {
     return {
       page: 'manager',
       adminRoute: parsed.adminRoute ?? 'dashboard',
@@ -358,6 +369,12 @@ export default function App() {
   );
   const [productQuestions, setProductQuestions] = useState<ProductQuestionRecord[]>(() =>
     loadStoredJson<ProductQuestionRecord[]>(STORAGE_PRODUCT_QUESTIONS_KEY, [])
+  );
+  const [supportTickets, setSupportTickets] = useState<SupportTicketRecord[]>(() =>
+    loadStoredJson<SupportTicketRecord[]>(STORAGE_SUPPORT_TICKETS_KEY, [])
+  );
+  const [supportMessages, setSupportMessages] = useState<SupportMessageRecord[]>(() =>
+    loadStoredJson<SupportMessageRecord[]>(STORAGE_SUPPORT_MESSAGES_KEY, [])
   );
   const [settings, setSettings] = useState<StoreSettings>(() => ({
     ...DEFAULT_STORE_SETTINGS,
@@ -644,11 +661,28 @@ export default function App() {
       supabaseCustomer?.phone ?? supabaseUser.phone ?? undefined
     );
 
+    const unsubUserSupportTickets = subscribeCustomerSupportTickets(
+      supabaseUser.id,
+      supabaseUser.email ?? '',
+      (cloudTickets) => {
+        setSupportTickets(cloudTickets);
+      }
+    );
+
+    const unsubUserSupportMessages = subscribeCustomerSupportMessages(
+      supabaseUser.id,
+      (cloudMsgs) => {
+        setSupportMessages((prev) => mergeSupportMessages(prev, cloudMsgs));
+      }
+    );
+
     return () => {
       cancelled = true;
       unsubUserOrders();
       unsubUserReturns();
       unsubUserMessages();
+      unsubUserSupportTickets();
+      unsubUserSupportMessages();
     };
   }, [supabaseAuthReady, supabaseUser, isSupabaseAdmin, supabaseCustomer?.phone]);
 
@@ -722,6 +756,14 @@ export default function App() {
       setViralReels(cloudReels);
     });
 
+    const unsubAdminSupportTickets = subscribeAllSupportTicketsAdmin((cloudTickets) => {
+      setSupportTickets(cloudTickets);
+    });
+
+    const unsubAdminSupportMessages = subscribeAllSupportMessagesAdmin((cloudMsgs) => {
+      setSupportMessages(cloudMsgs);
+    });
+
     return () => {
       unsubAdminOrders();
       unsubAdminReturns();
@@ -738,6 +780,8 @@ export default function App() {
       unsubRules();
       unsubAdSpend();
       unsubAdminReels();
+      unsubAdminSupportTickets();
+      unsubAdminSupportMessages();
     };
   }, [supabaseAuthReady, supabaseUser, isSupabaseAdmin]);
 
@@ -842,6 +886,22 @@ export default function App() {
       // Ignore storage errors
     }
   }, [productQuestions]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(STORAGE_SUPPORT_TICKETS_KEY, JSON.stringify(supportTickets));
+    } catch {
+      // Ignore storage errors
+    }
+  }, [supportTickets]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(STORAGE_SUPPORT_MESSAGES_KEY, JSON.stringify(supportMessages));
+    } catch {
+      // Ignore storage errors
+    }
+  }, [supportMessages]);
 
   useEffect(() => {
     try {
@@ -2205,6 +2265,165 @@ export default function App() {
     );
   };
 
+  const handleCreateSupportTicket = (input: {
+    subject: string;
+    linkedOrderNumber?: string;
+    status: SupportTicketStatus;
+    needsExecutive: boolean;
+    initialMessages: {
+      sender: 'customer' | 'bot' | 'executive';
+      senderName: string;
+      text: string;
+      createdAt: string;
+    }[];
+  }): SupportTicketRecord => {
+    const nowIso = new Date().toISOString();
+    const tokenNumber = generateSupportTokenNumber(supportTickets);
+    const ticketId = `tkt-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const lastMsg = input.initialMessages[input.initialMessages.length - 1];
+    const ticket: SupportTicketRecord = {
+      id: ticketId,
+      tokenNumber,
+      userId: supabaseUser?.id ?? currentCustomer?.id ?? null,
+      customerName: currentCustomer?.fullName || 'BEE4 Customer',
+      customerPhone: currentCustomer?.phone || undefined,
+      customerEmail: currentCustomer?.email || supabaseUser?.email || undefined,
+      subject: input.subject.trim() || 'Live Support Chat',
+      status: input.status,
+      needsExecutive: input.needsExecutive,
+      linkedOrderNumber: input.linkedOrderNumber,
+      lastMessagePreview: lastMsg?.text?.slice(0, 180) || input.subject,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    };
+
+    const seededMsgs: SupportMessageRecord[] = input.initialMessages.map((m, idx) => ({
+      id: `smsg-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
+      ticketId: ticket.id,
+      tokenNumber: ticket.tokenNumber,
+      sender: m.sender,
+      senderName: m.senderName,
+      text: m.text,
+      createdAt: m.createdAt || nowIso,
+    }));
+
+    setSupportTickets((prev) => [ticket, ...prev]);
+    if (seededMsgs.length > 0) {
+      setSupportMessages((prev) => mergeSupportMessages(prev, seededMsgs));
+    }
+
+    if (supabaseDiagnostics.isConfigured) {
+      void saveSupportTicketToSupabase(ticket).catch((err) => console.error(err));
+      for (const msg of seededMsgs) {
+        void saveSupportMessageToSupabase(msg).catch((err) => console.error(err));
+      }
+    }
+
+    return ticket;
+  };
+
+  const handleSendSupportMessage = (
+    ticket: SupportTicketRecord,
+    message: {
+      sender: 'customer' | 'bot' | 'executive';
+      senderName: string;
+      text: string;
+    },
+    ticketUpdates?: Partial<SupportTicketRecord>
+  ) => {
+    const cleanText = message.text.trim();
+    if (!cleanText) return;
+    const nowIso = new Date().toISOString();
+    const record: SupportMessageRecord = {
+      id: `smsg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      ticketId: ticket.id,
+      tokenNumber: ticket.tokenNumber,
+      sender: message.sender,
+      senderName: message.senderName,
+      text: cleanText,
+      createdAt: nowIso,
+    };
+    const updatedTicket: SupportTicketRecord = {
+      ...ticket,
+      ...(ticketUpdates ?? {}),
+      lastMessagePreview: cleanText.slice(0, 180),
+      updatedAt: nowIso,
+    };
+
+    setSupportMessages((prev) => mergeSupportMessages(prev, [record]));
+    setSupportTickets((prev) =>
+      prev.map((t) => (t.id === updatedTicket.id ? updatedTicket : t))
+    );
+
+    if (supabaseDiagnostics.isConfigured) {
+      void saveSupportMessageToSupabase(record).catch((err) => console.error(err));
+      void saveSupportTicketToSupabase(updatedTicket).catch((err) => console.error(err));
+    }
+  };
+
+  const handleUpdateSupportTicket = (updated: SupportTicketRecord) => {
+    const stamped: SupportTicketRecord = {
+      ...updated,
+      updatedAt: new Date().toISOString(),
+    };
+    setSupportTickets((prev) => prev.map((t) => (t.id === stamped.id ? stamped : t)));
+    if (supabaseDiagnostics.isConfigured) {
+      void saveSupportTicketToSupabase(stamped).catch((err) => console.error(err));
+    }
+  };
+
+  const handleSendExecutiveSupportReply = (ticket: SupportTicketRecord, replyText: string) => {
+    const cleanText = replyText.trim();
+    if (!cleanText) return;
+    handleSendSupportMessage(
+      ticket,
+      {
+        sender: 'executive',
+        senderName: 'BEE4 Support Executive',
+        text: cleanText,
+      },
+      {
+        status: 'Open',
+        needsExecutive: true,
+        closedAt: undefined,
+        closedBy: undefined,
+      }
+    );
+    recordAuditLog(
+      'SUPPORT_EXECUTIVE_REPLIED',
+      'support',
+      ticket.tokenNumber,
+      `Executive replied to ${ticket.tokenNumber} (${ticket.customerName}).`
+    );
+  };
+
+  const handleUpdateSupportTicketStatusAdmin = (
+    ticket: SupportTicketRecord,
+    nextStatus: SupportTicketStatus,
+    closedBy?: 'Executive'
+  ) => {
+    const nowIso = new Date().toISOString();
+    const isClosing = nextStatus === 'Closed';
+    const updated: SupportTicketRecord = {
+      ...ticket,
+      status: nextStatus,
+      needsExecutive: isClosing ? false : nextStatus !== 'AI Handled',
+      closedBy: isClosing ? closedBy ?? 'Executive' : undefined,
+      closedAt: isClosing ? nowIso : undefined,
+      updatedAt: nowIso,
+    };
+    setSupportTickets((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+    if (supabaseDiagnostics.isConfigured) {
+      void saveSupportTicketToSupabase(updated).catch((err) => console.error(err));
+    }
+    recordAuditLog(
+      isClosing ? 'SUPPORT_TOKEN_CLOSED' : 'SUPPORT_TOKEN_REOPENED',
+      'support',
+      ticket.tokenNumber,
+      `${isClosing ? 'Resolved & closed' : 'Reopened'} support token ${ticket.tokenNumber} (${ticket.customerName}).`
+    );
+  };
+
   const rawActiveCustomer = supabaseUser
     ? supabaseCustomer
     : customers.find((c) => c.id === currentCustomerId) ?? null;
@@ -2379,6 +2598,8 @@ export default function App() {
     setCustomerMessages([]);
     setProductReviews([]);
     setProductQuestions([]);
+    setSupportTickets([]);
+    setSupportMessages([]);
     setTestimonials([]);
     setCustomers([]);
     setGiftCards([]);
@@ -3076,6 +3297,10 @@ export default function App() {
             giftCards={giftCards}
             customerMessages={customerMessages}
             productQuestions={productQuestions}
+            supportTickets={supportTickets}
+            supportMessages={supportMessages}
+            coupons={coupons}
+            settings={settings}
             products={publicProducts}
             guestWishlistIds={guestWishlistIds}
             whatsappNumber={settings.whatsappNumber}
@@ -3111,6 +3336,9 @@ export default function App() {
             onSubmitCustomerMessage={handleSubmitCustomerMessage}
             onSubmitProductReview={handleSubmitProductReview}
             onSubmitProductQuestion={handleSubmitProductQuestion}
+            onCreateSupportTicket={handleCreateSupportTicket}
+            onSendSupportMessage={handleSendSupportMessage}
+            onUpdateSupportTicket={handleUpdateSupportTicket}
             onSelectProduct={handleSelectProduct}
             onNavigatePage={(p, orderNo) => navigateTo(p, orderNo)}
             onContinueShopping={() => navigateTo('shop')}
@@ -3167,6 +3395,8 @@ export default function App() {
               customerMessages={customerMessages}
               productReviews={productReviews}
               productQuestions={productQuestions}
+              supportTickets={supportTickets}
+              supportMessages={supportMessages}
               customers={customers}
               coupons={coupons}
               giftCards={giftCards}
@@ -3217,6 +3447,8 @@ export default function App() {
               onDeleteProductReview={handleDeleteProductReview}
               onSaveProductQuestion={handleSaveProductQuestionAdmin}
               onDeleteProductQuestion={handleDeleteProductQuestionAdmin}
+              onSendExecutiveSupportReply={handleSendExecutiveSupportReply}
+              onUpdateSupportTicketStatus={handleUpdateSupportTicketStatusAdmin}
               onSaveIntegration={handleSaveIntegration}
               onSavePrinterIntegration={handleSavePrinterIntegration}
               onImportOrders={handleImportMarketplaceOrders}

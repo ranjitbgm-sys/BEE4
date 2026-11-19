@@ -135,10 +135,11 @@ export function ProductDetailView({
       const now = new Date().toISOString();
       onSubmitProductQuestion({
         id: `qa-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        userId: currentCustomer?.id ?? null,
         productId: product.id,
         productName: product.title,
         customerName: qaName.trim(),
-        customerContact: qaContact.trim(),
+        customerContact: qaContact.trim() || currentCustomer?.phone || currentCustomer?.email || '',
         question: qaText.trim(),
         status: 'Pending',
         createdAt: now,

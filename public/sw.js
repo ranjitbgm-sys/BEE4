@@ -1,6 +1,5 @@
-if (event.request.url.includes('/admin')) return;
-const SHELL_CACHE = 'bee4-app-shell-v1';
-const RUNTIME_ASSET_CACHE = 'bee4-runtime-assets-v1';
+const SHELL_CACHE = 'bee4-app-shell-v2';
+const RUNTIME_ASSET_CACHE = 'bee4-runtime-assets-v2';
 
 const APP_SHELL_URLS = [
   '/',
@@ -152,12 +151,17 @@ self.addEventListener('fetch', (event) => {
 
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
 
+  // Always bypass Admin Studio routes so the Service Worker never intercepts, caches, or returns 503/offline
+  if (url.pathname.startsWith('/admin') || url.pathname.startsWith('/studio')) {
+    return;
+  }
+
   // Always network-only for external APIs, live data endpoints, and server routes
   if (url.origin !== self.location.origin || url.pathname.startsWith('/api/')) {
     return;
   }
 
-  // Never interfere with Vite dev modules, HMR, or live /admin navigation caches
+  // Never interfere with Vite dev modules or HMR
   if (isViteDevOrModuleAsset(url)) {
     return;
   }

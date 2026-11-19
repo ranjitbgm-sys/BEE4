@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Cloud,
   Film,
+  Headphones,
   IndianRupee,
   LayoutDashboard,
   Lock,
@@ -22,6 +23,7 @@ import {
   Settings,
   ShieldCheck,
   ShoppingBag,
+  Star,
   Sun,
   Tag,
   Users,
@@ -35,7 +37,9 @@ interface AdminShellProps {
   theme: ThemeMode;
   pendingDispatchCount: number;
   pendingReturnsCount?: number;
-  messagesReviewsBadgeCount?: number;
+  openSupportTicketsCount?: number;
+  messagesQaBadgeCount?: number;
+  pendingReviewsCount?: number;
   lowStockCount: number;
   totalOrdersCount: number;
   totalProductsCount: number;
@@ -68,7 +72,9 @@ const MODULE_META: Record<AdminModuleRoute, { title: string; group: string }> = 
   reels: { title: 'Product Viral Reels', group: 'Merchandising' },
   discounts: { title: 'Discounts & Gifting', group: 'Merchandising' },
   customers: { title: 'Customers & CRM', group: 'Merchandising' },
-  'messages-reviews': { title: 'Messages & Reviews', group: 'Merchandising' },
+  support: { title: 'Customer Support Desk', group: 'Support & Feedback' },
+  'messages-qa': { title: 'Messages & Product Q&A', group: 'Support & Feedback' },
+  reviews: { title: 'Product Reviews & Ratings', group: 'Support & Feedback' },
   settings: { title: 'Storefront CMS & Security', group: 'Storefront & System' },
 };
 
@@ -77,7 +83,9 @@ export function AdminShell({
   theme,
   pendingDispatchCount,
   pendingReturnsCount = 0,
-  messagesReviewsBadgeCount = 0,
+  openSupportTicketsCount = 0,
+  messagesQaBadgeCount = 0,
+  pendingReviewsCount = 0,
   lowStockCount,
   totalOrdersCount,
   totalProductsCount,
@@ -166,12 +174,31 @@ export function AdminShell({
         { id: 'reels', label: 'Viral Reels', icon: Film },
         { id: 'discounts', label: 'Discounts & Gifts', icon: Tag },
         { id: 'customers', label: 'Customers CRM', icon: Users },
+      ],
+    },
+    {
+      group: 'Support & Feedback',
+      items: [
         {
-          id: 'messages-reviews',
-          label: 'Messages & Reviews',
+          id: 'support',
+          label: 'Customer Support',
+          icon: Headphones,
+          badge: openSupportTicketsCount > 0 ? openSupportTicketsCount : undefined,
+          badgeTone: openSupportTicketsCount > 0 ? 'amber' : 'neutral',
+        },
+        {
+          id: 'messages-qa',
+          label: 'Messages & Q&A',
           icon: MessageSquareText,
-          badge: messagesReviewsBadgeCount > 0 ? messagesReviewsBadgeCount : undefined,
-          badgeTone: messagesReviewsBadgeCount > 0 ? 'amber' : 'neutral',
+          badge: messagesQaBadgeCount > 0 ? messagesQaBadgeCount : undefined,
+          badgeTone: messagesQaBadgeCount > 0 ? 'amber' : 'neutral',
+        },
+        {
+          id: 'reviews',
+          label: 'Product Reviews',
+          icon: Star,
+          badge: pendingReviewsCount > 0 ? pendingReviewsCount : undefined,
+          badgeTone: pendingReviewsCount > 0 ? 'amber' : 'neutral',
         },
       ],
     },

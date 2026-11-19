@@ -53,6 +53,10 @@ import {
   ProductReviewRecord,
   ProductReviewStatus,
   ProductVisibilityStatus,
+  SupportMessageRecord,
+  SupportMessageSender,
+  SupportTicketRecord,
+  SupportTicketStatus,
   RefundMode,
   ReturnItemEntry,
   ReturnReason,
@@ -4156,3 +4160,264 @@ export async function uploadReelVideoToSupabaseStorage(
     return { url: fallbackObjectUrl, storageMode: 'local-fallback' };
   }
 }
+
+// ============================================================================
+// Live Chat Support Tickets & Messages (Customer Help Center <-> Admin Desk)
+// ============================================================================
+
+function fromSupportTicketRow(d: Record<string, unknown>): SupportTicketRecord {
+  const rawStatus = String(d.status ?? 'Open');
+  const status: SupportTicketStatus =
+    rawStatus === 'AI Handled' ||
+    rawStatus === 'Open' ||
+    rawStatus === 'Waiting for Executive' ||
+    rawStatus === 'Closed'
+      ? rawStatus
+      : 'Open';
+  const ratingRaw = Number(d.satisfaction_rating ?? d.satisfactionRating ?? 0);
+  const satisfactionRating =
+    ratingRaw >= 1 && ratingRaw <= 5 ? (Math.round(ratingRaw) as 1 | 2 | 3 | 4 | 5) : undefined;
+  const closedByRaw = d.closed_by ?? d.closedBy;
+
+  return {
+    id: String(d.id ?? ''),
+    tokenNumber: String(d.token_number ?? d.tokenNumber ?? 'TKT-BEE4-1001'),
+    userId: d.user_id ? String(d.user_id) : d.userId ? String(d.userId) : null,
+    customerName: String(d.customer_name ?? d.customerName ?? 'BEE4 Customer'),
+    customerPhone: String(d.customer_phone ?? d.customerPhone ?? '') || undefined,
+    customerEmail: String(d.customer_email ?? d.customerEmail ?? '') || undefined,
+    subject: String(d.subject ?? 'Customer Support Chat'),
+    status,
+    needsExecutive: Boolean(d.needs_executive ?? d.needsExecutive ?? status !== 'AI Handled'),
+    linkedOrderNumber: String(d.linked_order_number ?? d.linkedOrderNumber ?? '') || undefined,
+    lastMessagePreview: String(d.last_message_preview ?? d.lastMessagePreview ?? '') || undefined,
+    satisfactionRating,
+    satisfactionFeedback:
+      String(d.satisfaction_feedback ?? d.satisfactionFeedback ?? '') || undefined,
+    closedBy:
+      closedByRaw === 'Customer' || closedByRaw === 'Executive' ? closedByRaw : undefined,
+    closedAt:
+      typeof (d.closed_at ?? d.closedAt) === 'string' && String(d.closed_at ?? d.closedAt)
+        ? String(d.closed_at ?? d.closedAt)
+        : undefined,
+    createdAt: String(d.created_at ?? d.createdAt ?? new Date().toISOString()),
+    updatedAt: String(d.updated_at ?? d.updatedAt ?? new Date().toISOString()),
+  };
+}
+
+function fromSupportMessageRow(d: Record<string, unknown>): SupportMessageRecord {
+  const rawSender = String(d.sender ?? 'customer');
+  const sender: SupportMessageSender =
+    rawSender === 'bot' || rawSender === 'executive' ? rawSender : 'customer';
+  return {
+    id: String(d.id ?? ''),
+    ticketId: String(d.ticket_id ?? d.ticketId ?? ''),
+    tokenNumber: String(d.token_number ?? d.tokenNumber ?? ''),
+    sender,
+    senderName: String(d.sender_name ?? d.senderName ?? 'Customer'),
+    text: String(d.text ?? ''),
+    createdAt: String(d.created_at ?? d.createdAt ?? new Date().toISOString()),
+  };
+}
+
+export function subscribeCustomerSupportTickets(
+  userId: string,
+  customerEmail: string,
+  onData: (tickets: SupportTicketRecord[]) => void
+): () => void {
+  const client = supabase;
+  if (!client || (!userId && !customerEmail)) return () => {};
+
+  const load = async () => {
+    try {
+      const { data, error } = await client
+        .from('support_tickets')
+        .select('*')
+        .order('updated_at', { ascending: false });
+      if (error || !data) return;
+      const cleanEmail = customerEmail.trim().toLowerCase();
+      const mapped = data
+        .map((r) => fromSupportTicketRow(r as Record<string, unknown>))
+        .filter(
+          (t) =>
+            (userId && t.userId === userId) ||
+            (cleanEmail && (t.customerEmail || '').trim().toLowerCase() === cleanEmail)
+        );
+      onData(mapped);
+    } catch {
+      // Optional table fallback
+    }
+  };
+
+  void load();
+
+  const channel = client
+    .channel(`bee4-customer-support-tickets-${sanitizeId(userId || customerEmail, 'cust')}`)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'support_tickets' }, () => {
+      void load();
+    })
+    .subscribe();
+
+  return () => {
+    void client.removeChannel(channel);
+  };
+}
+
+export function subscribeCustomerSupportMessages(
+  userId: string,
+  onData: (messages: SupportMessageRecord[]) => void
+): () => void {
+  const client = supabase;
+  if (!client || !userId) return () => {};
+
+  const load = async () => {
+    try {
+      const { data, error } = await client
+        .from('support_messages')
+        .select('*')
+        .order('created_at', { ascending: true });
+      if (error || !data) return;
+      onData(data.map((r) => fromSupportMessageRow(r as Record<string, unknown>)));
+    } catch {
+      // Optional table fallback
+    }
+  };
+
+  void load();
+
+  const channel = client
+    .channel(`bee4-customer-support-msgs-${sanitizeId(userId, 'cust')}`)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'support_messages' }, () => {
+      void load();
+    })
+    .subscribe();
+
+  return () => {
+    void client.removeChannel(channel);
+  };
+}
+
+export function subscribeAllSupportTicketsAdmin(
+  onData: (tickets: SupportTicketRecord[]) => void
+): () => void {
+  const client = supabase;
+  if (!client) return () => {};
+
+  const load = async () => {
+    try {
+      const { data, error } = await client
+        .from('support_tickets')
+        .select('*')
+        .order('updated_at', { ascending: false });
+      if (error || !data) return;
+      onData(data.map((r) => fromSupportTicketRow(r as Record<string, unknown>)));
+    } catch {
+      // Optional table fallback
+    }
+  };
+
+  void load();
+
+  const channel = client
+    .channel('bee4-admin-support-tickets')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'support_tickets' }, () => {
+      void load();
+    })
+    .subscribe();
+
+  return () => {
+    void client.removeChannel(channel);
+  };
+}
+
+export function subscribeAllSupportMessagesAdmin(
+  onData: (messages: SupportMessageRecord[]) => void
+): () => void {
+  const client = supabase;
+  if (!client) return () => {};
+
+  const load = async () => {
+    try {
+      const { data, error } = await client
+        .from('support_messages')
+        .select('*')
+        .order('created_at', { ascending: true });
+      if (error || !data) return;
+      onData(data.map((r) => fromSupportMessageRow(r as Record<string, unknown>)));
+    } catch {
+      // Optional table fallback
+    }
+  };
+
+  void load();
+
+  const channel = client
+    .channel('bee4-admin-support-messages')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'support_messages' }, () => {
+      void load();
+    })
+    .subscribe();
+
+  return () => {
+    void client.removeChannel(channel);
+  };
+}
+
+export async function saveSupportTicketToSupabase(ticket: SupportTicketRecord): Promise<void> {
+  const client = supabase;
+  if (!client) return;
+  try {
+    const payload = {
+      id: sanitizeId(ticket.id, 'tkt'),
+      token_number: clampSingleLine(ticket.tokenNumber, 40, 'TKT-BEE4-1001'),
+      user_id: asUuidOrNull(ticket.userId),
+      customer_name: clampSingleLine(ticket.customerName, 120, 'BEE4 Customer'),
+      customer_phone: clampSingleLine(ticket.customerPhone ?? '', 24),
+      customer_email: clampSingleLine(ticket.customerEmail ?? '', 160),
+      subject: clampSingleLine(ticket.subject, 160, 'Customer Support Chat'),
+      status: ticket.status,
+      needs_executive: Boolean(ticket.needsExecutive),
+      linked_order_number: clampSingleLine(ticket.linkedOrderNumber ?? '', 64),
+      last_message_preview: clampStr(ticket.lastMessagePreview ?? '', 240),
+      satisfaction_rating: ticket.satisfactionRating ?? null,
+      satisfaction_feedback: clampStr(ticket.satisfactionFeedback ?? '', 500),
+      closed_by: ticket.closedBy ?? null,
+      closed_at: ticket.closedAt ?? null,
+      created_at: ticket.createdAt || new Date().toISOString(),
+      updated_at: ticket.updatedAt || new Date().toISOString(),
+    };
+    const { error } = await client
+      .from('support_tickets')
+      .upsert(payload, { onConflict: 'id' });
+    if (error && !isMissingSchemaError(error)) {
+      console.error('[BEE4 Support] saveSupportTicket error:', error.message);
+    }
+  } catch {
+    // Graceful local fallback
+  }
+}
+
+export async function saveSupportMessageToSupabase(message: SupportMessageRecord): Promise<void> {
+  const client = supabase;
+  if (!client) return;
+  try {
+    const payload = {
+      id: sanitizeId(message.id, 'smsg'),
+      ticket_id: sanitizeId(message.ticketId, 'tkt'),
+      token_number: clampSingleLine(message.tokenNumber, 40, 'TKT-BEE4-1001'),
+      sender: message.sender,
+      sender_name: clampSingleLine(message.senderName, 100, 'Customer'),
+      text: clampStr(message.text, 2000, ''),
+      created_at: message.createdAt || new Date().toISOString(),
+    };
+    const { error } = await client
+      .from('support_messages')
+      .upsert(payload, { onConflict: 'id' });
+    if (error && !isMissingSchemaError(error)) {
+      console.error('[BEE4 Support] saveSupportMessage error:', error.message);
+    }
+  } catch {
+    // Graceful local fallback
+  }
+}
+

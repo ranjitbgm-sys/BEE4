@@ -26,6 +26,8 @@ import type {
   ProductReviewRecord,
   ReturnRequestRecord,
   StoreSettings,
+  SupportMessageRecord,
+  SupportTicketRecord,
   ThemeMode,
   ViralReelRecord,
 } from '../types';
@@ -33,7 +35,7 @@ import {
   buildCustomerCrmList,
   buildExecutiveDashboardSummary,
 } from '../utils/adminLogic';
-import { calculateMessagesReviewsBadgeCount } from '../utils/messagesReviewsLogic';
+import { isTicketOpenForExecutive } from '../utils/supportChatLogic';
 import type { RmaTransitionUpdates } from '../utils/rmaLogic';
 import { AdminShell } from './admin/AdminShell';
 import { AdminCommandPalette } from './admin/AdminCommandPalette';
@@ -44,7 +46,9 @@ import { AdminProductsTab } from './admin/AdminProductsTab';
 import { AdminInventoryTab } from './admin/AdminInventoryTab';
 import { AdminDiscountsTab } from './admin/AdminDiscountsTab';
 import { AdminCustomersTab } from './admin/AdminCustomersTab';
-import { AdminMessagesReviewsTab } from './admin/AdminMessagesReviewsTab';
+import { AdminSupportTab } from './admin/AdminSupportTab';
+import { AdminMessagesQaTab } from './admin/AdminMessagesQaTab';
+import { AdminReviewsTab } from './admin/AdminReviewsTab';
 import { AdminIntegrationsTab } from './admin/AdminIntegrationsTab';
 import { AdminAutomationsTab } from './admin/AdminAutomationsTab';
 import { AdminReconciliationTab } from './admin/AdminReconciliationTab';
@@ -63,6 +67,8 @@ interface AdminPanelViewProps {
   customerMessages?: CustomerMessageRecord[];
   productReviews?: ProductReviewRecord[];
   productQuestions?: ProductQuestionRecord[];
+  supportTickets?: SupportTicketRecord[];
+  supportMessages?: SupportMessageRecord[];
   customers: CustomerProfile[];
   coupons: CouponRecord[];
   giftCards?: GiftCardRecord[];
@@ -147,6 +153,12 @@ interface AdminPanelViewProps {
   onDeleteProductReview?: (id: string) => void;
   onSaveProductQuestion?: (question: ProductQuestionRecord) => void;
   onDeleteProductQuestion?: (id: string) => void;
+  onSendExecutiveSupportReply?: (ticket: SupportTicketRecord, replyText: string) => void;
+  onUpdateSupportTicketStatus?: (
+    ticket: SupportTicketRecord,
+    nextStatus: SupportTicketRecord['status'],
+    closedBy?: 'Executive'
+  ) => void;
   onSaveIntegration?: (config: MarketplaceIntegrationConfig) => void;
   onSavePrinterIntegration?: (printer: PrinterIntegrationConfig) => void;
   onImportOrders?: (orders: OrderRecord[], channel: MarketplaceChannel) => void;
@@ -174,6 +186,8 @@ export function AdminPanelView({
   customerMessages = [],
   productReviews = [],
   productQuestions = [],
+  supportTickets = [],
+  supportMessages = [],
   customers,
   coupons,
   giftCards = [],
@@ -224,6 +238,8 @@ export function AdminPanelView({
   onDeleteProductReview,
   onSaveProductQuestion,
   onDeleteProductQuestion,
+  onSendExecutiveSupportReply,
+  onUpdateSupportTicketStatus,
   onSaveIntegration,
   onSavePrinterIntegration,
   onImportOrders,
@@ -269,11 +285,21 @@ export function AdminPanelView({
     [returns]
   );
 
-  const messagesReviewsBadgeCount = useMemo(
+  const openSupportTicketsCount = useMemo(
+    () => supportTickets.filter((t) => isTicketOpenForExecutive(t)).length,
+    [supportTickets]
+  );
+
+  const messagesQaBadgeCount = useMemo(
     () =>
-      calculateMessagesReviewsBadgeCount(customerMessages, productReviews) +
+      customerMessages.filter((m) => m.status === 'Unread').length +
       productQuestions.filter((q) => q.status === 'Pending').length,
-    [customerMessages, productReviews, productQuestions]
+    [customerMessages, productQuestions]
+  );
+
+  const pendingReviewsCount = useMemo(
+    () => productReviews.filter((r) => r.status === 'Pending').length,
+    [productReviews]
   );
 
   const crmCustomers = useMemo(
@@ -301,7 +327,9 @@ export function AdminPanelView({
         theme={theme}
         pendingDispatchCount={executiveSummary.immediateDispatchOrders.length}
         pendingReturnsCount={pendingReturnsCount}
-        messagesReviewsBadgeCount={messagesReviewsBadgeCount}
+        openSupportTicketsCount={openSupportTicketsCount}
+        messagesQaBadgeCount={messagesQaBadgeCount}
+        pendingReviewsCount={pendingReviewsCount}
         lowStockCount={executiveSummary.lowStockProducts.length}
         totalOrdersCount={orders.length}
         totalProductsCount={products.length}
@@ -623,12 +651,28 @@ export function AdminPanelView({
           />
         )}
 
-        {activeModule === 'messages-reviews' && (
-          <AdminMessagesReviewsTab
+        {activeModule === 'support' && (
+          <AdminSupportTab
+            tickets={supportTickets}
+            messages={supportMessages}
+            orders={orders}
+            customers={customers}
+            whatsappNumber={settings.whatsappNumber}
+            onSendExecutiveReply={(ticket, replyText) => {
+              onSendExecutiveSupportReply?.(ticket, replyText);
+              notify(`Sent executive reply on Token #${ticket.tokenNumber}.`);
+            }}
+            onUpdateTicketStatus={(ticket, nextStatus, closedBy) => {
+              onUpdateSupportTicketStatus?.(ticket, nextStatus, closedBy);
+              notify(`Updated Token #${ticket.tokenNumber} -> ${nextStatus}.`);
+            }}
+          />
+        )}
+
+        {activeModule === 'messages-qa' && (
+          <AdminMessagesQaTab
             messages={customerMessages}
-            reviews={productReviews}
             productQuestions={productQuestions}
-            products={products}
             onUpdateMessage={(updated) => {
               onUpdateCustomerMessage?.(updated);
               notify(`Updated note from ${updated.customerName} (${updated.status}).`);
@@ -641,6 +685,21 @@ export function AdminPanelView({
               onBulkDeleteCustomerMessages?.(ids);
               notify(`Deleted ${ids.length} customer message(s).`);
             }}
+            onSaveQuestion={(q) => {
+              onSaveProductQuestion?.(q);
+              notify(`Published Team BEE4 answer for ${q.productName}.`);
+            }}
+            onDeleteQuestion={(id) => {
+              onDeleteProductQuestion?.(id);
+              notify('Deleted product question.');
+            }}
+          />
+        )}
+
+        {activeModule === 'reviews' && (
+          <AdminReviewsTab
+            reviews={productReviews}
+            products={products}
             onSaveReview={(review, isNew) => {
               onSaveProductReview?.(review, isNew);
               notify(
@@ -653,14 +712,6 @@ export function AdminPanelView({
               onDeleteProductReview?.(id);
               notify('Deleted product review and recalculated ratings.');
             }}
-            onSaveQuestion={(q) => {
-              onSaveProductQuestion?.(q);
-              notify(`Published Team BEE4 answer for ${q.productName}.`);
-            }}
-            onDeleteQuestion={(id) => {
-              onDeleteProductQuestion?.(id);
-              notify('Deleted product question.');
-            }}
           />
         )}
 
@@ -670,7 +721,7 @@ export function AdminPanelView({
             adminPasswordHash={adminPasswordHash}
             inquiries={inquiries}
             auditLogs={auditLogs}
-            onOpenMessagesReviews={() => onSelectModule('messages-reviews')}
+            onOpenMessagesReviews={() => onSelectModule('messages-qa')}
             onUpdateSettings={(next) => {
               onUpdateSettings(next);
               notify('Published storefront CMS, payment, and fee changes live.');

@@ -17,7 +17,9 @@ const VALID_ADMIN_ROUTES: ReadonlySet<AdminModuleRoute> = new Set([
   'automations',
   'reconciliation',
   'analytics',
-  'messages-reviews',
+  'support',
+  'messages-qa',
+  'reviews',
   'reels',
   'products',
   'inventory',
@@ -26,19 +28,49 @@ const VALID_ADMIN_ROUTES: ReadonlySet<AdminModuleRoute> = new Set([
   'settings',
 ]);
 
+function normalizeAdminSegment(rawSeg: string): AdminModuleRoute {
+  const cleaned = (rawSeg || '').trim().toLowerCase().replace(/^\/+|\/+$/g, '');
+  if (cleaned === 'messages-reviews') return 'messages-qa';
+  if (VALID_ADMIN_ROUTES.has(cleaned as AdminModuleRoute)) {
+    return cleaned as AdminModuleRoute;
+  }
+  return 'dashboard';
+}
+
 export function parseAppRoute(
   pathname: string,
-  search = ''
+  search = '',
+  hash = ''
 ): ParsedAppRoute {
   const cleanPath = (pathname || '/').replace(/\/+$/, '') || '/';
   const params = new URLSearchParams(search || '');
+  const cleanHash = (hash || '').trim().replace(/^#/, '');
   const productParam = params.get('product') || undefined;
   const pageParam = params.get('page') || undefined;
 
   if (cleanPath === '/admin' || cleanPath.startsWith('/admin/')) {
-    const seg = cleanPath.replace(/^\/admin\/?/, '') as AdminModuleRoute;
-    const adminRoute: AdminModuleRoute = VALID_ADMIN_ROUTES.has(seg) ? seg : 'dashboard';
-    return { page: 'manager', adminRoute };
+    const seg = cleanPath.replace(/^\/admin\/?/, '');
+    return { page: 'manager', adminRoute: normalizeAdminSegment(seg) };
+  }
+
+  if (cleanPath === '/studio' || cleanPath.startsWith('/studio/')) {
+    const seg = cleanPath.replace(/^\/studio\/?/, '');
+    return { page: 'manager', adminRoute: normalizeAdminSegment(seg) };
+  }
+
+  if (params.get('admin') === '1' || params.get('studio') === '1') {
+    const mod = params.get('module') || params.get('tab') || '';
+    return { page: 'manager', adminRoute: normalizeAdminSegment(mod) };
+  }
+
+  if (
+    cleanHash === 'admin' ||
+    cleanHash.startsWith('admin/') ||
+    cleanHash === 'studio' ||
+    cleanHash.startsWith('studio/')
+  ) {
+    const seg = cleanHash.replace(/^(?:admin|studio)\/?/, '');
+    return { page: 'manager', adminRoute: normalizeAdminSegment(seg) };
   }
 
   if (cleanPath === '/orders') {

@@ -42,7 +42,7 @@ import {
   User,
   Wallet,
 } from 'lucide-react';
-import { INDIAN_STATES } from '../data/catalog';
+import { DEFAULT_STORE_SETTINGS, INDIAN_STATES } from '../data/catalog';
 import {
   resendCustomerVerificationEmailSupabase,
   updateSupabaseUserPassword,
@@ -52,6 +52,7 @@ import {
 import {
   AddressLabel,
   CartItem,
+  CouponRecord,
   CustomerCustomDesign,
   CustomerGender,
   CustomerMessageRecord,
@@ -69,6 +70,10 @@ import {
   SavedAddress,
   SavedAddressErrors,
   StorePage,
+  StoreSettings,
+  SupportMessageRecord,
+  SupportTicketRecord,
+  SupportTicketStatus,
 } from '../types';
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
@@ -101,6 +106,7 @@ import {
 import { CancelOrderModal } from './CancelOrderModal';
 import { CustomerReturnModal } from './CustomerReturnModal';
 import { ProductImage } from './ProductImage';
+import { SupportLiveChatPanel } from './account/SupportLiveChatPanel';
 import { UnifiedAuthView } from './account/UnifiedAuthView';
 
 export type CustomerAccountTab =
@@ -123,6 +129,10 @@ interface CustomerAccountViewProps {
   giftCards?: GiftCardRecord[];
   customerMessages?: CustomerMessageRecord[];
   productQuestions?: ProductQuestionRecord[];
+  supportTickets?: SupportTicketRecord[];
+  supportMessages?: SupportMessageRecord[];
+  coupons?: CouponRecord[];
+  settings?: StoreSettings;
   products: Product[];
   guestWishlistIds: string[];
   whatsappNumber: string;
@@ -164,6 +174,28 @@ interface CustomerAccountViewProps {
   ) => Promise<{ ok: boolean; error?: string } | void> | void;
   onSubmitProductReview?: (review: ProductReviewRecord) => void;
   onSubmitProductQuestion?: (question: ProductQuestionRecord) => void;
+  onCreateSupportTicket?: (input: {
+    subject: string;
+    linkedOrderNumber?: string;
+    status: SupportTicketStatus;
+    needsExecutive: boolean;
+    initialMessages: {
+      sender: 'customer' | 'bot' | 'executive';
+      senderName: string;
+      text: string;
+      createdAt: string;
+    }[];
+  }) => SupportTicketRecord;
+  onSendSupportMessage?: (
+    ticket: SupportTicketRecord,
+    message: {
+      sender: 'customer' | 'bot' | 'executive';
+      senderName: string;
+      text: string;
+    },
+    ticketUpdates?: Partial<SupportTicketRecord>
+  ) => void;
+  onUpdateSupportTicket?: (updated: SupportTicketRecord) => void;
   onSelectProduct: (productId: string) => void;
   onNavigatePage?: (page: StorePage, orderNumber?: string) => void;
   onContinueShopping: () => void;
@@ -226,6 +258,10 @@ export function CustomerAccountView({
   giftCards = [],
   customerMessages = [],
   productQuestions = [],
+  supportTickets = [],
+  supportMessages = [],
+  coupons = [],
+  settings = DEFAULT_STORE_SETTINGS,
   products,
   guestWishlistIds,
   whatsappNumber,
@@ -258,6 +294,9 @@ export function CustomerAccountView({
   onSubmitCustomerMessage,
   onSubmitProductReview,
   onSubmitProductQuestion,
+  onCreateSupportTicket,
+  onSendSupportMessage,
+  onUpdateSupportTicket,
   onSelectProduct,
   onNavigatePage,
   onContinueShopping,
@@ -1027,7 +1066,7 @@ export function CustomerAccountView({
           </div>
           <p className="mt-2 text-sm font-bold text-slate-900 dark:text-white">Help Center</p>
           <p className="text-[11px] text-slate-500 dark:text-zinc-400">
-            Support messages &amp; FAQs
+            Live AI Chat, Tokens &amp; FAQs
           </p>
         </button>
       </div>
@@ -2448,9 +2487,26 @@ export function CustomerAccountView({
         </div>
       )}
 
-      {/* TAB: SUPPORT TICKETS & FAQs */}
+      {/* TAB: HELP CENTER — LIVE AI & EXECUTIVE CHAT + SUPPORT NOTES & FAQS */}
       {activeTab === 'support' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="space-y-6">
+          {onCreateSupportTicket && onSendSupportMessage && onUpdateSupportTicket && (
+            <SupportLiveChatPanel
+              customer={currentCustomer}
+              customerOrders={myOrders}
+              products={products}
+              settings={settings}
+              coupons={coupons}
+              tickets={supportTickets}
+              messages={supportMessages}
+              whatsappNumber={whatsappNumber}
+              onCreateSupportTicket={onCreateSupportTicket}
+              onSendSupportMessage={onSendSupportMessage}
+              onUpdateSupportTicket={onUpdateSupportTicket}
+            />
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           <div className="lg:col-span-6 glass-surface rounded-2xl p-6 space-y-5">
             <div>
               <h2 className="font-display text-lg font-bold text-slate-900 dark:text-white">
@@ -2624,6 +2680,7 @@ export function CustomerAccountView({
                 );
               })}
             </div>
+          </div>
           </div>
         </div>
       )}

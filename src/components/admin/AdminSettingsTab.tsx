@@ -987,7 +987,7 @@ export function AdminSettingsTab({
               onClick={onOpenMessagesReviews}
               className="px-3 py-1.5 rounded-xl glass-btn-amber text-white text-xs font-semibold"
             >
-              Open Messages &amp; Reviews Hub →
+              Open Messages &amp; Q&amp;A Hub →
             </button>
           )}
         </div>
